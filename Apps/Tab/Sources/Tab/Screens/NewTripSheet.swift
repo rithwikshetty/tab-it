@@ -9,6 +9,7 @@ struct NewTripSheet: View {
 
     @State private var name: String = ""
     @State private var isSaving = false
+    @State private var showingImport = false
     @FocusState private var nameFocused: Bool
 
     private var canCreate: Bool {
@@ -43,10 +44,40 @@ struct NewTripSheet: View {
                         .padding(.top, 18)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                    Button {
+                        showingImport = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "tray.and.arrow.down")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Import from Splitwise")
+                                .font(.system(size: 14, weight: .medium))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Sage.textSecondary)
+                        }
+                        .foregroundStyle(Sage.accent)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(Sage.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Sage.cardBorder, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 28)
+                    .accessibilityIdentifier("newTrip.importButton")
+
                     Spacer(minLength: 32)
                 }
             }
             .background(Sage.bg.ignoresSafeArea())
+            .sheet(isPresented: $showingImport) {
+                ImportFromSplitwiseSheet(onComplete: { dismiss() })
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }

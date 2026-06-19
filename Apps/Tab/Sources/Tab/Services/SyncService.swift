@@ -94,10 +94,10 @@ final class SyncService {
         }
     }
 
-    func addTripPerson(tripID: UUID, email: String, displayName: String? = nil) async throws {
+    @discardableResult
+    func addTripPerson(tripID: UUID, email: String, displayName: String? = nil, personID: UUID = UUID()) async throws -> UUID {
         try await ensureTripUploaded(tripID: tripID)
 
-        let personID = UUID()
         let row: TripPersonDTO = try await client
             .rpc("add_trip_person_by_email", params: [
                 "p_trip_id": AnyJSON.string(tripID.uuidString),
@@ -111,6 +111,7 @@ final class SyncService {
         let ctx = container.mainContext
         try SyncMerge.apply(row, in: ctx)
         try ctx.save()
+        return row.id
     }
 
     func suggestTripPeople(query: String? = nil) async throws -> [TripPersonSuggestionDTO] {
@@ -776,7 +777,11 @@ final class SyncService {
                 }
                 continue
             }
-            guard let tripID = settlement.trip?.id else { continue }
+            guard let trip = settlement.trip else { continue }
+            let tripID = trip.id
+            // Don't push settlements under a soft-deleted trip — the server
+            // validates the parent trip is active and would reject.
+            if trip.deletedAt != nil { continue }
             let insert = SettlementInsertDTO(
                 id: settlement.id,
                 tripID: tripID,
