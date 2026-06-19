@@ -117,6 +117,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["TAB_MOCK_AUTH"] = "1"
         app.launchEnvironment["TAB_SKIP_PUSH_PROMPT"] = "1"
+        app.launchEnvironment["TAB_RESET_LOCAL_STORE"] = "1"
         app.launchEnvironment["TAB_SEED_DEMO"] = "1"
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
@@ -127,9 +128,16 @@ final class ScreenshotTourUITests: XCTestCase {
         snap(app, "01-trips")
 
         lisbon.tap()
-        let airbnb = row(app, containing: "Airbnb in Alfama")
-        XCTAssertTrue(airbnb.waitForExistence(timeout: 8))
+        let pasteis = row(app, containing: "Pastéis de Belém")
+        XCTAssertTrue(pasteis.waitForExistence(timeout: 8))
         snap(app, "02-trip-detail")
+
+        let airbnb = row(app, containing: "Airbnb in Alfama")
+        for _ in 0..<3 where !airbnb.exists {
+            app.swipeUp()
+            sleepBriefly()
+        }
+        XCTAssertTrue(airbnb.waitForExistence(timeout: 8))
 
         airbnb.tap()
         XCTAssertTrue(app.otherElements.firstMatch.waitForExistence(timeout: 8))

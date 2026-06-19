@@ -11,7 +11,7 @@ struct Segmented: View {
             ForEach(Array(options.enumerated()), id: \.offset) { index, label in
                 let isActive = index == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) { selection = index }
+                    if selection != index { selection = index }
                 } label: {
                     Text(label)
                         .font(mini ? .segmentTextMini : .segmentText)

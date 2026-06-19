@@ -22,9 +22,23 @@ struct TripDetailView: View {
 
     @State private var segment: Int = 0
     @State private var showingPeople: Bool = false
-    @State private var pendingDeletion: ExpenseEntity?
-    @State private var pendingSettlementDeletion: SettlementEntity?
     @State private var showingEditDetails: Bool = false
+
+    // Derived view-state is memoised. The balance summaries, expense timeline,
+    // overview, and export workbook are all O(expenses x splits) to build and
+    // run on the main actor. Computing them inline in `body` meant every
+    // unrelated re-render — and there are ~10 of them during the launch sync
+    // pull, plus one per scroll-driven invalidation — re-ran the full set
+    // synchronously, which is what froze the Expenses tab. Instead they are
+    // recomputed once in `recomputeDerived(for:)`, driven by `.task(id:)` keyed
+    // on a cheap content signature, and read here from these snapshots. Sync
+    // saves that change nothing leave the signature untouched, so they trigger
+    // no recompute at all.
+    @State private var summaries: [BalanceSummary] = []
+    @State private var timeline: [TimelineDay] = []
+    @State private var overview: OverviewState = .empty
+    @State private var exportData: TripExporter.ExportData?
+    @State private var derivedLoaded = false
 
     init(
         tripID: UUID,
@@ -69,55 +83,17 @@ struct TripDetailView: View {
             // to another trip can't have its subscription killed by ours.
             Task { [tripID] in await realtime.unsubscribe(from: tripID) }
         }
-        .alert(
-            "Delete this expense?",
-            isPresented: Binding(
-                get: { pendingDeletion != nil },
-                set: { if !$0 { pendingDeletion = nil } }
-            ),
-            presenting: pendingDeletion
-        ) { expense in
-            Button("Delete", role: .destructive) { confirmDelete(expense) }
-            Button("Cancel", role: .cancel) { pendingDeletion = nil }
-        } message: { _ in
-            Text("It will be removed from balances. You can recover it for 30 days.")
-        }
-        .alert(
-            "Delete this settlement?",
-            isPresented: Binding(
-                get: { pendingSettlementDeletion != nil },
-                set: { if !$0 { pendingSettlementDeletion = nil } }
-            ),
-            presenting: pendingSettlementDeletion
-        ) { settlement in
-            Button("Delete", role: .destructive) { confirmDeleteSettlement(settlement) }
-            Button("Cancel", role: .cancel) { pendingSettlementDeletion = nil }
-        } message: { _ in
-            Text("It will be removed from balances. You can recover it for 30 days.")
-        }
     }
 
     @ViewBuilder
     private func content(for trip: TripEntity) -> some View {
-        let userID = auth.currentUser?.id ?? UUID()
-        let currentPersonID = trip.people.first(where: { $0.userID == userID })?.id ?? UUID()
-        let peopleByID = Dictionary(uniqueKeysWithValues: trip.people.map { ($0.id, $0) })
+        let currentPersonID = resolvedPersonID(for: trip)
         let memberCards = trip.people.sortedForDisplay(currentPersonID: currentPersonID).map { person -> MemberCard in
             if person.id == currentPersonID {
                 return MemberCard(id: person.id, displayName: "You", avatarName: auth.currentUser?.displayName ?? person.displayName)
             }
             return MemberCard(id: person.id, displayName: person.displayName)
         }
-        // Summaries feed the always-visible balance card. The timeline and
-        // overview are built inside their segment branches below, so only the
-        // visible tab's presenter runs on each render.
-        let summaries = BalancePresenter.summaries(
-            expenses: trip.expenses,
-            settlements: trip.settlements,
-            people: trip.people,
-            currentPersonID: currentPersonID,
-            personFor: { id in peopleByID[id] }
-        )
 
         ZStack(alignment: .bottomTrailing) {
             ScrollView {
@@ -143,31 +119,25 @@ struct TripDetailView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 14)
 
-                if summaries.isEmpty {
-                    EmptyBalanceCard()
-                } else {
+                if !summaries.isEmpty {
                     ForEach(Array(summaries.enumerated()), id: \.offset) { _, summary in
                         BalanceCard(summary: summary)
                     }
+                } else if derivedLoaded {
+                    EmptyBalanceCard()
                 }
 
                 Segmented(options: ["Expenses", "Balances", "Overview"], selection: $segment)
                     .padding(.top, 2)
                     .padding(.bottom, 16)
 
-                ZStack {
-                    if segment == 0 {
-                        timelineSection(days: timelineDays(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID))
-                            .transition(.opacity)
-                    } else if segment == 1 {
-                        balancesSection(summaries: summaries)
-                            .transition(.opacity)
-                    } else {
-                        OverviewView(state: overviewState(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID))
-                            .transition(.opacity)
-                    }
+                if segment == 0 {
+                    timelineSection(days: timeline)
+                } else if segment == 1 {
+                    balancesSection(summaries: summaries)
+                } else {
+                    OverviewView(state: overview)
                 }
-                .animation(.snappy(duration: 0.18), value: segment)
 
                 Spacer(minLength: FloatingActionLayout.scrollBottomClearance)
             }
@@ -181,6 +151,9 @@ struct TripDetailView: View {
                 action: onAddExpense
             )
                 .floatingActionPlacement()
+        }
+        .task(id: contentSignature(for: trip)) {
+            recomputeDerived(for: trip)
         }
         .sheet(isPresented: $showingPeople) {
             TripPeopleSheet(tripID: trip.id, tripName: trip.name)
@@ -215,7 +188,7 @@ struct TripDetailView: View {
                         )
                     }
                     ShareLink(
-                        item: exportItem(for: trip),
+                        item: TripExportTransferable(data: exportData ?? buildExportData(for: trip)),
                         preview: SharePreview("\(trip.name) Expenses")
                     ) {
                         Label("Export to Excel", systemImage: "square.and.arrow.up")
@@ -229,6 +202,85 @@ struct TripDetailView: View {
                 .accessibilityIdentifier("tripDetail.actionsButton")
             }
         }
+    }
+
+    private func resolvedPersonID(for trip: TripEntity) -> UUID {
+        let userID = auth.currentUser?.id ?? UUID()
+        return trip.people.first(where: { $0.userID == userID })?.id ?? UUID()
+    }
+
+    /// Cheap fingerprint of everything the derived snapshots depend on. It reads
+    /// only top-level columns on rows the context already holds, so building it
+    /// never runs a presenter or re-faults the store on a warm render. The
+    /// `.task(id:)` recomputes the snapshots only when this value changes, so a
+    /// sync save that alters nothing relevant (the last-write-wins no-op path,
+    /// or a bare server `lastActivityAt` bump) yields an identical signature and
+    /// triggers no recompute.
+    private func contentSignature(for trip: TripEntity) -> TripContentSignature {
+        var maxExpenseStamp = Date.distantPast
+        var deletedExpenses = 0
+        var childCount = 0
+        var maxChildStamp = Date.distantPast
+        for expense in trip.expenses {
+            if expense.updatedAt > maxExpenseStamp { maxExpenseStamp = expense.updatedAt }
+            if expense.deletedAt != nil { deletedExpenses += 1 }
+            for payment in expense.payments {
+                childCount += 1
+                if payment.updatedAt > maxChildStamp { maxChildStamp = payment.updatedAt }
+            }
+            for split in expense.splits {
+                childCount += 1
+                if split.updatedAt > maxChildStamp { maxChildStamp = split.updatedAt }
+            }
+        }
+        var maxSettlementStamp = Date.distantPast
+        var deletedSettlements = 0
+        for settlement in trip.settlements {
+            if settlement.updatedAt > maxSettlementStamp { maxSettlementStamp = settlement.updatedAt }
+            if settlement.deletedAt != nil { deletedSettlements += 1 }
+        }
+        var maxPersonStamp = Date.distantPast
+        for person in trip.people where person.updatedAt > maxPersonStamp { maxPersonStamp = person.updatedAt }
+        var maxCategoryStamp = Date.distantPast
+        for category in categories where category.updatedAt > maxCategoryStamp { maxCategoryStamp = category.updatedAt }
+
+        return TripContentSignature(
+            currentPersonID: resolvedPersonID(for: trip),
+            currentUserName: auth.currentUser?.displayName ?? "",
+            tripUpdatedAt: trip.updatedAt,
+            expenseCount: trip.expenses.count,
+            deletedExpenses: deletedExpenses,
+            maxExpenseStamp: maxExpenseStamp,
+            childCount: childCount,
+            maxChildStamp: maxChildStamp,
+            settlementCount: trip.settlements.count,
+            deletedSettlements: deletedSettlements,
+            maxSettlementStamp: maxSettlementStamp,
+            peopleCount: trip.people.count,
+            maxPersonStamp: maxPersonStamp,
+            categoryCount: categories.count,
+            maxCategoryStamp: maxCategoryStamp
+        )
+    }
+
+    /// Rebuilds every derived snapshot in one pass. Runs on the main actor (the
+    /// presenters are `@MainActor` and SwiftData entities are main-actor bound),
+    /// but only once per content change rather than once per render.
+    private func recomputeDerived(for trip: TripEntity) {
+        let currentPersonID = resolvedPersonID(for: trip)
+        let peopleByID = Dictionary(uniqueKeysWithValues: trip.people.map { ($0.id, $0) })
+
+        summaries = BalancePresenter.summaries(
+            expenses: trip.expenses,
+            settlements: trip.settlements,
+            people: trip.people,
+            currentPersonID: currentPersonID,
+            personFor: { id in peopleByID[id] }
+        )
+        timeline = timelineDays(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID)
+        overview = overviewState(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID)
+        exportData = buildExportData(for: trip)
+        derivedLoaded = true
     }
 
     private func timelineDays(
@@ -260,19 +312,8 @@ struct TripDetailView: View {
 
     @ViewBuilder
     private func timelineSection(days: [TimelineDay]) -> some View {
-        if days.isEmpty {
-            VStack(spacing: 6) {
-                Text("No expenses yet")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Sage.text)
-                Text("Tap + to log your first one")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Sage.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 32)
-        } else {
-            VStack(spacing: 0) {
+        if !days.isEmpty {
+            LazyVStack(spacing: 0) {
                 ForEach(days) { day in
                     Text(day.dateLabel.uppercased())
                         .font(.dateHeader)
@@ -285,19 +326,21 @@ struct TripDetailView: View {
 
                     ForEach(timelineBlocks(for: day.items)) { block in
                         switch block {
-                        case .expenses(let expenseItems):
+                        case .expenses(_, let expenseItems):
+                            // A block is one bounded card already realised by the
+                            // outer LazyVStack, so its rows use a plain VStack —
+                            // nesting a second LazyVStack here added layout cost
+                            // without any virtualisation benefit.
                             VStack(spacing: 0) {
-                                ForEach(Array(expenseItems.enumerated()), id: \.element.id) { index, e in
-                                    SwipeToDeleteRow(
-                                        onTap: {
-                                            Haptics.light()
-                                            onOpenExpense(e.id)
-                                        },
-                                        onTrigger: { requestDelete(for: e.id) }
-                                    ) {
+                                ForEach(expenseItems) { e in
+                                    Button {
+                                        Haptics.light()
+                                        onOpenExpense(e.id)
+                                    } label: {
                                         ExpenseRow(item: e)
                                     }
-                                    if index < expenseItems.count - 1 { RowDivider() }
+                                    .buttonStyle(.plain)
+                                    if e.id != expenseItems.last?.id { RowDivider() }
                                 }
                             }
                             .background(Sage.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -310,15 +353,13 @@ struct TripDetailView: View {
                             .padding(.bottom, 6)
 
                         case .settlement(let s):
-                            SwipeToDeleteRow(
-                                onTap: {
-                                    Haptics.light()
-                                    onOpenSettlement(s.id)
-                                },
-                                onTrigger: { requestDeleteSettlement(for: s.id) }
-                            ) {
+                            Button {
+                                Haptics.light()
+                                onOpenSettlement(s.id)
+                            } label: {
                                 SettlementRow(item: s)
                             }
+                            .buttonStyle(.plain)
                             .background(Sage.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -331,25 +372,23 @@ struct TripDetailView: View {
                     }
                 }
             }
+        } else if derivedLoaded {
+            VStack(spacing: 6) {
+                Text("No expenses yet")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Sage.text)
+                Text("Tap + to log your first one")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Sage.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 32)
         }
     }
 
     @ViewBuilder
     private func balancesSection(summaries: [BalanceSummary]) -> some View {
-        if summaries.isEmpty {
-            VStack(spacing: 6) {
-                Text("Everyone's settled")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Sage.text)
-                Text("Balances will appear here once you have expenses")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Sage.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-        } else {
+        if !summaries.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(summaries.enumerated()), id: \.offset) { _, summary in
                     Card {
@@ -375,18 +414,31 @@ struct TripDetailView: View {
                     }
                 }
             }
+        } else if derivedLoaded {
+            VStack(spacing: 6) {
+                Text("Everyone's settled")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Sage.text)
+                Text("Balances will appear here once you have expenses")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Sage.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
         }
     }
 }
 
 private enum TimelineBlock: Identifiable {
-    case expenses([ExpenseRowItem])
+    case expenses(id: String, items: [ExpenseRowItem])
     case settlement(SettlementRowItem)
 
     var id: String {
         switch self {
-        case .expenses(let items):
-            "expenses-" + items.map(\.id.uuidString).joined(separator: "-")
+        case .expenses(let id, _):
+            id
         case .settlement(let item):
             "settlement-\(item.id.uuidString)"
         }
@@ -400,7 +452,7 @@ extension TripDetailView {
 
         func flushExpenses() {
             guard !expenseRun.isEmpty else { return }
-            blocks.append(.expenses(expenseRun))
+            blocks.append(.expenses(id: TimelineBlock.expenseRunID(for: expenseRun), items: expenseRun))
             expenseRun = []
         }
 
@@ -418,45 +470,47 @@ extension TripDetailView {
         return blocks
     }
 
-    fileprivate func requestDelete(for expenseID: UUID) {
-        guard
-            let trip,
-            let expense = trip.expenses.first(where: { $0.id == expenseID && $0.deletedAt == nil })
-        else { return }
-        pendingDeletion = expense
-    }
-
-    fileprivate func confirmDelete(_ expense: ExpenseEntity) {
-        pendingDeletion = nil
-        Deletion.softDelete(expense: expense, in: context)
-        Haptics.success()
-        Task { await sync.pushPending() }
-    }
-
-    fileprivate func requestDeleteSettlement(for settlementID: UUID) {
-        guard
-            let trip,
-            let settlement = trip.settlements.first(where: { $0.id == settlementID && $0.deletedAt == nil })
-        else { return }
-        pendingSettlementDeletion = settlement
-    }
-
-    fileprivate func confirmDeleteSettlement(_ settlement: SettlementEntity) {
-        pendingSettlementDeletion = nil
-        Deletion.softDelete(settlement: settlement, in: context)
-        Haptics.success()
-        Task { await sync.pushPending() }
-    }
-
-    fileprivate func exportItem(for trip: TripEntity) -> TripExportTransferable {
+    /// Builds the export workbook. Kept off the per-render path: the result is
+    /// memoised in `exportData` by `recomputeDerived(for:)`, and the toolbar's
+    /// `ShareLink` only falls back to a live build before the first snapshot
+    /// lands (i.e. if the menu is opened within the first frame).
+    fileprivate func buildExportData(for trip: TripEntity) -> TripExporter.ExportData {
         let peopleByID = Dictionary(uniqueKeysWithValues: trip.people.map { ($0.id, $0) })
         let categoriesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.id, $0) })
-        let data = TripExporter.extractData(
+        return TripExporter.extractData(
             trip: trip,
             categories: categoriesByID,
             peopleByID: peopleByID
         )
-        return TripExportTransferable(data: data)
+    }
+}
+
+/// Cheap, value-typed fingerprint of a trip's derived-state inputs. Equality is
+/// synthesised over the stored fields; `TripDetailView` recomputes its snapshots
+/// only when this changes (see `contentSignature(for:)`).
+private struct TripContentSignature: Equatable {
+    let currentPersonID: UUID
+    let currentUserName: String
+    let tripUpdatedAt: Date
+    let expenseCount: Int
+    let deletedExpenses: Int
+    let maxExpenseStamp: Date
+    let childCount: Int
+    let maxChildStamp: Date
+    let settlementCount: Int
+    let deletedSettlements: Int
+    let maxSettlementStamp: Date
+    let peopleCount: Int
+    let maxPersonStamp: Date
+    let categoryCount: Int
+    let maxCategoryStamp: Date
+}
+
+private extension TimelineBlock {
+    static func expenseRunID(for items: [ExpenseRowItem]) -> String {
+        guard let first = items.first else { return "expenses-empty" }
+        let last = items.last?.id ?? first.id
+        return "expenses-\(first.id.uuidString)-\(last.uuidString)-\(items.count)"
     }
 }
 

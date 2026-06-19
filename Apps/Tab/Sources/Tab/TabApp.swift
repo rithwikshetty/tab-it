@@ -12,6 +12,11 @@ struct TabApp: App {
 
     init() {
         let container = TabModelContainer.make()
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TAB_RESET_LOCAL_STORE"] == "1" {
+            try? LocalStore.wipe(container.mainContext)
+        }
+        #endif
         let auth = AuthService()
         let sync = SyncService(container: container, auth: auth)
         let realtime = RealtimeService(sync: sync)

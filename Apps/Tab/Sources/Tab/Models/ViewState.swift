@@ -108,6 +108,9 @@ struct OverviewState: Hashable, Sendable {
     let pages: [OverviewPage]
 
     var isEmpty: Bool { pages.isEmpty }
+
+    /// Placeholder used before a trip's derived state has been computed.
+    static let empty = OverviewState(currencies: [], pages: [])
 }
 
 struct OverviewPage: Identifiable, Hashable, Sendable {

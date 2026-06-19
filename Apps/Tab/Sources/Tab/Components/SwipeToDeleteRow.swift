@@ -4,8 +4,8 @@ import SwiftUI
 /// or full-swipe past the threshold to fire `onTrigger`. Parents own the
 /// confirmation alert and the actual mutation.
 ///
-/// The row coexists with a parent `ScrollView`: a `minimumDistance` of 14 plus
-/// a horizontal-intent check inside `onChanged` keeps vertical pans owned by
+/// The row coexists with a parent `ScrollView`: the drag runs simultaneously
+/// with scrolling, and the horizontal-intent check keeps vertical pans owned by
 /// the scroll view. Tapping the content while open just closes the row.
 struct SwipeToDeleteRow<Content: View>: View {
     var actionLabel: String = "Delete"
@@ -45,7 +45,7 @@ struct SwipeToDeleteRow<Content: View>: View {
                     }
                 }
                 .offset(x: offset)
-                .gesture(swipeGesture)
+                .simultaneousGesture(swipeGesture)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(onTap == nil ? [] : .isButton)
                 .accessibilityAction {
