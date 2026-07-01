@@ -7,6 +7,10 @@ enum ReceiptStorage {
 
     private static let maxBytes = 9_500_000
     private static let primaryQuality: CGFloat = 0.92
+    /// Hard cap on stored pixel dimensions. A receipt is fully readable well below
+    /// this, and it bounds the decoded bitmap at every display site (and the
+    /// stored file size) regardless of the source photo's resolution.
+    private static let maxStoredEdge: CGFloat = 2048
 
     enum Failure: Error, LocalizedError {
         case invalidImage
@@ -37,7 +41,11 @@ enum ReceiptStorage {
     }
 
     static func prepareJPEG(from data: Data) throws -> Data {
-        guard let image = UIImage(data: data) else { throw Failure.invalidImage }
+        guard let source = UIImage(data: data) else { throw Failure.invalidImage }
+
+        // Always cap dimensions first: this bounds the stored file and every
+        // future decode, rather than only kicking in when the byte cap is hit.
+        let image = downscale(source, maxEdge: maxStoredEdge)
 
         if let jpeg = image.jpegData(compressionQuality: primaryQuality), jpeg.count <= maxBytes {
             return jpeg

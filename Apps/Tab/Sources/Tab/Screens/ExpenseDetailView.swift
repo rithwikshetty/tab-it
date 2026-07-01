@@ -372,7 +372,7 @@ struct ExpenseDetailView: View {
         } label: {
             ZStack {
                 if let url = receiptURL {
-                    AsyncImage(url: url) { phase in
+                    DownsampledAsyncImage(url: url, maxPointSize: 400) { phase in
                         switch phase {
                         case .empty:
                             receiptPlaceholder(isLoading: true)
@@ -428,7 +428,7 @@ struct ExpenseDetailView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             if let url = receiptURL {
-                AsyncImage(url: url) { phase in
+                DownsampledAsyncImage(url: url, maxPointSize: 1024) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().scaledToFit()
