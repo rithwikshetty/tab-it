@@ -121,13 +121,15 @@ begin
     for v_split in select * from jsonb_array_elements(p_splits)
     loop
         insert into public.expense_splits (
-            expense_id, trip_person_id, amount_owed, split_type, updated_at, write_id
+            expense_id, trip_person_id, amount_owed, split_type, share_units, percentage, updated_at, write_id
         )
         values (
             v_expense_id,
             (v_split->>'trip_person_id')::uuid,
             (v_split->>'amount_owed')::numeric(20, 8),
             v_split->>'split_type',
+            nullif(v_split->>'share_units', '')::numeric(20, 8),
+            nullif(v_split->>'percentage', '')::numeric(20, 8),
             coalesce(nullif(v_split->>'updated_at', '')::timestamptz, clock_timestamp()),
             coalesce(nullif(v_split->>'write_id', '')::uuid, gen_random_uuid())
         );

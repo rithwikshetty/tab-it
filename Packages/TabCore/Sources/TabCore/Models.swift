@@ -4,11 +4,25 @@ public struct ExpenseSplit: Hashable, Codable, Sendable {
     public let participantID: UUID
     public let amountOwed: Decimal
     public let splitType: SplitType
+    /// Share weight the participant carries when `splitType == .shares`
+    /// (e.g. 0.5 for a half pint); nil for every other split type.
+    public let shareUnits: Decimal?
+    /// Percentage of the total when `splitType == .percentage` (0–100);
+    /// nil for every other split type.
+    public let percentage: Decimal?
 
-    public init(participantID: UUID, amountOwed: Decimal, splitType: SplitType) {
+    public init(
+        participantID: UUID,
+        amountOwed: Decimal,
+        splitType: SplitType,
+        shareUnits: Decimal? = nil,
+        percentage: Decimal? = nil
+    ) {
         self.participantID = participantID
         self.amountOwed = amountOwed
         self.splitType = splitType
+        self.shareUnits = shareUnits
+        self.percentage = percentage
     }
 }
 

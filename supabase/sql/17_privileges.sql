@@ -11,6 +11,7 @@ grant select (id, display_name, avatar_url, created_at, updated_at, write_id)
 revoke execute on function public.handle_new_user()            from public, anon, authenticated;
 revoke execute on function public.touch_trip_last_activity()   from public, anon, authenticated;
 revoke execute on function public.set_sync_fields()            from public, anon, authenticated;
+revoke execute on function public.sync_profile_name_to_trip_people() from public, anon, authenticated;
 revoke execute on function public.validate_category_row() from public, anon, authenticated;
 revoke execute on function public.validate_expense_row() from public, anon, authenticated;
 revoke execute on function public.validate_expense_split_row() from public, anon, authenticated;

@@ -93,6 +93,37 @@ enum MoneyFormatter {
         Decimal(string: input.replacingOccurrences(of: ",", with: "."))
     }
 
+    /// Sanitizes a share-weight keystroke. Shares are not money: they always
+    /// allow up to 2 fraction digits (0.5 for a half pint) regardless of the
+    /// expense currency.
+    static func sanitizeShareInput(_ input: String) -> String {
+        var output = ""
+        var hasDecimalSeparator = false
+        var fractionCount = 0
+        for character in input {
+            if character.isNumber {
+                if hasDecimalSeparator {
+                    guard fractionCount < 2 else { break }
+                    fractionCount += 1
+                }
+                output.append(character)
+            } else if character == "." || character == "," {
+                guard !hasDecimalSeparator else { break }
+                hasDecimalSeparator = true
+                output.append(".")
+            }
+        }
+        return output
+    }
+
+    /// Renders a share weight without trailing zeros ("2", "0.5", "1.25").
+    static func shareString(_ share: Decimal) -> String {
+        var value = share
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &value, 2, .plain)
+        return NSDecimalNumber(decimal: rounded).stringValue
+    }
+
     static func plainAmountString(_ amount: Decimal, currency: String) -> String {
         let formatter = formatter(in: plainFormatters, fractionDigits: CurrencyCatalog.fractionDigits(for: currency))
         return formatter.string(from: amount as NSDecimalNumber) ?? NSDecimalNumber(decimal: amount).stringValue

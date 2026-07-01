@@ -7,7 +7,13 @@ extension ExpenseSplitEntity {
     var splitType: SplitType { SplitType(rawValue: splitTypeRaw) ?? .equal }
 
     func toCoreSplit() -> ExpenseSplit {
-        ExpenseSplit(participantID: tripPersonID, amountOwed: amountOwed, splitType: splitType)
+        ExpenseSplit(
+            participantID: tripPersonID,
+            amountOwed: amountOwed,
+            splitType: splitType,
+            shareUnits: shareUnits,
+            percentage: percentage
+        )
     }
 }
 

@@ -216,6 +216,152 @@ final class PaidByFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Cash"].waitForExistence(timeout: 5))
     }
 
+    func testSharesSplitSavesAndRoundTripsThroughEdit() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["TAB_MOCK_AUTH"] = "1"
+        app.launchEnvironment["TAB_SKIP_PUSH_PROMPT"] = "1"
+        app.launchArguments.append("-ApplePersistenceIgnoreState")
+        app.launchArguments.append("YES")
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Trips"].waitForExistence(timeout: 8))
+
+        let tripName = "Shares \(UUID().uuidString.prefix(8))"
+        let addTripButton = app.buttons["trips.addButton"]
+        XCTAssertTrue(addTripButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntilHittable(addTripButton))
+        addTripButton.tap()
+
+        replaceText(in: app.textFields["newTrip.nameField"], with: tripName)
+        app.buttons["newTrip.createButton"].tap()
+
+        let tripRow = app.staticTexts[tripName].firstMatch
+        XCTAssertTrue(tripRow.waitForExistence(timeout: 5))
+        tripRow.tap()
+
+        let addExpenseButton = app.buttons["trip.addExpenseButton"]
+        XCTAssertTrue(addExpenseButton.waitForExistence(timeout: 5))
+        addExpenseButton.tap()
+
+        replaceText(in: app.textFields["expense.amountField"], with: "30")
+        replaceText(in: app.textFields["expense.descriptionField"], with: "Pints")
+        app.buttons["expense.paidByRow"].tap()
+
+        XCTAssertTrue(app.navigationBars["Payment & Split"].waitForExistence(timeout: 5))
+        app.buttons["paymentSplit.splitModePill"].tap()
+        app.buttons["Shares"].tap()
+
+        // Everyone starts at 1 share; a full pint for Alex is 2.
+        let currentUserShare = app.textFields["split.shareUnits.\(currentUserID)"]
+        let alexShare = app.textFields["split.shareUnits.\(alexID)"]
+        XCTAssertTrue(currentUserShare.waitForExistence(timeout: 5))
+        XCTAssertEqual(fieldValue(currentUserShare), "1")
+        XCTAssertEqual(fieldValue(alexShare), "1")
+        replaceText(in: alexShare, with: "2")
+        XCTAssertEqual(fieldValue(alexShare), "2")
+        XCTAssertTrue(app.staticTexts["4 shares total"].waitForExistence(timeout: 5))
+        app.navigationBars["Payment & Split"].buttons["Done"].tap()
+
+        // Back on the entry form the split row reflects shares and keeps the weights.
+        XCTAssertTrue(app.staticTexts["Split by shares"].waitForExistence(timeout: 5))
+        let entryAlexShare = app.textFields["expense.shareUnits.\(alexID)"]
+        XCTAssertTrue(entryAlexShare.waitForExistence(timeout: 5))
+        XCTAssertEqual(fieldValue(entryAlexShare), "2")
+
+        app.navigationBars["New expense"].buttons["Save"].tap()
+
+        let expenseRow = app.staticTexts["Pints"].firstMatch
+        XCTAssertTrue(expenseRow.waitForExistence(timeout: 5))
+        expenseRow.tap()
+
+        XCTAssertTrue(app.staticTexts["shares · 3 ways"].waitForExistence(timeout: 5))
+
+        let actionsButton = app.buttons["expenseDetail.actionsButton"]
+        XCTAssertTrue(actionsButton.waitForExistence(timeout: 5))
+        actionsButton.tap()
+        let editButton = app.buttons["expenseDetail.editButton"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        editButton.tap()
+
+        // Editing restores the stored share weights, not just amounts.
+        XCTAssertTrue(app.navigationBars["Edit expense"].waitForExistence(timeout: 5))
+        let editedAlexShare = app.textFields["expense.shareUnits.\(alexID)"]
+        XCTAssertTrue(editedAlexShare.waitForExistence(timeout: 5))
+        XCTAssertEqual(fieldValue(editedAlexShare), "2")
+        XCTAssertEqual(fieldValue(app.textFields["expense.shareUnits.\(currentUserID)"]), "1")
+    }
+
+    func testPercentageSplitSavesAndRoundTripsThroughEdit() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["TAB_MOCK_AUTH"] = "1"
+        app.launchEnvironment["TAB_SKIP_PUSH_PROMPT"] = "1"
+        app.launchArguments.append("-ApplePersistenceIgnoreState")
+        app.launchArguments.append("YES")
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Trips"].waitForExistence(timeout: 8))
+
+        let tripName = "Percent \(UUID().uuidString.prefix(8))"
+        let addTripButton = app.buttons["trips.addButton"]
+        XCTAssertTrue(addTripButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntilHittable(addTripButton))
+        addTripButton.tap()
+
+        replaceText(in: app.textFields["newTrip.nameField"], with: tripName)
+        app.buttons["newTrip.createButton"].tap()
+
+        let tripRow = app.staticTexts[tripName].firstMatch
+        XCTAssertTrue(tripRow.waitForExistence(timeout: 5))
+        tripRow.tap()
+
+        let addExpenseButton = app.buttons["trip.addExpenseButton"]
+        XCTAssertTrue(addExpenseButton.waitForExistence(timeout: 5))
+        addExpenseButton.tap()
+
+        replaceText(in: app.textFields["expense.amountField"], with: "80")
+        replaceText(in: app.textFields["expense.descriptionField"], with: "Taxi")
+        app.buttons["expense.paidByRow"].tap()
+
+        XCTAssertTrue(app.navigationBars["Payment & Split"].waitForExistence(timeout: 5))
+        app.buttons["paymentSplit.splitModePill"].tap()
+        app.buttons["Percentages"].tap()
+
+        // Three mock members seed 33.34/33.33/33.33; rework to 50/25/25.
+        let currentUserPercent = app.textFields["split.percentage.\(currentUserID)"]
+        let alexPercent = app.textFields["split.percentage.\(alexID)"]
+        let samPercent = app.textFields["split.percentage.\(samID)"]
+        XCTAssertTrue(currentUserPercent.waitForExistence(timeout: 5))
+        XCTAssertEqual(fieldValue(currentUserPercent), "33.34")
+        replaceText(in: currentUserPercent, with: "50")
+        replaceText(in: alexPercent, with: "25")
+        replaceText(in: samPercent, with: "25")
+        XCTAssertTrue(app.staticTexts["Total 100%"].waitForExistence(timeout: 5))
+        app.navigationBars["Payment & Split"].buttons["Done"].tap()
+
+        XCTAssertTrue(app.staticTexts["Split by percentages"].waitForExistence(timeout: 5))
+        app.navigationBars["New expense"].buttons["Save"].tap()
+
+        let expenseRow = app.staticTexts["Taxi"].firstMatch
+        XCTAssertTrue(expenseRow.waitForExistence(timeout: 5))
+        expenseRow.tap()
+
+        XCTAssertTrue(app.staticTexts["percentage · 3 ways"].waitForExistence(timeout: 5))
+
+        let actionsButton = app.buttons["expenseDetail.actionsButton"]
+        XCTAssertTrue(actionsButton.waitForExistence(timeout: 5))
+        actionsButton.tap()
+        let editButton = app.buttons["expenseDetail.editButton"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        editButton.tap()
+
+        // Editing restores the stored percentages.
+        XCTAssertTrue(app.navigationBars["Edit expense"].waitForExistence(timeout: 5))
+        let editedUserPercent = app.textFields["expense.percentage.\(currentUserID)"]
+        XCTAssertTrue(editedUserPercent.waitForExistence(timeout: 5))
+        XCTAssertEqual(fieldValue(editedUserPercent), "50")
+        XCTAssertEqual(fieldValue(app.textFields["expense.percentage.\(alexID)"]), "25")
+    }
+
     private func replaceText(in element: XCUIElement, with text: String) {
         XCTAssertTrue(element.waitForExistence(timeout: 5))
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()

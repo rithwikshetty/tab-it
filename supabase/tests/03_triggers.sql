@@ -3,7 +3,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(9);
+select plan(16);
 create temp table _r (line text);
 grant insert, select on _r to authenticated;
 
@@ -66,6 +66,58 @@ insert into _r select lives_ok(
 insert into _r select ok(
   (select last_activity_at > created_at from public.trips where id = '11111111-1111-1111-1111-111111111111'),
   'expense insert touches trip.last_activity_at');
+
+insert into _r select lives_ok(
+  $$select public.create_expense_with_payments_and_splits(
+      jsonb_build_object('id', 'aaaaaaaa-0000-0000-0000-000000000002', 'trip_id', '11111111-1111-1111-1111-111111111111', 'amount', 30, 'currency', 'GBP', 'description', 'Pints', 'expense_date', '2026-05-02'),
+      jsonb_build_array(jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000001', 'amount_paid', 30, 'payment_mode', 'equal')),
+      jsonb_build_array(
+        jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000001', 'amount_owed', 20, 'split_type', 'shares', 'share_units', 1),
+        jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000099', 'amount_owed', 10, 'split_type', 'shares', 'share_units', 0.5)
+      )
+    )$$,
+  'expense RPC writes shares splits with share_units');
+
+insert into _r select is(
+  (select share_units from public.expense_splits
+   where expense_id = 'aaaaaaaa-0000-0000-0000-000000000002'
+     and trip_person_id = '10000000-0000-0000-0000-000000000099'),
+  0.5::numeric(20, 8),
+  'share_units round-trips through the expense RPC');
+
+insert into _r select lives_ok(
+  $$select public.create_expense_with_payments_and_splits(
+      jsonb_build_object('id', 'aaaaaaaa-0000-0000-0000-000000000003', 'trip_id', '11111111-1111-1111-1111-111111111111', 'amount', 80, 'currency', 'GBP', 'description', 'Taxi', 'expense_date', '2026-05-03'),
+      jsonb_build_array(jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000001', 'amount_paid', 80, 'payment_mode', 'equal')),
+      jsonb_build_array(
+        jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000001', 'amount_owed', 60, 'split_type', 'percentage', 'percentage', 75),
+        jsonb_build_object('trip_person_id', '10000000-0000-0000-0000-000000000099', 'amount_owed', 20, 'split_type', 'percentage', 'percentage', 25)
+      )
+    )$$,
+  'expense RPC writes percentage splits');
+
+insert into _r select is(
+  (select percentage from public.expense_splits
+   where expense_id = 'aaaaaaaa-0000-0000-0000-000000000003'
+     and trip_person_id = '10000000-0000-0000-0000-000000000099'),
+  25::numeric(20, 8),
+  'percentage round-trips through the expense RPC');
+
+-- Profile rename propagates to claimed trip_people rows (the pre-add name-sync
+-- fix): renaming after sign-in must update the ledger label other members see.
+insert into _r select lives_ok(
+  $$select public.ensure_current_profile('Alice Renamed', null)$$,
+  'ensure_current_profile renames the profile');
+
+insert into _r select is(
+  (select display_name from public.trip_people where id = '10000000-0000-0000-0000-000000000001'),
+  'Alice Renamed',
+  'profile rename propagates to the user''s trip_people rows');
+
+insert into _r select is(
+  (select display_name from public.trip_people where email = 'pending@test.tab'),
+  'Pending',
+  'profile rename leaves unclaimed trip_people untouched');
 
 insert into _r select * from finish();
 select line from _r;

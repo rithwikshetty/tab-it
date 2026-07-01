@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Tab
 
+@MainActor
 @Suite("Splitwise importer mapping")
 struct SplitwiseImporterTests {
 

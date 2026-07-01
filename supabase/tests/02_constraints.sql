@@ -3,7 +3,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(20);
+select plan(28);
 create temp table _r (line text);
 
 insert into auth.users (id, email, instance_id, aud, role, raw_user_meta_data)
@@ -98,6 +98,58 @@ insert into _r select throws_ok(
   $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type)
       values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'lol')$$,
   '23514', null, 'invalid split type rejected');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'shares')$$,
+  '23514', null, 'shares split without share_units rejected');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, share_units)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'equal', 1)$$,
+  '23514', null, 'non-shares split with share_units rejected');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, share_units)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'shares', 0)$$,
+  '23514', null, 'zero share_units rejected');
+
+insert into _r select lives_ok(
+  $$insert into public.expenses (id, trip_id, amount, currency, description, expense_date, created_by)
+      values ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 30, 'GBP', 'Pints', '2026-05-01', '00000000-0000-0000-0000-000000000001');
+    insert into public.expense_payments (expense_id, trip_person_id, amount_paid, payment_mode)
+      values ('aaaaaaaa-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 30, 'equal');
+    insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, share_units)
+      values ('aaaaaaaa-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 20, 'shares', 1),
+             ('aaaaaaaa-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 10, 'shares', 0.5);
+    set constraints all immediate; set constraints all deferred;$$,
+  'shares expense with fractional share_units accepted');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'percentage')$$,
+  '23514', null, 'percentage split without percentage rejected');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, percentage)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'equal', 50)$$,
+  '23514', null, 'non-percentage split with percentage rejected');
+
+insert into _r select throws_ok(
+  $$insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, percentage)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, 'percentage', 101)$$,
+  '23514', null, 'percentage above 100 rejected');
+
+insert into _r select lives_ok(
+  $$insert into public.expenses (id, trip_id, amount, currency, description, expense_date, created_by)
+      values ('aaaaaaaa-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 80, 'GBP', 'Taxi', '2026-05-01', '00000000-0000-0000-0000-000000000001');
+    insert into public.expense_payments (expense_id, trip_person_id, amount_paid, payment_mode)
+      values ('aaaaaaaa-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 80, 'equal');
+    insert into public.expense_splits (expense_id, trip_person_id, amount_owed, split_type, percentage)
+      values ('aaaaaaaa-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 60, 'percentage', 75),
+             ('aaaaaaaa-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', 20, 'percentage', 25);
+    set constraints all immediate; set constraints all deferred;$$,
+  'percentage expense with percentages accepted');
 
 insert into _r select throws_ok(
   $$insert into public.settlements (trip_id, from_person_id, to_person_id, amount, currency, created_by)

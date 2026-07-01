@@ -97,6 +97,13 @@ public enum PaymentCalculator {
             )
         case .amountsDoNotSumToTotal(let expected, let actual):
             return .amountsDoNotSumToTotal(expected: expected, actual: actual)
+        case .sharesRequired, .missingShareForParticipant, .extraShareForNonParticipant, .nonPositiveShare:
+            // Unreachable: payments only delegate equal/exact splits.
+            return .unsupportedPaymentMode(.shares)
+        case .percentagesRequired, .missingPercentageForParticipant, .extraPercentageForNonParticipant,
+             .nonPositivePercentage, .percentagesDoNotSumTo100:
+            // Unreachable: payments only delegate equal/exact splits.
+            return .unsupportedPaymentMode(.percentage)
         }
     }
 }

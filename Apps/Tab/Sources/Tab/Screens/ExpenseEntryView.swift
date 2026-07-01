@@ -27,8 +27,10 @@ struct ExpenseEntryView: View {
     @State private var amountText: String = ""
     @State private var description: String = ""
     @State private var selectedCategoryID: UUID = DefaultCategories.food.id
-    @State private var splitMode: Int = 0
+    @State private var splitMode: Int = 0    // 0=equal, 1=exact, 2=shares, 3=percentage
     @State private var exactAmountTextByPersonID: [UUID: String] = [:]
+    @State private var shareTextByPersonID: [UUID: String] = [:]
+    @State private var percentTextByPersonID: [UUID: String] = [:]
     @State private var participantSet: Set<UUID> = []
     @State private var currency: String = CurrencyDefaults.initialCurrency
     @State private var isCurrencyPickerPresented = false
@@ -83,7 +85,12 @@ struct ExpenseEntryView: View {
     }
 
     private var selectedSplitType: SplitType {
-        splitMode == 0 ? .equal : .exact
+        switch splitMode {
+        case 0: .equal
+        case 2: .shares
+        case 3: .percentage
+        default: .exact
+        }
     }
 
     private static let paymentMethodOrder: [PaymentMethod] = [.cash, .card, .bankTransfer]
@@ -142,8 +149,54 @@ struct ExpenseEntryView: View {
                 splitType: .exact,
                 exactAmounts: exactAmounts
             )
-        case .percentage, .shares, .adjustment:
+        case .shares:
+            guard let shareAmounts else { return nil }
+            return try? SplitCalculator.calculate(
+                totalAmount: totalAmount,
+                currency: currency,
+                participants: participants,
+                splitType: .shares,
+                shares: shareAmounts
+            )
+        case .percentage:
+            guard let percentAmounts else { return nil }
+            return try? SplitCalculator.calculate(
+                totalAmount: totalAmount,
+                currency: currency,
+                participants: participants,
+                splitType: .percentage,
+                percentages: percentAmounts
+            )
+        case .adjustment:
             return nil
+        }
+    }
+
+    private var shareAmounts: [UUID: Decimal]? {
+        guard selectedSplitType == .shares else { return nil }
+        var shares: [UUID: Decimal] = [:]
+        for personID in participantSet {
+            let raw = shareTextByPersonID[personID, default: ""].trimmingCharacters(in: .whitespaces)
+            guard !raw.isEmpty, let share = MoneyFormatter.decimal(from: raw), share > 0 else { return nil }
+            shares[personID] = share
+        }
+        return shares
+    }
+
+    private var percentAmounts: [UUID: Decimal]? {
+        guard selectedSplitType == .percentage else { return nil }
+        var percentages: [UUID: Decimal] = [:]
+        for personID in participantSet {
+            let raw = percentTextByPersonID[personID, default: ""].trimmingCharacters(in: .whitespaces)
+            guard !raw.isEmpty, let percent = MoneyFormatter.decimal(from: raw), percent > 0 else { return nil }
+            percentages[personID] = percent
+        }
+        return percentages
+    }
+
+    private var percentEnteredTotal: Decimal {
+        participantSet.reduce(Decimal(0)) { total, personID in
+            total + (MoneyFormatter.decimal(from: percentTextByPersonID[personID, default: ""]) ?? 0)
         }
     }
 
@@ -174,6 +227,27 @@ struct ExpenseEntryView: View {
         } else {
             return ("Over by \(MoneyFormatter.format(-remaining, currency: currency))", false)
         }
+    }
+
+    private var sharesFooter: (text: String, isValid: Bool)? {
+        guard selectedSplitType == .shares, totalAmount > 0, !participantSet.isEmpty else { return nil }
+        guard let shares = shareAmounts else {
+            return ("Every participant needs a share", false)
+        }
+        let total = shares.values.reduce(Decimal(0), +)
+        return ("\(MoneyFormatter.shareString(total)) shares total", true)
+    }
+
+    private var percentFooter: (text: String, isValid: Bool)? {
+        guard selectedSplitType == .percentage, totalAmount > 0, !participantSet.isEmpty else { return nil }
+        if computedSplits != nil {
+            return ("Total 100%", true)
+        }
+        let remaining = Decimal(100) - percentEnteredTotal
+        if remaining >= 0 {
+            return ("\(MoneyFormatter.shareString(remaining))% left", false)
+        }
+        return ("Over by \(MoneyFormatter.shareString(-remaining))%", false)
     }
 
     private var participantRows: [ParticipantRow] {
@@ -222,11 +296,19 @@ struct ExpenseEntryView: View {
         .onChange(of: splitMode) { _, newValue in
             if newValue == 1 {
                 seedMissingExactAmountsFromEqual()
+            } else if newValue == 2 {
+                seedMissingShares()
+            } else if newValue == 3 {
+                seedMissingPercentages()
             }
         }
         .onChange(of: participantSet) {
             if selectedSplitType == .exact {
                 seedMissingExactAmountsFromEqual()
+            } else if selectedSplitType == .shares {
+                seedMissingShares()
+            } else if selectedSplitType == .percentage {
+                seedMissingPercentages()
             }
         }
         .onChange(of: currency) {
@@ -325,12 +407,25 @@ struct ExpenseEntryView: View {
                 expenseDate = expense.expenseDate
 
                 let splitType = expense.splits.first?.splitType ?? .equal
-                splitMode = splitType == .equal ? 0 : 1
+                switch splitType {
+                case .equal: splitMode = 0
+                case .shares: splitMode = 2
+                case .percentage: splitMode = 3
+                default: splitMode = 1
+                }
                 participantSet = Set(expense.splits.map(\.tripPersonID))
 
                 if splitType == .exact {
                     for split in expense.splits {
                         exactAmountTextByPersonID[split.tripPersonID] = plainAmountString(split.amountOwed)
+                    }
+                } else if splitType == .shares {
+                    for split in expense.splits {
+                        shareTextByPersonID[split.tripPersonID] = split.shareUnits.map { MoneyFormatter.shareString($0) } ?? "1"
+                    }
+                } else if splitType == .percentage {
+                    for split in expense.splits {
+                        percentTextByPersonID[split.tripPersonID] = split.percentage.map { MoneyFormatter.shareString($0) } ?? ""
                     }
                 }
 
@@ -347,6 +442,10 @@ struct ExpenseEntryView: View {
         }
         if selectedSplitType == .exact {
             seedMissingExactAmountsFromEqual()
+        } else if selectedSplitType == .shares {
+            seedMissingShares()
+        } else if selectedSplitType == .percentage {
+            seedMissingPercentages()
         }
     }
 
@@ -428,7 +527,9 @@ struct ExpenseEntryView: View {
                 payments: $paymentEntries,
                 splitMode: $splitMode,
                 participantSet: $participantSet,
-                exactSplitAmountText: $exactAmountTextByPersonID
+                exactSplitAmountText: $exactAmountTextByPersonID,
+                shareSplitText: $shareTextByPersonID,
+                percentSplitText: $percentTextByPersonID
             )
         } label: {
             HStack(spacing: 12) {
@@ -479,7 +580,12 @@ struct ExpenseEntryView: View {
     }
 
     private var splitTypeLabel: String {
-        splitMode == 0 ? "Equal split" : "Exact split"
+        switch splitMode {
+        case 0: "Equal split"
+        case 2: "Split by shares"
+        case 3: "Split by percentages"
+        default: "Exact split"
+        }
     }
 
     private var splitSummarySubtitle: String {
@@ -556,7 +662,7 @@ struct ExpenseEntryView: View {
                 if index < participantRows.count - 1 { RowDivider() }
             }
 
-            if let footer = exactSplitFooter {
+            if let footer = exactSplitFooter ?? sharesFooter ?? percentFooter {
                 RowDivider()
                 Text(footer.text)
                     .font(.system(size: 12, weight: .medium))
@@ -604,7 +710,7 @@ struct ExpenseEntryView: View {
     private func existingReceiptCard(path: String) -> some View {
         HStack(spacing: 12) {
             if let url = existingReceiptURL {
-                AsyncImage(url: url) { phase in
+                DownsampledAsyncImage(url: url, maxPointSize: 120) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().scaledToFill()
@@ -860,6 +966,63 @@ struct ExpenseEntryView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(Sage.cardBorder, lineWidth: 1)
                 )
+            } else if selectedSplitType == .shares, row.isOn {
+                Text(row.share)
+                    .font(.system(size: 13))
+                    .tracking(-0.07)
+                    .foregroundStyle(Sage.textSecondary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+
+                InlineDecimalTextField(
+                    text: Binding(
+                        get: { shareTextByPersonID[row.personID, default: ""] },
+                        set: { shareTextByPersonID[row.personID] = MoneyFormatter.sanitizeShareInput($0) }
+                    ),
+                    placeholder: "1",
+                    isFocused: splitFieldFocused == row.personID,
+                    onFocus: { splitFieldFocused = row.personID },
+                    accessibilityIdentifier: "expense.shareUnits.\(row.personID.uuidString)"
+                )
+                .frame(width: 44, height: 28)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Sage.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Sage.cardBorder, lineWidth: 1)
+                )
+            } else if selectedSplitType == .percentage, row.isOn {
+                Text(row.share)
+                    .font(.system(size: 13))
+                    .tracking(-0.07)
+                    .foregroundStyle(Sage.textSecondary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+
+                HStack(spacing: 3) {
+                    InlineDecimalTextField(
+                        text: Binding(
+                            get: { percentTextByPersonID[row.personID, default: ""] },
+                            set: { percentTextByPersonID[row.personID] = MoneyFormatter.sanitizeShareInput($0) }
+                        ),
+                        placeholder: "0",
+                        isFocused: splitFieldFocused == row.personID,
+                        onFocus: { splitFieldFocused = row.personID },
+                        accessibilityIdentifier: "expense.percentage.\(row.personID.uuidString)"
+                    )
+                    .frame(width: 48, height: 28)
+                    Text("%")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Sage.textSecondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Sage.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Sage.cardBorder, lineWidth: 1)
+                )
             } else {
                 Text(row.share)
                     .font(.system(size: 13))
@@ -905,6 +1068,25 @@ struct ExpenseEntryView: View {
             let current = exactAmountTextByPersonID[split.participantID, default: ""]
             if overwrite || current.trimmingCharacters(in: .whitespaces).isEmpty {
                 exactAmountTextByPersonID[split.participantID] = plainAmountString(split.amountOwed)
+            }
+        }
+    }
+
+    private func seedMissingShares() {
+        for personID in participantSet {
+            let current = shareTextByPersonID[personID, default: ""].trimmingCharacters(in: .whitespaces)
+            if current.isEmpty {
+                shareTextByPersonID[personID] = "1"
+            }
+        }
+    }
+
+    private func seedMissingPercentages() {
+        let equal = SplitCalculator.equalPercentages(participants: Array(participantSet))
+        for personID in participantSet {
+            let current = percentTextByPersonID[personID, default: ""].trimmingCharacters(in: .whitespaces)
+            if current.isEmpty, let percent = equal[personID] {
+                percentTextByPersonID[personID] = MoneyFormatter.shareString(percent)
             }
         }
     }
@@ -998,6 +1180,8 @@ struct ExpenseEntryView: View {
                 tripPersonID: split.participantID,
                 amountOwed: split.amountOwed,
                 splitTypeRaw: split.splitType.rawValue,
+                shareUnits: split.shareUnits,
+                percentage: split.percentage,
                 expense: expense
             )
             context.insert(entity)
@@ -1070,6 +1254,8 @@ struct ExpenseEntryView: View {
                 tripPersonID: split.participantID,
                 amountOwed: split.amountOwed,
                 splitTypeRaw: split.splitType.rawValue,
+                shareUnits: split.shareUnits,
+                percentage: split.percentage,
                 expense: expense
             ))
         }

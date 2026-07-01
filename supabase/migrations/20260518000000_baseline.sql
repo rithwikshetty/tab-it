@@ -380,6 +380,36 @@ begin
 end;
 $$;
 
+-- Keeps trip ledger labels in step with the profile. trip_people.display_name
+-- is copied from the profile once, at claim time; without this trigger, a user
+-- who sets their name after signing in (magic-link signups start as an email
+-- prefix) stays stale in every other member's app forever. set_sync_fields on
+-- trip_people stamps fresh updated_at/write_id, so client LWW pulls apply it.
+create or replace function public.sync_profile_name_to_trip_people()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.trip_people tp
+  set display_name = left(trim(new.display_name), 60)
+  where tp.user_id = new.id
+    and tp.display_name is distinct from left(trim(new.display_name), 60);
+  return new;
+end;
+$$;
+
+create trigger trg_profiles_name_to_trip_people
+  after update of display_name on public.profiles
+  for each row
+  when (
+    new.deleted_at is null
+    and nullif(trim(new.display_name), '') is not null
+    and new.display_name is distinct from old.display_name
+  )
+  execute function public.sync_profile_name_to_trip_people();
+
 -- Advances the caller's Activity read cursor. Monotonic (never moves backwards)
 -- so a stale write from another device can't resurrect already-seen unread state.
 -- Bumps write_id (via set_sync_fields) so the next pull carries the new cursor.
@@ -867,11 +897,23 @@ create table public.expense_splits (
   trip_person_id uuid not null references public.trip_people(id) on delete restrict,
   amount_owed    numeric(20, 8) not null check (amount_owed >= 0),
   split_type     text not null check (split_type in ('equal', 'exact', 'percentage', 'shares', 'adjustment')),
+  share_units    numeric(20, 8) check (share_units > 0),
+  percentage     numeric(20, 8) check (percentage > 0 and percentage <= 100),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   write_id       uuid not null default gen_random_uuid(),
-  primary key (expense_id, trip_person_id)
+  primary key (expense_id, trip_person_id),
+  constraint expense_splits_share_units_match_type
+    check ((split_type = 'shares') = (share_units is not null)),
+  constraint expense_splits_percentage_match_type
+    check ((split_type = 'percentage') = (percentage is not null))
 );
+
+comment on column public.expense_splits.share_units is
+  'Share weight the participant carries when split_type = shares (0.5 = half share). Null for every other split type.';
+
+comment on column public.expense_splits.percentage is
+  'Percentage of the total (0-100) when split_type = percentage. Null for every other split type.';
 
 comment on table public.expense_splits is
   'Per-participant share of an expense. Cascade-deletes if the parent expense is hard-deleted.';
@@ -2162,13 +2204,15 @@ begin
     for v_split in select * from jsonb_array_elements(p_splits)
     loop
         insert into public.expense_splits (
-            expense_id, trip_person_id, amount_owed, split_type, updated_at, write_id
+            expense_id, trip_person_id, amount_owed, split_type, share_units, percentage, updated_at, write_id
         )
         values (
             v_expense_id,
             (v_split->>'trip_person_id')::uuid,
             (v_split->>'amount_owed')::numeric(20, 8),
             v_split->>'split_type',
+            nullif(v_split->>'share_units', '')::numeric(20, 8),
+            nullif(v_split->>'percentage', '')::numeric(20, 8),
             coalesce(nullif(v_split->>'updated_at', '')::timestamptz, clock_timestamp()),
             coalesce(nullif(v_split->>'write_id', '')::uuid, gen_random_uuid())
         );
@@ -2201,6 +2245,7 @@ grant select (id, display_name, avatar_url, created_at, updated_at, write_id)
 revoke execute on function public.handle_new_user()            from public, anon, authenticated;
 revoke execute on function public.touch_trip_last_activity()   from public, anon, authenticated;
 revoke execute on function public.set_sync_fields()            from public, anon, authenticated;
+revoke execute on function public.sync_profile_name_to_trip_people() from public, anon, authenticated;
 revoke execute on function public.validate_category_row() from public, anon, authenticated;
 revoke execute on function public.validate_expense_row() from public, anon, authenticated;
 revoke execute on function public.validate_expense_split_row() from public, anon, authenticated;

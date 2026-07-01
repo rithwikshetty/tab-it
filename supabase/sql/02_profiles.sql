@@ -100,6 +100,36 @@ begin
 end;
 $$;
 
+-- Keeps trip ledger labels in step with the profile. trip_people.display_name
+-- is copied from the profile once, at claim time; without this trigger, a user
+-- who sets their name after signing in (magic-link signups start as an email
+-- prefix) stays stale in every other member's app forever. set_sync_fields on
+-- trip_people stamps fresh updated_at/write_id, so client LWW pulls apply it.
+create or replace function public.sync_profile_name_to_trip_people()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.trip_people tp
+  set display_name = left(trim(new.display_name), 60)
+  where tp.user_id = new.id
+    and tp.display_name is distinct from left(trim(new.display_name), 60);
+  return new;
+end;
+$$;
+
+create trigger trg_profiles_name_to_trip_people
+  after update of display_name on public.profiles
+  for each row
+  when (
+    new.deleted_at is null
+    and nullif(trim(new.display_name), '') is not null
+    and new.display_name is distinct from old.display_name
+  )
+  execute function public.sync_profile_name_to_trip_people();
+
 -- Advances the caller's Activity read cursor. Monotonic (never moves backwards)
 -- so a stale write from another device can't resurrect already-seen unread state.
 -- Bumps write_id (via set_sync_fields) so the next pull carries the new cursor.

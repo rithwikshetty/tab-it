@@ -905,6 +905,8 @@ final class SyncService {
                     "trip_person_id": .string(split.tripPersonID.uuidString),
                     "amount_owed": .string(Self.decimalString(split.amountOwed)),
                     "split_type": .string(split.splitTypeRaw),
+                    "share_units": split.shareUnits.map { AnyJSON.string(Self.decimalString($0)) } ?? .null,
+                    "percentage": split.percentage.map { AnyJSON.string(Self.decimalString($0)) } ?? .null,
                     "updated_at": .string(Self.timestampFormatter.string(from: split.updatedAt)),
                     "write_id": .string(split.writeID.uuidString),
                 ])

@@ -7,11 +7,23 @@ create table public.expense_splits (
   trip_person_id uuid not null references public.trip_people(id) on delete restrict,
   amount_owed    numeric(20, 8) not null check (amount_owed >= 0),
   split_type     text not null check (split_type in ('equal', 'exact', 'percentage', 'shares', 'adjustment')),
+  share_units    numeric(20, 8) check (share_units > 0),
+  percentage     numeric(20, 8) check (percentage > 0 and percentage <= 100),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   write_id       uuid not null default gen_random_uuid(),
-  primary key (expense_id, trip_person_id)
+  primary key (expense_id, trip_person_id),
+  constraint expense_splits_share_units_match_type
+    check ((split_type = 'shares') = (share_units is not null)),
+  constraint expense_splits_percentage_match_type
+    check ((split_type = 'percentage') = (percentage is not null))
 );
+
+comment on column public.expense_splits.share_units is
+  'Share weight the participant carries when split_type = shares (0.5 = half share). Null for every other split type.';
+
+comment on column public.expense_splits.percentage is
+  'Percentage of the total (0-100) when split_type = percentage. Null for every other split type.';
 
 comment on table public.expense_splits is
   'Per-participant share of an expense. Cascade-deletes if the parent expense is hard-deleted.';

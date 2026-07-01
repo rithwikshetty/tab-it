@@ -34,4 +34,94 @@ struct PaymentSplitDraftTests {
         draft.togglePayer(bob, totalAmount: 80, currency: "USD")
         #expect(draft.computedPayments(totalAmount: 80, currency: "USD")?.first?.amountPaid == 80)
     }
+
+    @Test("switching to shares seeds every participant with 1 share")
+    func sharesModeSeedsOnes() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(2, totalAmount: 30, currency: "USD")
+
+        #expect(draft.shareSplitText[alice] == "1")
+        #expect(draft.shareSplitText[bob] == "1")
+        let splits = draft.computedSplits(totalAmount: 30, currency: "USD")
+        #expect(splits?.count == 2)
+        #expect(splits?.allSatisfy { $0.amountOwed == 15 } == true)
+    }
+
+    @Test("shares mode: weights drive the split and survive on the result")
+    func sharesModeWeightedSplit() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(2, totalAmount: 30, currency: "USD")
+        draft.setShareSplitText("2", for: alice)
+        draft.setShareSplitText("0.5", for: bob)
+
+        let splits = draft.computedSplits(totalAmount: 30, currency: "USD")
+        let byUser = Dictionary(uniqueKeysWithValues: (splits ?? []).map { ($0.participantID, $0) })
+        #expect(byUser[alice]?.amountOwed == 24)
+        #expect(byUser[bob]?.amountOwed == 6)
+        #expect(byUser[alice]?.shareUnits == 2)
+        #expect(byUser[bob]?.shareUnits == Decimal(string: "0.5"))
+    }
+
+    @Test("shares mode: an emptied share field blocks the split")
+    func sharesModeEmptyShareBlocks() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(2, totalAmount: 30, currency: "USD")
+        draft.setShareSplitText("", for: bob)
+
+        #expect(draft.computedSplits(totalAmount: 30, currency: "USD") == nil)
+    }
+
+    @Test("shares mode: toggling in a new participant seeds their share")
+    func sharesModeToggleSeedsNewParticipant() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice]
+        draft.setSplitMode(2, totalAmount: 30, currency: "USD")
+        draft.toggleParticipant(bob, totalAmount: 30, currency: "USD")
+
+        #expect(draft.shareSplitText[bob] == "1")
+        #expect(draft.computedSplits(totalAmount: 30, currency: "USD")?.count == 2)
+    }
+
+    @Test("switching to percentages seeds an equal 100% starting point")
+    func percentModeSeedsEqual() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(3, totalAmount: 80, currency: "USD")
+
+        #expect(draft.percentSplitText[alice] == "50")
+        #expect(draft.percentSplitText[bob] == "50")
+        let splits = draft.computedSplits(totalAmount: 80, currency: "USD")
+        #expect(splits?.count == 2)
+        #expect(splits?.allSatisfy { $0.amountOwed == 40 } == true)
+    }
+
+    @Test("percentage mode: weights drive the split and survive on the result")
+    func percentModeWeightedSplit() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(3, totalAmount: 80, currency: "USD")
+        draft.setPercentSplitText("75", for: alice)
+        draft.setPercentSplitText("25", for: bob)
+
+        let splits = draft.computedSplits(totalAmount: 80, currency: "USD")
+        let byUser = Dictionary(uniqueKeysWithValues: (splits ?? []).map { ($0.participantID, $0) })
+        #expect(byUser[alice]?.amountOwed == 60)
+        #expect(byUser[bob]?.amountOwed == 20)
+        #expect(byUser[alice]?.percentage == 75)
+        #expect(byUser[bob]?.percentage == 25)
+    }
+
+    @Test("percentage mode: totals that are not 100 block the split")
+    func percentModeMustSumTo100() {
+        let draft = PaymentSplitDraft()
+        draft.selectedParticipants = [alice, bob]
+        draft.setSplitMode(3, totalAmount: 80, currency: "USD")
+        draft.setPercentSplitText("75", for: alice)
+        draft.setPercentSplitText("24", for: bob)
+
+        #expect(draft.computedSplits(totalAmount: 80, currency: "USD") == nil)
+    }
 }

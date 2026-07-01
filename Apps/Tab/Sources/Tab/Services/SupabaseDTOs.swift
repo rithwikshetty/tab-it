@@ -258,6 +258,8 @@ struct ExpenseSplitDTO: Codable, Sendable {
     let tripPersonID: UUID
     let amountOwed: Decimal
     let splitType: String
+    let shareUnits: Decimal?
+    let percentage: Decimal?
     let createdAt: Date
     let updatedAt: Date
     let writeID: UUID
@@ -267,6 +269,8 @@ struct ExpenseSplitDTO: Codable, Sendable {
         case tripPersonID = "trip_person_id"
         case amountOwed = "amount_owed"
         case splitType = "split_type"
+        case shareUnits = "share_units"
+        case percentage
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case writeID = "write_id"

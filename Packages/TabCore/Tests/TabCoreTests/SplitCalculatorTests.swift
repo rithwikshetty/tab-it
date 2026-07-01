@@ -266,4 +266,318 @@ struct SplitCalculatorTests {
             )
         }
     }
+
+    // MARK: shares
+
+    @Test("shares split: whole shares divide proportionally")
+    func sharesWholeProportional() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 30,
+            currency: "EUR",
+            participants: [alice, bob],
+            splitType: .shares,
+            shares: [alice: 2, bob: 1]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == 20)
+        #expect(byUser[bob] == 10)
+        #expect(splits.allSatisfy { $0.splitType == .shares })
+    }
+
+    @Test("shares split: fractional shares (half pint = 0.5)")
+    func sharesFractional() throws {
+        // The group-chat case: 2 full pints + 2 halves over a 30 bill.
+        let dave = UUID(uuidString: "00000000-0000-0000-0000-00000000000D")!
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 30,
+            currency: "GBP",
+            participants: [alice, bob, charlie, dave],
+            splitType: .shares,
+            shares: [alice: 1, bob: 1, charlie: Decimal(string: "0.5")!, dave: Decimal(string: "0.5")!]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == 10)
+        #expect(byUser[bob] == 10)
+        #expect(byUser[charlie] == 5)
+        #expect(byUser[dave] == 5)
+    }
+
+    @Test("shares split: carries the share weight on each split")
+    func sharesCarriesWeights() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 30,
+            currency: "EUR",
+            participants: [alice, bob],
+            splitType: .shares,
+            shares: [alice: 2, bob: 1]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.shareUnits) })
+        #expect(byUser[alice] == 2)
+        #expect(byUser[bob] == 1)
+    }
+
+    @Test("shares split: remainder goes to largest fractional part, sum preserved")
+    func sharesRemainderLargestFraction() throws {
+        // 100 split 1:2 -> 33.33... and 66.66...; bob's fraction (0.66) wins the cent.
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 100,
+            currency: "USD",
+            participants: [alice, bob],
+            splitType: .shares,
+            shares: [alice: 1, bob: 2]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == Decimal(string: "33.33"))
+        #expect(byUser[bob] == Decimal(string: "66.67"))
+    }
+
+    @Test("shares split: equal fractions tie-break to lowest UUID")
+    func sharesTieBreakLowestUUID() throws {
+        // 10/3 with equal shares behaves exactly like the equal split.
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 10,
+            currency: "USD",
+            participants: [bob, charlie, alice],
+            splitType: .shares,
+            shares: [alice: 1, bob: 1, charlie: 1]
+        )
+        let sum = splits.reduce(Decimal(0)) { $0 + $1.amountOwed }
+        #expect(sum == 10)
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == Decimal(string: "3.34"))
+        #expect(byUser[bob] == Decimal(string: "3.33"))
+        #expect(byUser[charlie] == Decimal(string: "3.33"))
+    }
+
+    @Test("shares split: zero-decimal currency stays on whole units")
+    func sharesZeroDecimalCurrency() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 100,
+            currency: "JPY",
+            participants: [alice, bob],
+            splitType: .shares,
+            shares: [alice: 1, bob: 2]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == 33)
+        #expect(byUser[bob] == 67)
+    }
+
+    @Test("shares split: sum preserved across awkward weights")
+    func sharesSumPreserved() throws {
+        let dave = UUID(uuidString: "00000000-0000-0000-0000-00000000000D")!
+        let shares: [UUID: Decimal] = [
+            alice: Decimal(string: "1.5")!,
+            bob: Decimal(string: "0.5")!,
+            charlie: Decimal(string: "2.25")!,
+            dave: Decimal(string: "0.75")!,
+        ]
+        let total = Decimal(string: "97.31")!
+        let splits = try SplitCalculator.calculate(
+            totalAmount: total,
+            currency: "INR",
+            participants: [alice, bob, charlie, dave],
+            splitType: .shares,
+            shares: shares
+        )
+        let sum = splits.reduce(Decimal(0)) { $0 + $1.amountOwed }
+        #expect(sum == total)
+        #expect(splits.allSatisfy { CurrencyCatalog.hasValidPrecision($0.amountOwed, currency: "INR") })
+    }
+
+    @Test("shares split: single participant takes the whole total")
+    func sharesSingleParticipant() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: Decimal(string: "12.34")!,
+            currency: "EUR",
+            participants: [alice],
+            splitType: .shares,
+            shares: [alice: Decimal(string: "0.5")!]
+        )
+        #expect(splits.count == 1)
+        #expect(splits[0].amountOwed == Decimal(string: "12.34"))
+    }
+
+    @Test("shares split: missing shares dictionary throws")
+    func sharesMissingDictionaryThrows() {
+        #expect(throws: SplitCalculatorError.sharesRequired) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .shares
+            )
+        }
+    }
+
+    @Test("shares split: missing participant share throws")
+    func sharesMissingParticipantThrows() {
+        #expect(throws: SplitCalculatorError.missingShareForParticipant(bob)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .shares,
+                shares: [alice: 1]
+            )
+        }
+    }
+
+    @Test("shares split: share for non-participant throws")
+    func sharesExtraShareThrows() {
+        #expect(throws: SplitCalculatorError.extraShareForNonParticipant(charlie)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .shares,
+                shares: [alice: 1, bob: 1, charlie: 1]
+            )
+        }
+    }
+
+    @Test("shares split: zero or negative share throws")
+    func sharesNonPositiveThrows() {
+        #expect(throws: SplitCalculatorError.nonPositiveShare(alice)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .shares,
+                shares: [alice: 0, bob: 1]
+            )
+        }
+        #expect(throws: SplitCalculatorError.nonPositiveShare(bob)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .shares,
+                shares: [alice: 1, bob: -1]
+            )
+        }
+    }
+
+    @Test("shares split: duplicate participant throws")
+    func sharesDuplicateParticipantThrows() {
+        #expect(throws: SplitCalculatorError.duplicateParticipant(alice)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, alice, bob],
+                splitType: .shares,
+                shares: [alice: 1, bob: 1]
+            )
+        }
+    }
+
+    // MARK: percentage
+
+    @Test("percentage split: whole percentages divide proportionally")
+    func percentageWholeProportional() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 80,
+            currency: "EUR",
+            participants: [alice, bob],
+            splitType: .percentage,
+            percentages: [alice: 75, bob: 25]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == 60)
+        #expect(byUser[bob] == 20)
+        #expect(splits.allSatisfy { $0.splitType == .percentage })
+    }
+
+    @Test("percentage split: carries the percentage on each split")
+    func percentageCarriesValues() throws {
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 80,
+            currency: "EUR",
+            participants: [alice, bob],
+            splitType: .percentage,
+            percentages: [alice: Decimal(string: "12.5")!, bob: Decimal(string: "87.5")!]
+        )
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.percentage) })
+        #expect(byUser[alice] == Decimal(string: "12.5"))
+        #expect(byUser[bob] == Decimal(string: "87.5"))
+        #expect(splits.allSatisfy { $0.shareUnits == nil })
+    }
+
+    @Test("percentage split: remainder cent lands deterministically, sum preserved")
+    func percentageRemainderDeterministic() throws {
+        // 100 at 33.33 / 33.33 / 33.34 leaves one cent; the fractional parts
+        // are 0.33/0.33/0.34, so charlie (33.34) takes it.
+        let splits = try SplitCalculator.calculate(
+            totalAmount: 100,
+            currency: "USD",
+            participants: [alice, bob, charlie],
+            splitType: .percentage,
+            percentages: [
+                alice: Decimal(string: "33.33")!,
+                bob: Decimal(string: "33.33")!,
+                charlie: Decimal(string: "33.34")!,
+            ]
+        )
+        let sum = splits.reduce(Decimal(0)) { $0 + $1.amountOwed }
+        #expect(sum == 100)
+        let byUser = Dictionary(uniqueKeysWithValues: splits.map { ($0.participantID, $0.amountOwed) })
+        #expect(byUser[alice] == Decimal(string: "33.33"))
+        #expect(byUser[bob] == Decimal(string: "33.33"))
+        #expect(byUser[charlie] == Decimal(string: "33.34"))
+    }
+
+    @Test("percentage split: sum must be exactly 100")
+    func percentageSumMustBe100() {
+        #expect(throws: SplitCalculatorError.percentagesDoNotSumTo100(actual: 99)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100,
+                currency: "EUR",
+                participants: [alice, bob],
+                splitType: .percentage,
+                percentages: [alice: 50, bob: 49]
+            )
+        }
+    }
+
+    @Test("percentage split: missing dictionary, missing participant, extras, non-positive throw")
+    func percentageValidationThrows() {
+        #expect(throws: SplitCalculatorError.percentagesRequired) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100, currency: "EUR", participants: [alice, bob], splitType: .percentage
+            )
+        }
+        #expect(throws: SplitCalculatorError.missingPercentageForParticipant(bob)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100, currency: "EUR", participants: [alice, bob],
+                splitType: .percentage, percentages: [alice: 100]
+            )
+        }
+        #expect(throws: SplitCalculatorError.extraPercentageForNonParticipant(charlie)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100, currency: "EUR", participants: [alice, bob],
+                splitType: .percentage, percentages: [alice: 50, bob: 50, charlie: 1]
+            )
+        }
+        #expect(throws: SplitCalculatorError.nonPositivePercentage(alice)) {
+            _ = try SplitCalculator.calculate(
+                totalAmount: 100, currency: "EUR", participants: [alice, bob],
+                splitType: .percentage, percentages: [alice: 0, bob: 100]
+            )
+        }
+    }
+
+    @Test("equalPercentages: sums to 100 with leftover basis points to lowest UUIDs")
+    func equalPercentagesSeed() {
+        let three = SplitCalculator.equalPercentages(participants: [bob, charlie, alice])
+        #expect(three[alice] == Decimal(string: "33.34"))
+        #expect(three[bob] == Decimal(string: "33.33"))
+        #expect(three[charlie] == Decimal(string: "33.33"))
+        #expect(three.values.reduce(Decimal(0), +) == 100)
+
+        let two = SplitCalculator.equalPercentages(participants: [alice, bob])
+        #expect(two[alice] == 50)
+        #expect(two[bob] == 50)
+
+        #expect(SplitCalculator.equalPercentages(participants: []).isEmpty)
+    }
 }

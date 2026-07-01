@@ -284,6 +284,8 @@ enum SyncMerge {
                 tripPersonID: dto.tripPersonID,
                 amountOwed: dto.amountOwed,
                 splitTypeRaw: dto.splitType,
+                shareUnits: dto.shareUnits,
+                percentage: dto.percentage,
                 expense: expense,
                 updatedAt: dto.updatedAt,
                 writeID: dto.writeID,
@@ -298,6 +300,8 @@ enum SyncMerge {
         ) else { return }
         entity.amountOwed = dto.amountOwed
         entity.splitTypeRaw = dto.splitType
+        entity.shareUnits = dto.shareUnits
+        entity.percentage = dto.percentage
         entity.updatedAt = dto.updatedAt
         entity.writeID = dto.writeID
         entity.pushedWriteID = dto.writeID

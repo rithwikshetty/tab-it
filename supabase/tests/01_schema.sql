@@ -3,7 +3,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(47);
+select plan(49);
 create temp table _r (line text);
 
 -- Tables
@@ -43,6 +43,8 @@ insert into _r select col_is_fk('public', 'expense_splits',   'trip_person_id', 
 insert into _r select col_is_fk('public', 'settlements',      'from_person_id',   'settlements.from_person_id FK');
 insert into _r select col_is_fk('public', 'settlements',      'to_person_id',     'settlements.to_person_id FK');
 insert into _r select has_column('public', 'expenses', 'payment_method', 'expenses.payment_method exists');
+insert into _r select has_column('public', 'expense_splits', 'share_units', 'expense_splits.share_units exists');
+insert into _r select has_column('public', 'expense_splits', 'percentage', 'expense_splits.percentage exists');
 
 -- RLS
 insert into _r select ok((select relrowsecurity from pg_class where oid = 'public.profiles'::regclass),         'RLS enabled: profiles');

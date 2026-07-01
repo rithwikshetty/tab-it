@@ -292,6 +292,10 @@ final class ExpenseSplitEntity {
     var tripPersonID: UUID
     var amountOwed: Decimal
     var splitTypeRaw: String
+    /// Share weight when splitTypeRaw == "shares"; nil otherwise.
+    var shareUnits: Decimal?
+    /// Percentage of the total (0–100) when splitTypeRaw == "percentage"; nil otherwise.
+    var percentage: Decimal?
     var updatedAt: Date
     var writeID: UUID
     var pushedWriteID: UUID?
@@ -302,6 +306,8 @@ final class ExpenseSplitEntity {
         tripPersonID: UUID,
         amountOwed: Decimal,
         splitTypeRaw: String,
+        shareUnits: Decimal? = nil,
+        percentage: Decimal? = nil,
         expense: ExpenseEntity? = nil,
         updatedAt: Date = .now,
         writeID: UUID = UUID(),
@@ -311,6 +317,8 @@ final class ExpenseSplitEntity {
         self.tripPersonID = tripPersonID
         self.amountOwed = amountOwed
         self.splitTypeRaw = splitTypeRaw
+        self.shareUnits = shareUnits
+        self.percentage = percentage
         self.expense = expense
         self.updatedAt = updatedAt
         self.writeID = writeID
