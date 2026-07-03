@@ -29,7 +29,7 @@ struct ActivitySection: Identifiable, Hashable, Sendable {
 enum ActivityPresenter {
     /// Build date-grouped feed sections. Own actions stay visible as history but
     /// are never marked unread. Muted trips still appear (silence, not hide) but
-    /// are never marked unread.
+    /// are never marked unread. Dismissed rows are hidden entirely.
     static func sections(
         from activities: [ActivityEntity],
         currentUserID: UUID,
@@ -39,16 +39,16 @@ enum ActivityPresenter {
         calendar: Calendar = .current,
         now: Date = .now
     ) -> [ActivitySection] {
-        let visible = activities.sorted { $0.timestamp > $1.timestamp }
+        let visible = activities
+            .filter { $0.dismissedAt == nil }
+            .sorted { $0.timestamp > $1.timestamp }
 
         let since = lastSeenAt ?? .distantPast
         var order: [String] = []
         var grouped: [String: [ActivityRow]] = [:]
 
         for activity in visible {
-            let isUnread = activity.actorID != currentUserID
-                && activity.timestamp > since
-                && !mutedTripIDs.contains(activity.tripID)
+            let isUnread = isUnread(activity, currentUserID: currentUserID, since: since, mutedTripIDs: mutedTripIDs)
             let row = row(for: activity, myTripPersonIDs: myTripPersonIDs, isUnread: isUnread, calendar: calendar)
             let day = calendar.startOfDay(for: activity.timestamp)
             let key = ISO8601DateFormatter.dayKey.string(from: day)
@@ -73,11 +73,24 @@ enum ActivityPresenter {
     ) -> Int {
         let since = lastSeenAt ?? .distantPast
         return activities.filter {
-            $0.actorID != currentUserID && $0.timestamp > since && !mutedTripIDs.contains($0.tripID)
+            isUnread($0, currentUserID: currentUserID, since: since, mutedTripIDs: mutedTripIDs)
         }.count
     }
 
     // MARK: - Row mapping
+
+    private static func isUnread(
+        _ activity: ActivityEntity,
+        currentUserID: UUID,
+        since: Date,
+        mutedTripIDs: Set<UUID>
+    ) -> Bool {
+        activity.actorID != currentUserID
+            && !mutedTripIDs.contains(activity.tripID)
+            && activity.readAt == nil
+            && activity.dismissedAt == nil
+            && activity.timestamp > since
+    }
 
     private static func row(
         for activity: ActivityEntity,

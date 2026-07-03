@@ -13,11 +13,12 @@ struct ActivityView: View {
     @Query private var people: [TripPersonEntity]
     @Query private var mutes: [TripMuteEntity]
 
-    /// Cursor snapshot taken when the tab opens, so events new *this* visit stay
-    /// highlighted even though opening also advances the persisted cursor (badge).
-    @State private var displaySince: Date?
-
     private var currentUserID: UUID? { auth.currentUser?.id }
+
+    private var lastSeenAt: Date? {
+        guard let uid = currentUserID else { return nil }
+        return profiles.first { $0.id == uid }?.activityLastSeenAt
+    }
 
     private var mutedTripIDs: Set<UUID> {
         Set(mutes.filter(\.isMuted).map(\.tripID))
@@ -33,7 +34,7 @@ struct ActivityView: View {
         return ActivityPresenter.sections(
             from: activities,
             currentUserID: uid,
-            lastSeenAt: displaySince,
+            lastSeenAt: lastSeenAt,
             mutedTripIDs: mutedTripIDs,
             myTripPersonIDs: myTripPersonIDs
         )
@@ -43,56 +44,114 @@ struct ActivityView: View {
         // Hoisted so the feed presenter runs once per render, not once per access.
         let sections = self.sections
 
-        ScrollView {
-            LargeTitle(title: "Activity")
+        List {
+            Section {
+                LargeTitle(title: "Activity")
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
 
             if sections.isEmpty {
-                EmptyActivityView()
+                Section {
+                    EmptyActivityView()
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
             } else {
                 ForEach(sections) { section in
+                    Section {
+                        ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                            Button {
+                                Haptics.light()
+                                markRead(rowID: row.id)
+                                onOpen(row.target)
+                            } label: {
+                                ActivityRowView(row: row)
+                            }
+                            .buttonStyle(.plain)
+                            // Unread is otherwise only visual (tint + dot);
+                            // surface it for VoiceOver (and UI tests).
+                            .accessibilityValue(row.isUnread ? "Unread" : "Read")
+                            .listRowInsets(EdgeInsets())
+                            // Unread is a background tint + dot, never a font
+                            // change: text metrics stay identical across the
+                            // read flip so marking read can't rewrap the title.
+                            .listRowBackground(row.isUnread ? Sage.accentTint : Sage.surface)
+                            // Top edge always hidden: it renders as a stray
+                            // line between the date header and the card.
+                            .listRowSeparator(.hidden, edges: .top)
+                            .listRowSeparator(index == section.rows.count - 1 ? .hidden : .visible, edges: .bottom)
+                            .listRowSeparatorTint(Sage.rowDivider)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                if row.isUnread {
+                                    Button("Mark as read") {
+                                        markRead(rowID: row.id)
+                                    }
+                                    .tint(Sage.accent)
+                                }
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button("Delete", role: .destructive) {
+                                    dismissRow(rowID: row.id)
+                                }
+                            }
+                        }
+                    } header: {
                     Text(section.dateLabel.uppercased())
                         .font(.dateHeader)
                         .tracking(1.32)
                         .foregroundStyle(Sage.textSecondary)
-                        .padding(.horizontal, 26)
-                        .padding(.top, 18)
-                        .padding(.bottom, 6)
+                        .padding(.leading, 8)
+                        .padding(.top, 4)
+                        .padding(.bottom, 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Card {
-                        VStack(spacing: 0) {
-                            ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
-                                Button {
-                                    Haptics.light()
-                                    onOpen(row.target)
-                                } label: {
-                                    ActivityRowView(row: row)
-                                }
-                                .buttonStyle(.plain)
-                                if index < section.rows.count - 1 { RowDivider() }
-                            }
-                        }
                     }
                 }
             }
 
-            Spacer(minLength: 120)
+            Section {
+                Color.clear
+                    .frame(height: 96)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
         .background(Sage.bg.ignoresSafeArea())
         .refreshable { await sync.pullAll() }
-        .onAppear {
-            // Snapshot the cursor once per visit (so newly-arrived events stay
-            // highlighted), then advance the persisted cursor to clear the badge.
-            // Guarded on nil so popping back from a detail — which also fires
-            // onAppear — doesn't re-snapshot the just-advanced cursor and wipe
-            // the "unread this visit" highlights.
-            guard displaySince == nil else { return }
-            displaySince = profiles.first { $0.id == currentUserID }?.activityLastSeenAt
-            Task { await sync.markActivitySeen() }
-        }
         .task(id: currentUserID) {
             await sync.pullAll()
+        }
+        .onDisappear {
+            // Leaving the tab (or pushing a detail) marks everything read:
+            // unread is a "new since you last looked" signal, not an inbox
+            // the user has to clear by hand.
+            guard activities.contains(where: { $0.readAt == nil }) else { return }
+            Task { await sync.markActivitySeen() }
+        }
+    }
+
+    private func markRead(rowID: UUID) {
+        guard let activity = activities.first(where: { $0.id == rowID }) else { return }
+        guard activity.readAt == nil else { return }
+        withAnimation {
+            activity.readAt = .now
+            try? context.save()
+        }
+    }
+
+    private func dismissRow(rowID: UUID) {
+        guard let activity = activities.first(where: { $0.id == rowID }) else { return }
+        let now = Date.now
+        withAnimation {
+            activity.dismissedAt = now
+            if activity.readAt == nil { activity.readAt = now }
+            try? context.save()
         }
     }
 }
@@ -113,7 +172,7 @@ private struct ActivityRowView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title)
-                    .font(.system(size: 15, weight: row.isUnread ? .semibold : .regular))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Sage.text)
                     .lineLimit(2)
                 HStack(spacing: 6) {
@@ -142,11 +201,13 @@ private struct ActivityRowView: View {
                     .foregroundStyle(Sage.textSecondary)
             }
 
-            if row.isUnread {
-                Circle()
-                    .fill(Sage.accent)
-                    .frame(width: 8, height: 8)
-            }
+            // Constant-width slot: the dot fading (rather than leaving the
+            // layout) keeps the title's wrap width identical across the
+            // read/unread flip, so marking read doesn't rewrap the text.
+            Circle()
+                .fill(Sage.accent)
+                .frame(width: 8, height: 8)
+                .opacity(row.isUnread ? 1 : 0)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

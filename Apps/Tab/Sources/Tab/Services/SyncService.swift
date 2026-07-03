@@ -968,19 +968,38 @@ final class SyncService {
     func markActivitySeen() async {
         let ctx = container.mainContext
         guard let userID = auth?.currentUser?.id else { return }
+        let now = Date.now
         let profile = (try? ctx.fetch(FetchDescriptor<ProfileEntity>(
             predicate: #Predicate { $0.id == userID }
         )))?.first
-        profile?.activityLastSeenAt = .now
+        for activity in (try? ctx.fetch(FetchDescriptor<ActivityEntity>(
+            predicate: #Predicate { $0.readAt == nil }
+        ))) ?? [] {
+            activity.readAt = now
+        }
+        profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, now)
         try? ctx.save()
 
         guard hasRealSession else { return }
         do {
             let serverSeenAt: Date = try await client.rpc("mark_activity_seen").execute().value
-            profile?.activityLastSeenAt = serverSeenAt
+            profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, serverSeenAt)
             try? ctx.save()
         } catch {
             syncLog.error("mark_activity_seen failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func maxDate(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?):
+            return max(lhs, rhs)
+        case let (lhs?, nil):
+            return lhs
+        case let (nil, rhs?):
+            return rhs
+        case (nil, nil):
+            return nil
         }
     }
 

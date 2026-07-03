@@ -11,7 +11,19 @@ enum DebugActivitySeed {
 
     static func seedIfRequested(in context: ModelContext, currentUserID: UUID?) {
         guard ProcessInfo.processInfo.environment["TAB_SEED_ACTIVITY"] == "1" else { return }
-        guard (try? context.fetch(FetchDescriptor<ActivityEntity>()))?.isEmpty == true else { return }
+
+        // Wipe and reseed so repeated seeded launches (manual runs, UI tests)
+        // always start from the same five unread rows. Read state lives on the
+        // rows and the profile cursor, so both are reset.
+        for existing in (try? context.fetch(FetchDescriptor<ActivityEntity>())) ?? [] {
+            context.delete(existing)
+        }
+        if let uid = currentUserID {
+            let profiles = (try? context.fetch(FetchDescriptor<ProfileEntity>(
+                predicate: #Predicate { $0.id == uid }
+            ))) ?? []
+            for profile in profiles { profile.activityLastSeenAt = nil }
+        }
 
         // Attach to an existing local trip if there is one (enables deep-link),
         // otherwise use a stable fake trip id so the feed still renders.

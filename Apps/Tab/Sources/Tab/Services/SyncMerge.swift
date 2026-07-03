@@ -50,10 +50,23 @@ enum SyncMerge {
         ) else { return }
         entity.displayName = dto.displayName
         entity.avatarURL = dto.avatarURL
-        entity.activityLastSeenAt = dto.activityLastSeenAt
+        entity.activityLastSeenAt = maxDate(entity.activityLastSeenAt, dto.activityLastSeenAt)
         entity.updatedAt = dto.updatedAt
         entity.writeID = dto.writeID
         entity.pushedWriteID = dto.writeID
+    }
+
+    private static func maxDate(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?):
+            return max(lhs, rhs)
+        case let (lhs?, nil):
+            return lhs
+        case let (nil, rhs?):
+            return rhs
+        case (nil, nil):
+            return nil
+        }
     }
 
     // MARK: - Trips

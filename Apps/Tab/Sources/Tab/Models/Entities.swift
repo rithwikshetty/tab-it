@@ -341,6 +341,11 @@ final class ActivityEntity {
     var entityType: String
     var entityID: UUID
     var timestamp: Date
+    /// Device-local read marker. Never synced; pulls only insert new activity rows.
+    var readAt: Date?
+    /// Device-local dismissal (swipe-to-delete). The row is kept, not deleted,
+    /// so the next pull can't re-insert it; the feed just stops showing it.
+    var dismissedAt: Date?
     /// JSON-encoded `[String: String]` snapshot for offline rendering + push text.
     var snapshotData: Data?
 
@@ -352,6 +357,8 @@ final class ActivityEntity {
         entityType: String,
         entityID: UUID,
         timestamp: Date,
+        readAt: Date? = nil,
+        dismissedAt: Date? = nil,
         snapshotData: Data? = nil
     ) {
         self.id = id
@@ -361,6 +368,8 @@ final class ActivityEntity {
         self.entityType = entityType
         self.entityID = entityID
         self.timestamp = timestamp
+        self.readAt = readAt
+        self.dismissedAt = dismissedAt
         self.snapshotData = snapshotData
     }
 
