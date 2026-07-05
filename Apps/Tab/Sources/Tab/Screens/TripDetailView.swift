@@ -88,7 +88,7 @@ struct TripDetailView: View {
     @ViewBuilder
     private func content(for trip: TripEntity) -> some View {
         let currentPersonID = resolvedPersonID(for: trip)
-        let memberCards = trip.people.sortedForDisplay(currentPersonID: currentPersonID).map { person -> MemberCard in
+        let memberCards = trip.activePeople.sortedForDisplay(currentPersonID: currentPersonID).map { person -> MemberCard in
             if person.id == currentPersonID {
                 return MemberCard(id: person.id, displayName: "You", avatarName: auth.currentUser?.displayName ?? person.displayName)
             }

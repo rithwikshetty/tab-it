@@ -115,8 +115,13 @@ enum FriendsPresenter {
         let me = ClaimIdentity.user(currentUserID)
         let myBalances = ctx.overall.filter { $0.forIdentity == me }
 
-        // Friend candidates = everyone sharing a container with me, minus me.
-        let friendClaims = Set(ctx.identityMap.values).subtracting([me])
+        // Friend candidates = current members of my containers, plus removed
+        // people who still owe or are owed something, minus me.
+        var friendClaims = ctx.activeClaims
+        for balance in myBalances where balance.amount != 0 {
+            friendClaims.insert(balance.withIdentity)
+        }
+        friendClaims.subtract([me])
 
         var rows: [FriendRow] = []
         for claim in friendClaims {
@@ -197,6 +202,10 @@ enum FriendsPresenter {
         let currentUserID: UUID
         let containers: [ContainerBalances]
         let identityMap: [UUID: ClaimIdentity]
+        /// Claims with at least one non-removed person row. Removed people
+        /// stay in identityMap (their balances and history must resolve) but
+        /// only surface as friends while something is still owed.
+        let activeClaims: Set<ClaimIdentity>
         let overall: [OverallBalance]
         private let tripsByID: [UUID: TripEntity]
         private let peopleByClaim: [String: [TripPersonEntity]]  // canonicalKey -> rows
@@ -213,15 +222,18 @@ enum FriendsPresenter {
 
             var map: [UUID: ClaimIdentity] = [:]
             var byClaim: [String: [TripPersonEntity]] = [:]
+            var activeSet: Set<ClaimIdentity> = []
             for trip in active {
                 for p in trip.people {
                     let claim = ClaimIdentity.resolve(userID: p.userID, email: p.email)
                     map[p.id] = claim
                     byClaim[claim.canonicalKey, default: []].append(p)
+                    if p.removedAt == nil { activeSet.insert(claim) }
                 }
             }
             self.identityMap = map
             self.peopleByClaim = byClaim
+            self.activeClaims = activeSet
 
             self.containers = active.map { trip in
                 let expenses = trip.expenses.filter { $0.deletedAt == nil }.map { $0.toCoreExpense() }

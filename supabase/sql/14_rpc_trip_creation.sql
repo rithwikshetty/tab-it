@@ -49,8 +49,17 @@ begin
     select 1
     from public.trips t
     where t.id = p_trip_id
-      and t.created_by <> v_actor
       and not private.is_profile_trip_member(t.id, v_actor)
+      and (
+        t.created_by <> v_actor
+        -- A removed creator does not regain access by re-running creation.
+        or exists (
+          select 1 from public.trip_people mine
+          where mine.trip_id = t.id
+            and mine.user_id = v_actor
+            and mine.removed_at is not null
+        )
+      )
   ) then
     raise exception 'Trip already exists and is not writable by current user' using errcode = '42501';
   end if;

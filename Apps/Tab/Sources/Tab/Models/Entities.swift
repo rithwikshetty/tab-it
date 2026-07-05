@@ -67,6 +67,11 @@ final class TripEntity {
 
     var isNonGroup: Bool { kind == "non_group" }
 
+    /// Current members: excludes soft-removed people. Use for member lists,
+    /// avatar groups, and new-expense pickers. Removed people stay in `people`
+    /// so their names keep resolving in history and balances.
+    var activePeople: [TripPersonEntity] { people.filter { $0.removedAt == nil } }
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -106,12 +111,19 @@ final class TripPersonEntity {
     var displayName: String
     var invitedByID: UUID?
     var joinedAt: Date?
+    /// Membership state, not deletion: a removed person keeps their ledger
+    /// rows and balances but drops out of member lists and pickers.
+    var removedAt: Date?
     var createdAt: Date
     var updatedAt: Date
     var writeID: UUID
     var pushedWriteID: UUID?
 
     var trip: TripEntity?
+
+    /// True for synthetic identities minted without a real address (Splitwise
+    /// imports, email-less Apple accounts). Never show these to users.
+    var hasPlaceholderEmail: Bool { email.hasSuffix("@users.tab") }
 
     init(
         id: UUID = UUID(),
@@ -121,6 +133,7 @@ final class TripPersonEntity {
         invitedByID: UUID? = nil,
         trip: TripEntity? = nil,
         joinedAt: Date? = nil,
+        removedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         writeID: UUID = UUID(),
@@ -133,6 +146,7 @@ final class TripPersonEntity {
         self.invitedByID = invitedByID
         self.trip = trip
         self.joinedAt = joinedAt
+        self.removedAt = removedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.writeID = writeID

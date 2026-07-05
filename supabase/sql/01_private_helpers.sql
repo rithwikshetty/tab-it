@@ -47,11 +47,30 @@ as $$
     where tp.trip_id = p_trip_id
       and tp.user_id = p_user_id
       and tp.joined_at is not null
+      and tp.removed_at is null
   );
 $$;
 
 comment on function private.is_profile_trip_member(uuid, uuid) is
-  'True if the supplied auth profile has claimed a person row in the supplied trip. SECURITY DEFINER to bypass RLS on trip_people.';
+  'True if the supplied auth profile has a claimed, non-removed person row in the supplied trip. Gates all trip access. SECURITY DEFINER to bypass RLS on trip_people.';
+
+create or replace function private.is_profile_trip_member_any(p_trip_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public, private
+as $$
+  select exists (
+    select 1 from public.trip_people tp
+    where tp.trip_id = p_trip_id
+      and tp.user_id = p_user_id
+      and tp.joined_at is not null
+  );
+$$;
+
+comment on function private.is_profile_trip_member_any(uuid, uuid) is
+  'True if the supplied auth profile ever claimed a person row in the supplied trip, removed or not. For validating creator/editor identity columns on ledger rows authored by since-removed members — never for access checks.';
 
 create or replace function private.is_trip_member(p_trip_id uuid)
 returns boolean

@@ -84,7 +84,7 @@ enum TripPresenter {
         currentUserDisplayName: String? = nil,
         now: Date = .now
     ) -> TripCard {
-        let members = trip.people.sortedForDisplay(currentPersonID: currentPersonID).map { person -> MemberCard in
+        let members = trip.activePeople.sortedForDisplay(currentPersonID: currentPersonID).map { person -> MemberCard in
             if person.id == currentPersonID {
                 return MemberCard(id: person.id, displayName: "You", avatarName: currentUserDisplayName ?? person.displayName)
             }

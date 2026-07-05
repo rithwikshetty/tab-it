@@ -114,6 +114,67 @@ final class SyncService {
         return row.id
     }
 
+    /// Repoints a pending person to a real email so its owner can claim it at
+    /// sign-in — the path that makes Splitwise-imported (placeholder-email)
+    /// people linkable.
+    func updateTripPersonEmail(personID: UUID, email: String) async throws {
+        let normalized = Self.normalizedEmail(email)
+        #if DEBUG
+        if auth?.isUsingMockAuth == true {
+            let ctx = container.mainContext
+            guard let person = try ctx.fetch(FetchDescriptor<TripPersonEntity>(
+                predicate: #Predicate { $0.id == personID }
+            )).first else { throw SyncError.localTripMissing }
+            person.email = normalized
+            person.updatedAt = .now
+            try ctx.save()
+            return
+        }
+        #endif
+        guard hasRealSession else { throw SyncError.signInRequired }
+
+        let row: TripPersonDTO = try await client
+            .rpc("update_trip_person_email", params: [
+                "p_person_id": AnyJSON.string(personID.uuidString),
+                "p_email": AnyJSON.string(normalized),
+            ])
+            .execute()
+            .value
+
+        let ctx = container.mainContext
+        try SyncMerge.apply(row, in: ctx)
+        try ctx.save()
+    }
+
+    /// Soft-removes a person from a trip. Their ledger rows and balances stay;
+    /// they drop out of member lists and pickers and lose trip access.
+    func removeTripPerson(personID: UUID) async throws {
+        #if DEBUG
+        if auth?.isUsingMockAuth == true {
+            let ctx = container.mainContext
+            guard let person = try ctx.fetch(FetchDescriptor<TripPersonEntity>(
+                predicate: #Predicate { $0.id == personID }
+            )).first else { throw SyncError.localTripMissing }
+            person.removedAt = .now
+            person.updatedAt = .now
+            try ctx.save()
+            return
+        }
+        #endif
+        guard hasRealSession else { throw SyncError.signInRequired }
+
+        let row: TripPersonDTO = try await client
+            .rpc("remove_trip_person", params: [
+                "p_person_id": AnyJSON.string(personID.uuidString),
+            ])
+            .execute()
+            .value
+
+        let ctx = container.mainContext
+        try SyncMerge.apply(row, in: ctx)
+        try ctx.save()
+    }
+
     func suggestTripPeople(query: String? = nil) async throws -> [TripPersonSuggestionDTO] {
         guard hasRealSession else { return [] }
         return try await client

@@ -135,11 +135,30 @@ as $$
     where tp.trip_id = p_trip_id
       and tp.user_id = p_user_id
       and tp.joined_at is not null
+      and tp.removed_at is null
   );
 $$;
 
 comment on function private.is_profile_trip_member(uuid, uuid) is
-  'True if the supplied auth profile has claimed a person row in the supplied trip. SECURITY DEFINER to bypass RLS on trip_people.';
+  'True if the supplied auth profile has a claimed, non-removed person row in the supplied trip. Gates all trip access. SECURITY DEFINER to bypass RLS on trip_people.';
+
+create or replace function private.is_profile_trip_member_any(p_trip_id uuid, p_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public, private
+as $$
+  select exists (
+    select 1 from public.trip_people tp
+    where tp.trip_id = p_trip_id
+      and tp.user_id = p_user_id
+      and tp.joined_at is not null
+  );
+$$;
+
+comment on function private.is_profile_trip_member_any(uuid, uuid) is
+  'True if the supplied auth profile ever claimed a person row in the supplied trip, removed or not. For validating creator/editor identity columns on ledger rows authored by since-removed members — never for access checks.';
 
 create or replace function private.is_trip_member(p_trip_id uuid)
 returns boolean
@@ -521,6 +540,7 @@ create table public.trip_people (
   ),
   invited_by   uuid references public.profiles(id) on delete set null,
   joined_at    timestamptz,
+  removed_at   timestamptz,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   write_id     uuid not null default gen_random_uuid(),
@@ -533,6 +553,9 @@ create table public.trip_people (
 
 comment on table public.trip_people is
   'Trip-scoped ledger identities. A person can be pending by email, then claimed by a real auth profile when that email signs in.';
+
+comment on column public.trip_people.removed_at is
+  'Membership state, not record deletion: a removed person keeps their ledger rows (splits/payments/settlements restrict-reference them) but loses trip access and drops out of pickers. Never purged. Re-adding the same email via add_trip_person_by_email restores the row.';
 
 create unique index trip_people_trip_user_uniq on public.trip_people(trip_id, user_id)
   where user_id is not null;
@@ -694,12 +717,16 @@ begin
     raise exception 'Expense trip must exist and be active' using errcode = '23514';
   end if;
 
-  if not private.is_profile_trip_member(new.trip_id, new.created_by) then
+  -- _any: the creator may have been removed from the trip since; their old
+  -- expenses must stay editable and soft-deletable by remaining members.
+  if not private.is_profile_trip_member_any(new.trip_id, new.created_by) then
     raise exception 'Expense creator must be a trip member' using errcode = '23514';
   end if;
 
+  -- _any: a stale last_edited_by pointing at a since-removed member must not
+  -- block later updates; the current actor is still gated by RLS.
   if new.last_edited_by is not null
-     and not private.is_profile_trip_member(new.trip_id, new.last_edited_by) then
+     and not private.is_profile_trip_member_any(new.trip_id, new.last_edited_by) then
     raise exception 'Expense editor must be a trip member' using errcode = '23514';
   end if;
 
@@ -1106,7 +1133,9 @@ begin
     raise exception 'Settlement to_person must belong to the trip' using errcode = '23514';
   end if;
 
-  if not private.is_profile_trip_member(new.trip_id, new.created_by) then
+  -- _any: the creator may have been removed from the trip since; their old
+  -- settlements must stay editable and soft-deletable by remaining members.
+  if not private.is_profile_trip_member_any(new.trip_id, new.created_by) then
     raise exception 'Settlement creator must be a trip member' using errcode = '23514';
   end if;
 
@@ -1306,6 +1335,33 @@ begin
       )
     );
     return new;
+  elsif tg_op = 'UPDATE' then
+    -- Only removed_at transitions are membership events. Other updates —
+    -- claims (user_id/joined_at), email edits, profile-rename display_name
+    -- sync — stay silent, matching the pre-soft-removal behavior where
+    -- member_joined fired once at insert.
+    if old.removed_at is null and new.removed_at is not null then
+      insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
+      values (
+        new.trip_id, v_actor, 'member_left', 'member', new.id,
+        jsonb_build_object(
+          'actor_name',  private.profile_display_name(v_actor),
+          'trip_name',   private.trip_name(new.trip_id),
+          'member_name', new.display_name
+        )
+      );
+    elsif old.removed_at is not null and new.removed_at is null then
+      insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
+      values (
+        new.trip_id, v_actor, 'member_joined', 'member', new.id,
+        jsonb_build_object(
+          'actor_name',  private.profile_display_name(v_actor),
+          'trip_name',   private.trip_name(new.trip_id),
+          'member_name', new.display_name
+        )
+      );
+    end if;
+    return new;
   else
     insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
     values (
@@ -1359,7 +1415,7 @@ create trigger trg_settlements_activity
   for each row execute function public.log_settlement_activity();
 
 create trigger trg_trip_people_activity
-  after insert or delete on public.trip_people
+  after insert or update or delete on public.trip_people
   for each row execute function public.log_membership_activity();
 
 create trigger trg_trips_activity
@@ -1635,7 +1691,8 @@ create policy expenses_update_member on public.expenses
   using (private.is_trip_member(trip_id))
   with check (
     private.is_trip_member(trip_id)
-    and private.is_profile_trip_member(trip_id, created_by)
+    -- _any: expenses authored by since-removed members stay editable.
+    and private.is_profile_trip_member_any(trip_id, created_by)
     and (
       category_id is null
       or exists (
@@ -1715,7 +1772,8 @@ create policy settlements_update_member on public.settlements
     private.is_trip_member(trip_id)
     and private.is_trip_person(trip_id, from_person_id)
     and private.is_trip_person(trip_id, to_person_id)
-    and private.is_profile_trip_member(trip_id, created_by)
+    -- _any: settlements authored by since-removed members stay editable.
+    and private.is_profile_trip_member_any(trip_id, created_by)
   );
 
 -- activity_log: trigger-owned append-only stream. Clients may read events for
@@ -1854,8 +1912,17 @@ begin
     select 1
     from public.trips t
     where t.id = p_trip_id
-      and t.created_by <> v_actor
       and not private.is_profile_trip_member(t.id, v_actor)
+      and (
+        t.created_by <> v_actor
+        -- A removed creator does not regain access by re-running creation.
+        or exists (
+          select 1 from public.trip_people mine
+          where mine.trip_id = t.id
+            and mine.user_id = v_actor
+            and mine.removed_at is not null
+        )
+      )
   ) then
     raise exception 'Trip already exists and is not writable by current user' using errcode = '42501';
   end if;
@@ -1970,7 +2037,10 @@ begin
     null
   )
   on conflict on constraint trip_people_email_unique do update
-    set display_name = excluded.display_name
+    set display_name = excluded.display_name,
+        -- Re-adding a removed person restores them, keeping their ledger
+        -- identity (and claim state) instead of minting a duplicate row.
+        removed_at = null
   returning public.trip_people.* into v_person;
 
   return v_person;
@@ -1978,7 +2048,7 @@ end;
 $$;
 
 comment on function public.add_trip_person_by_email(uuid, text, text, uuid) is
-  'Adds or updates a pending trip person by email. Existing auth accounts are not linked until that user signs in and claims the email.';
+  'Adds or updates a pending trip person by email; re-adding a removed person''s email restores them. Existing auth accounts are not linked until that user signs in and claims the email.';
 
 create or replace function public.claim_trip_people_for_current_email()
 returns setof public.trip_people
@@ -2014,11 +2084,16 @@ begin
       joined_at = clock_timestamp()
   where tp.email = v_email
     and tp.user_id is null
+    -- Removed pending rows are not claimable; restoring goes through
+    -- add_trip_person_by_email.
+    and tp.removed_at is null
     and not exists (
       select 1
       from public.trip_people existing
       where existing.trip_id = tp.trip_id
         and existing.user_id = v_actor
+      -- Deliberately counts removed claimed rows: claiming a second row for
+      -- the same user would violate trip_people_trip_user_uniq.
     )
   returning tp.*;
 end;
@@ -2057,12 +2132,14 @@ begin
     tp.display_name
   from public.trip_people tp
   where coalesce(tp.user_id, '00000000-0000-0000-0000-000000000000'::uuid) <> v_actor
+    and tp.removed_at is null
     and exists (
       select 1
       from public.trip_people mine
       where mine.trip_id = tp.trip_id
         and mine.user_id = v_actor
         and mine.joined_at is not null
+        and mine.removed_at is null
     )
     and (
       v_query is null
@@ -2076,6 +2153,129 @@ $$;
 
 comment on function public.suggest_trip_people(text, int) is
   'Suggests people the current user has already shared a trip with. No global user search.';
+
+create or replace function public.update_trip_person_email(
+  p_person_id uuid,
+  p_email text
+)
+returns public.trip_people
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_email text := private.normalized_email(p_email);
+  v_person public.trip_people;
+begin
+  if v_actor is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  if v_email is null or v_email = '' or v_email not like '%@%' or char_length(v_email) > 320 then
+    raise exception 'A valid email is required' using errcode = '22023';
+  end if;
+
+  select tp.* into v_person
+  from public.trip_people tp
+  join public.trips t on t.id = tp.trip_id
+  where tp.id = p_person_id
+    and t.kind = 'trip'
+    and t.deleted_at is null
+  for update of tp;
+
+  if not found then
+    raise exception 'Person not found' using errcode = 'P0002';
+  end if;
+
+  if not private.is_profile_trip_member(v_person.trip_id, v_actor) then
+    raise exception 'Only trip members can edit people' using errcode = '42501';
+  end if;
+
+  if v_person.user_id is not null then
+    raise exception 'This person already joined with their own account; their email cannot be changed' using errcode = '42501';
+  end if;
+
+  if v_person.removed_at is not null then
+    raise exception 'This person was removed from the trip' using errcode = '42501';
+  end if;
+
+  if v_person.email = v_email then
+    return v_person;
+  end if;
+
+  if exists (
+    select 1 from public.trip_people other
+    where other.trip_id = v_person.trip_id
+      and other.email = v_email
+      and other.id <> v_person.id
+  ) then
+    raise exception 'Someone in this trip already has that email' using errcode = '23505';
+  end if;
+
+  update public.trip_people tp
+  set email = v_email
+  where tp.id = v_person.id
+  returning tp.* into v_person;
+
+  return v_person;
+end;
+$$;
+
+comment on function public.update_trip_person_email(uuid, text) is
+  'Repoints a pending (unclaimed) trip person to a real email so the owner can claim it at sign-in. The main path for linking Splitwise-imported people, who start with synthetic @users.tab emails. Joined or removed people are not editable.';
+
+create or replace function public.remove_trip_person(
+  p_person_id uuid
+)
+returns public.trip_people
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_person public.trip_people;
+begin
+  if v_actor is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  select tp.* into v_person
+  from public.trip_people tp
+  join public.trips t on t.id = tp.trip_id
+  where tp.id = p_person_id
+    and t.kind = 'trip'
+    and t.deleted_at is null
+  for update of tp;
+
+  if not found then
+    raise exception 'Person not found' using errcode = 'P0002';
+  end if;
+
+  if not private.is_profile_trip_member(v_person.trip_id, v_actor) then
+    raise exception 'Only trip members can remove people' using errcode = '42501';
+  end if;
+
+  if v_person.user_id = v_actor then
+    raise exception 'You cannot remove yourself from a trip' using errcode = '42501';
+  end if;
+
+  if v_person.removed_at is not null then
+    return v_person;
+  end if;
+
+  update public.trip_people tp
+  set removed_at = clock_timestamp()
+  where tp.id = v_person.id
+  returning tp.* into v_person;
+
+  return v_person;
+end;
+$$;
+
+comment on function public.remove_trip_person(uuid) is
+  'Soft-removes a person from a trip (removed_at). Their ledger rows and balances stay intact; they lose trip access and drop out of pickers. Idempotent. Self-removal is blocked so a trip always keeps at least one active claimed member.';
 
 -- <<< END 15_rpc_trip_people.sql
 
@@ -2279,6 +2479,10 @@ revoke execute on function public.claim_trip_people_for_current_email() from pub
 grant  execute on function public.claim_trip_people_for_current_email() to authenticated;
 revoke execute on function public.suggest_trip_people(text, int) from public, anon;
 grant  execute on function public.suggest_trip_people(text, int) to authenticated;
+revoke execute on function public.update_trip_person_email(uuid, text) from public, anon;
+grant  execute on function public.update_trip_person_email(uuid, text) to authenticated;
+revoke execute on function public.remove_trip_person(uuid) from public, anon;
+grant  execute on function public.remove_trip_person(uuid) to authenticated;
 revoke execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) from public, anon;
 grant  execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) to authenticated;
 -- resolve_or_create_non_group_container privileges live in 19_rpc_non_group.sql:
@@ -2292,6 +2496,8 @@ revoke execute on function private.is_trip_member(uuid) from public, anon;
 grant  execute on function private.is_trip_member(uuid) to authenticated;
 revoke execute on function private.is_profile_trip_member(uuid, uuid) from public, anon;
 grant  execute on function private.is_profile_trip_member(uuid, uuid) to authenticated;
+revoke execute on function private.is_profile_trip_member_any(uuid, uuid) from public, anon;
+grant  execute on function private.is_profile_trip_member_any(uuid, uuid) to authenticated;
 revoke execute on function private.is_trip_person(uuid, uuid) from public, anon;
 grant  execute on function private.is_trip_person(uuid, uuid) to authenticated;
 revoke execute on function private.normalized_email(text) from public, anon;
@@ -2360,7 +2566,7 @@ as $$
     and a.timestamp > coalesce(p.activity_last_seen_at, '-infinity'::timestamptz)
     and exists (
       select 1 from public.trip_people tp
-      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null
+      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null and tp.removed_at is null
     )
     and not exists (
       select 1 from public.trip_mute_prefs m
@@ -2387,6 +2593,7 @@ as $$
    and tp.user_id is not null
    and tp.user_id <> a.actor_id
    and tp.joined_at is not null
+   and tp.removed_at is null
   join public.push_devices pd on pd.user_id = tp.user_id
   where a.id = p_activity_id
     and not exists (

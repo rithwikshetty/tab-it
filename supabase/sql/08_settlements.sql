@@ -60,7 +60,9 @@ begin
     raise exception 'Settlement to_person must belong to the trip' using errcode = '23514';
   end if;
 
-  if not private.is_profile_trip_member(new.trip_id, new.created_by) then
+  -- _any: the creator may have been removed from the trip since; their old
+  -- settlements must stay editable and soft-deletable by remaining members.
+  if not private.is_profile_trip_member_any(new.trip_id, new.created_by) then
     raise exception 'Settlement creator must be a trip member' using errcode = '23514';
   end if;
 

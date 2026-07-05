@@ -73,6 +73,7 @@ create table public.trip_people (
   ),
   invited_by   uuid references public.profiles(id) on delete set null,
   joined_at    timestamptz,
+  removed_at   timestamptz,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   write_id     uuid not null default gen_random_uuid(),
@@ -85,6 +86,9 @@ create table public.trip_people (
 
 comment on table public.trip_people is
   'Trip-scoped ledger identities. A person can be pending by email, then claimed by a real auth profile when that email signs in.';
+
+comment on column public.trip_people.removed_at is
+  'Membership state, not record deletion: a removed person keeps their ledger rows (splits/payments/settlements restrict-reference them) but loses trip access and drops out of pickers. Never purged. Re-adding the same email via add_trip_person_by_email restores the row.';
 
 create unique index trip_people_trip_user_uniq on public.trip_people(trip_id, user_id)
   where user_id is not null;

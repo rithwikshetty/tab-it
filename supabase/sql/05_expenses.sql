@@ -52,12 +52,16 @@ begin
     raise exception 'Expense trip must exist and be active' using errcode = '23514';
   end if;
 
-  if not private.is_profile_trip_member(new.trip_id, new.created_by) then
+  -- _any: the creator may have been removed from the trip since; their old
+  -- expenses must stay editable and soft-deletable by remaining members.
+  if not private.is_profile_trip_member_any(new.trip_id, new.created_by) then
     raise exception 'Expense creator must be a trip member' using errcode = '23514';
   end if;
 
+  -- _any: a stale last_edited_by pointing at a since-removed member must not
+  -- block later updates; the current actor is still gated by RLS.
   if new.last_edited_by is not null
-     and not private.is_profile_trip_member(new.trip_id, new.last_edited_by) then
+     and not private.is_profile_trip_member_any(new.trip_id, new.last_edited_by) then
     raise exception 'Expense editor must be a trip member' using errcode = '23514';
   end if;
 

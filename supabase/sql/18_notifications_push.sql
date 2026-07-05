@@ -47,7 +47,7 @@ as $$
     and a.timestamp > coalesce(p.activity_last_seen_at, '-infinity'::timestamptz)
     and exists (
       select 1 from public.trip_people tp
-      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null
+      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null and tp.removed_at is null
     )
     and not exists (
       select 1 from public.trip_mute_prefs m
@@ -74,6 +74,7 @@ as $$
    and tp.user_id is not null
    and tp.user_id <> a.actor_id
    and tp.joined_at is not null
+   and tp.removed_at is null
   join public.push_devices pd on pd.user_id = tp.user_id
   where a.id = p_activity_id
     and not exists (

@@ -175,6 +175,33 @@ begin
       )
     );
     return new;
+  elsif tg_op = 'UPDATE' then
+    -- Only removed_at transitions are membership events. Other updates —
+    -- claims (user_id/joined_at), email edits, profile-rename display_name
+    -- sync — stay silent, matching the pre-soft-removal behavior where
+    -- member_joined fired once at insert.
+    if old.removed_at is null and new.removed_at is not null then
+      insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
+      values (
+        new.trip_id, v_actor, 'member_left', 'member', new.id,
+        jsonb_build_object(
+          'actor_name',  private.profile_display_name(v_actor),
+          'trip_name',   private.trip_name(new.trip_id),
+          'member_name', new.display_name
+        )
+      );
+    elsif old.removed_at is not null and new.removed_at is null then
+      insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
+      values (
+        new.trip_id, v_actor, 'member_joined', 'member', new.id,
+        jsonb_build_object(
+          'actor_name',  private.profile_display_name(v_actor),
+          'trip_name',   private.trip_name(new.trip_id),
+          'member_name', new.display_name
+        )
+      );
+    end if;
+    return new;
   else
     insert into public.activity_log (trip_id, actor_id, action, entity_type, entity_id, snapshot_json)
     values (
@@ -228,7 +255,7 @@ create trigger trg_settlements_activity
   for each row execute function public.log_settlement_activity();
 
 create trigger trg_trip_people_activity
-  after insert or delete on public.trip_people
+  after insert or update or delete on public.trip_people
   for each row execute function public.log_membership_activity();
 
 create trigger trg_trips_activity

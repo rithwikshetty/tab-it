@@ -91,7 +91,8 @@ create policy expenses_update_member on public.expenses
   using (private.is_trip_member(trip_id))
   with check (
     private.is_trip_member(trip_id)
-    and private.is_profile_trip_member(trip_id, created_by)
+    -- _any: expenses authored by since-removed members stay editable.
+    and private.is_profile_trip_member_any(trip_id, created_by)
     and (
       category_id is null
       or exists (
@@ -171,7 +172,8 @@ create policy settlements_update_member on public.settlements
     private.is_trip_member(trip_id)
     and private.is_trip_person(trip_id, from_person_id)
     and private.is_trip_person(trip_id, to_person_id)
-    and private.is_profile_trip_member(trip_id, created_by)
+    -- _any: settlements authored by since-removed members stay editable.
+    and private.is_profile_trip_member_any(trip_id, created_by)
   );
 
 -- activity_log: trigger-owned append-only stream. Clients may read events for

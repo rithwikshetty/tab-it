@@ -45,6 +45,10 @@ revoke execute on function public.claim_trip_people_for_current_email() from pub
 grant  execute on function public.claim_trip_people_for_current_email() to authenticated;
 revoke execute on function public.suggest_trip_people(text, int) from public, anon;
 grant  execute on function public.suggest_trip_people(text, int) to authenticated;
+revoke execute on function public.update_trip_person_email(uuid, text) from public, anon;
+grant  execute on function public.update_trip_person_email(uuid, text) to authenticated;
+revoke execute on function public.remove_trip_person(uuid) from public, anon;
+grant  execute on function public.remove_trip_person(uuid) to authenticated;
 revoke execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) from public, anon;
 grant  execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) to authenticated;
 -- resolve_or_create_non_group_container privileges live in 19_rpc_non_group.sql:
@@ -58,6 +62,8 @@ revoke execute on function private.is_trip_member(uuid) from public, anon;
 grant  execute on function private.is_trip_member(uuid) to authenticated;
 revoke execute on function private.is_profile_trip_member(uuid, uuid) from public, anon;
 grant  execute on function private.is_profile_trip_member(uuid, uuid) to authenticated;
+revoke execute on function private.is_profile_trip_member_any(uuid, uuid) from public, anon;
+grant  execute on function private.is_profile_trip_member_any(uuid, uuid) to authenticated;
 revoke execute on function private.is_trip_person(uuid, uuid) from public, anon;
 grant  execute on function private.is_trip_person(uuid, uuid) to authenticated;
 revoke execute on function private.normalized_email(text) from public, anon;

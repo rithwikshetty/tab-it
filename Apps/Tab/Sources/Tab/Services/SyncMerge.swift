@@ -134,6 +134,7 @@ enum SyncMerge {
                 invitedByID: dto.invitedBy,
                 trip: trip,
                 joinedAt: dto.joinedAt,
+                removedAt: dto.removedAt,
                 createdAt: dto.createdAt,
                 updatedAt: dto.updatedAt,
                 writeID: dto.writeID,
@@ -151,6 +152,7 @@ enum SyncMerge {
         entity.displayName = dto.displayName
         entity.invitedByID = dto.invitedBy
         entity.joinedAt = dto.joinedAt
+        entity.removedAt = dto.removedAt
         entity.createdAt = dto.createdAt
         entity.updatedAt = dto.updatedAt
         entity.writeID = dto.writeID

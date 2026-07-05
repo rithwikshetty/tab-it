@@ -90,6 +90,20 @@ struct SettleUpFormView: View {
         return trip?.people.first(where: { $0.id == personID })?.displayName ?? "Member"
     }
 
+    /// Active members, plus removed people who still owe or are owed something
+    /// (debts survive removal and must stay settleable), plus anyone already
+    /// selected on this form.
+    private var selectablePeople: [TripPersonEntity] {
+        guard let trip else { return [] }
+        var keep = Set<UUID>()
+        for balance in currentBalances where balance.amount != 0 {
+            keep.insert(balance.forUser)
+        }
+        if let fromPersonID { keep.insert(fromPersonID) }
+        if let toPersonID { keep.insert(toPersonID) }
+        return trip.people.filter { $0.removedAt == nil || keep.contains($0.id) }
+    }
+
     var body: some View {
         Group {
             if trip == nil {
@@ -233,7 +247,7 @@ struct SettleUpFormView: View {
         excludeID: UUID?,
         onSelect: @escaping (UUID) -> Void
     ) -> some View {
-        let members = trip?.people.sortedForDisplay(currentPersonID: currentPersonID) ?? []
+        let members = selectablePeople.sortedForDisplay(currentPersonID: currentPersonID)
         Menu {
             ForEach(members, id: \.id) { person in
                 if person.id != excludeID {
@@ -421,7 +435,7 @@ struct SettleUpFormView: View {
             toPersonID = suggestion.toPersonID
             currency = suggestion.currency
             amountText = plainAmountString(suggestion.amount)
-        } else if let firstOther = trip.people.first(where: { $0.id != cpID }) {
+        } else if let firstOther = trip.activePeople.first(where: { $0.id != cpID }) {
             toPersonID = firstOther.id
         }
     }

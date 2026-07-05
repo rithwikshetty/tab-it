@@ -72,6 +72,7 @@ struct TripPersonDTO: Codable, Sendable {
     let displayName: String
     let invitedBy: UUID?
     let joinedAt: Date?
+    let removedAt: Date?
     let createdAt: Date
     let updatedAt: Date
     let writeID: UUID
@@ -84,6 +85,7 @@ struct TripPersonDTO: Codable, Sendable {
         case displayName = "display_name"
         case invitedBy = "invited_by"
         case joinedAt = "joined_at"
+        case removedAt = "removed_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case writeID = "write_id"

@@ -54,8 +54,15 @@ struct PaymentSplitView: View {
         return trip.people.first(where: { $0.userID == userID })?.id
     }
 
+    /// Active members, plus removed people already in this draft's payments or
+    /// participants (editing an old expense must not drop them silently).
     private var members: [TripPersonEntity] {
-        trip?.people.sortedForDisplay(currentPersonID: currentPersonID) ?? []
+        guard let trip else { return [] }
+        var referenced = participantSet
+        referenced.formUnion(payments.map(\.payerID))
+        return trip.people
+            .filter { $0.removedAt == nil || referenced.contains($0.id) }
+            .sortedForDisplay(currentPersonID: currentPersonID)
     }
 
     private var computedPayments: [Payment]? {

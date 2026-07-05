@@ -250,13 +250,25 @@ struct ExpenseEntryView: View {
         return ("Over by \(MoneyFormatter.shareString(-remaining))%", false)
     }
 
+    /// People offered in pickers: active members, plus removed people already
+    /// on the expense being edited, so an edit never drops them silently.
+    private var selectablePeople: [TripPersonEntity] {
+        guard let trip else { return [] }
+        var referenced: Set<UUID> = []
+        if let expense = editingExpense {
+            referenced.formUnion(expense.payments.map(\.tripPersonID))
+            referenced.formUnion(expense.splits.map(\.tripPersonID))
+        }
+        return trip.people.filter { $0.removedAt == nil || referenced.contains($0.id) }
+    }
+
     private var participantRows: [ParticipantRow] {
         guard let trip else { return [] }
         let currentPersonID = auth.currentUser.flatMap { user in
             trip.people.first(where: { $0.userID == user.id })?.id
         }
         let splits = computedSplits ?? []
-        return trip.people.sortedForDisplay(currentPersonID: currentPersonID).map { person in
+        return selectablePeople.sortedForDisplay(currentPersonID: currentPersonID).map { person in
             let name = person.id == currentPersonID ? "You" : person.displayName
             let isOn = participantSet.contains(person.id)
             let share = splits.first(where: { $0.participantID == person.id })?.amountOwed ?? 0
@@ -438,7 +450,7 @@ struct ExpenseEntryView: View {
         }
 
         if participantSet.isEmpty, let trip {
-            participantSet = Set(trip.people.map(\.id))
+            participantSet = Set(trip.activePeople.map(\.id))
         }
         if selectedSplitType == .exact {
             seedMissingExactAmountsFromEqual()
