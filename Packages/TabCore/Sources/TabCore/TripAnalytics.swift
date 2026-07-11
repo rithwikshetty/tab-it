@@ -25,39 +25,23 @@ public struct CategorySpend: Hashable, Sendable {
     }
 }
 
-/// Total spend on one calendar day (by expense date), with its per-category breakdown.
-public struct DailySpend: Hashable, Sendable {
-    public let date: Date
-    public let total: Decimal
-    public let byCategory: [CategorySpend]
-
-    public init(date: Date, total: Decimal, byCategory: [CategorySpend]) {
-        self.date = date
-        self.total = total
-        self.byCategory = byCategory
-    }
-}
-
 /// A per-trip spend summary for a single currency. Settlements are never included.
 public struct TripSpendSummary: Hashable, Sendable {
     public let currency: String
     public let total: Decimal
     public let perPerson: [PersonSpend]
     public let perCategory: [CategorySpend]
-    public let perDay: [DailySpend]
 
     public init(
         currency: String,
         total: Decimal,
         perPerson: [PersonSpend],
-        perCategory: [CategorySpend],
-        perDay: [DailySpend]
+        perCategory: [CategorySpend]
     ) {
         self.currency = currency
         self.total = total
         self.perPerson = perPerson
         self.perCategory = perCategory
-        self.perDay = perDay
     }
 }
 
@@ -67,10 +51,7 @@ public struct TripSpendSummary: Hashable, Sendable {
 /// Settlements are intentionally not a parameter — they are debt-clearing, never trip spend.
 /// Soft-deleted expenses are excluded. One [[TripSpendSummary]] is returned per currency present.
 public enum TripAnalytics {
-    public static func summarize(
-        expenses: [Expense],
-        calendar: Calendar = .current
-    ) -> [TripSpendSummary] {
+    public static func summarize(expenses: [Expense]) -> [TripSpendSummary] {
         let active = expenses.filter { $0.deletedAt == nil }
         let byCurrency = Dictionary(grouping: active) { $0.amount.currency }
 
@@ -96,19 +77,8 @@ public enum TripAnalytics {
                 currency: currency,
                 total: total,
                 perPerson: perPerson,
-                perCategory: categoryTotals(of: group),
-                perDay: dailyTotals(of: group, calendar: calendar)
+                perCategory: categoryTotals(of: group)
             )
-        }
-    }
-
-    /// Spend per calendar day (by expense date), ascending, each with its per-category breakdown.
-    private static func dailyTotals(of expenses: [Expense], calendar: Calendar) -> [DailySpend] {
-        let byDay = Dictionary(grouping: expenses) { calendar.startOfDay(for: $0.expenseDate) }
-        return byDay.keys.sorted().map { date in
-            let dayExpenses = byDay[date] ?? []
-            let total = dayExpenses.reduce(Decimal(0)) { $0 + $1.amount.amount }
-            return DailySpend(date: date, total: total, byCategory: categoryTotals(of: dayExpenses))
         }
     }
 

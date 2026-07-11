@@ -58,18 +58,6 @@ enum OverviewPresenter {
                 )
             }
 
-            let maxDay = summary.perDay.map(\.total).max() ?? 0
-            let days = summary.perDay.map { d -> OverviewDayBar in
-                OverviewDayBar(
-                    id: dayIDFormatter.string(from: d.date),
-                    label: dayLabel(d.date),
-                    heightFraction: ratio(d.total, of: maxDay),
-                    segments: d.byCategory.map {
-                        OverviewDaySegment(categoryID: $0.categoryID, fraction: ratio($0.total, of: d.total))
-                    }
-                )
-            }
-
             let yours = summary.perPerson.first { $0.personID == currentPersonID }
             let yourShare = yours?.share ?? 0
             let yourPaid = yours?.paid ?? 0
@@ -84,8 +72,7 @@ enum OverviewPresenter {
                 yourShare: MoneyFormatter.formatSymbol(yourShare, currency: summary.currency),
                 yourSharePercent: percentLabel,
                 people: people,
-                categories: categories,
-                days: days
+                categories: categories
             )
         }
         return OverviewState(currencies: pages.map(\.currency), pages: pages)
@@ -94,18 +81,5 @@ enum OverviewPresenter {
     private static func ratio(_ part: Decimal, of whole: Decimal) -> Double {
         guard whole > 0 else { return 0 }
         return ((part / whole) as NSDecimalNumber).doubleValue
-    }
-
-    // Formatters are cached — creating one per day bar re-runs on every render.
-    private static let dayIDFormatter = ISO8601DateFormatter()
-
-    private static let dayLabelFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d"
-        return f
-    }()
-
-    private static func dayLabel(_ date: Date) -> String {
-        dayLabelFormatter.string(from: date)
     }
 }

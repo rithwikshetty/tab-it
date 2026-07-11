@@ -48,6 +48,51 @@ struct BalancePresenterTests {
             MoneyFormatter.format(30, currency: "GBP"),
             MoneyFormatter.format(30, currency: "GBP"),
         ])
+        #expect(summary.semantic == .lent)
+    }
+
+    @Test("simplified groups expose debts between other and pending trip people")
+    func simplifiedTripWideDebts() throws {
+        let pending = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        let trip = TripEntity(name: "Demo", createdByID: you)
+        let people = [
+            person(id: you, name: "You", trip: trip),
+            person(id: sam, name: "Sam", trip: trip),
+            TripPersonEntity(id: pending, email: "pending@example.com", displayName: "Priya", trip: trip),
+        ]
+        let expense = ExpenseEntity(
+            amount: 90,
+            currency: "GBP",
+            descriptionText: "Hotel",
+            expenseDate: Date(timeIntervalSince1970: 1_780_000_000),
+            createdByID: you,
+            trip: trip
+        )
+        expense.payments = [
+            PaymentEntity(tripPersonID: pending, amountPaid: 90, paymentModeRaw: "equal", expense: expense)
+        ]
+        expense.splits = [
+            ExpenseSplitEntity(tripPersonID: sam, amountOwed: 90, splitTypeRaw: "equal", expense: expense)
+        ]
+        let peopleByID = Dictionary(uniqueKeysWithValues: people.map { ($0.id, $0) })
+
+        let group = try #require(BalancePresenter.simplifiedGroups(
+            expenses: [expense],
+            settlements: [],
+            currentPersonID: you,
+            personFor: { peopleByID[$0] }
+        ).first)
+        let debt = try #require(group.debts.first)
+
+        #expect(debt.fromName == "Sam")
+        #expect(debt.toName == "Priya")
+        #expect(debt.semantic == .neutral)
+        #expect(debt.suggestion == SettleUpSuggestion(
+            fromPersonID: sam,
+            toPersonID: pending,
+            amount: 90,
+            currency: "GBP"
+        ))
     }
 
     private func person(id: UUID, name: String, trip: TripEntity) -> TripPersonEntity {

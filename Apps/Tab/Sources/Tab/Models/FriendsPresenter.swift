@@ -326,21 +326,26 @@ enum FriendsPresenter {
                 let parties = Set(e.payments.map(\.tripPersonID)).union(e.splits.map(\.tripPersonID))
                 guard parties.contains(myPID) && parties.contains(friendPID) else { continue }
                 let payerName: String
-                let payerIsYou: Bool
                 if e.payments.count > 1 {
-                    payerName = "\(e.payments.count) people"; payerIsYou = false
+                    payerName = "\(e.payments.count) people"
                 } else if let first = e.primaryPayerID {
-                    payerIsYou = first == myPID
-                    payerName = payerIsYou ? "you" : (peopleByID[first]?.displayName ?? "Member")
+                    payerName = first == myPID ? "you" : (peopleByID[first]?.displayName ?? "Member")
                 } else {
-                    payerName = "\u{2014}"; payerIsYou = false
+                    payerName = "\u{2014}"
                 }
-                let yourShare = e.splits.first { $0.tripPersonID == myPID }?.amountOwed ?? 0
+                let yourShare = e.splits.filter { $0.tripPersonID == myPID }
+                    .reduce(Decimal(0)) { $0 + $1.amountOwed }
+                let yourPayment = e.payments.filter { $0.tripPersonID == myPID }
+                    .reduce(Decimal(0)) { $0 + $1.amountPaid }
+                let net = yourPayment - yourShare
                 let row = ExpenseRowItem(
                     id: e.id, categoryID: e.categoryID, icon: "tag", name: e.descriptionText,
-                    payerName: payerName, payerIsYou: payerIsYou,
+                    payerName: payerName,
                     yourShare: MoneyFormatter.format(yourShare, currency: e.currency),
-                    totalAmount: MoneyFormatter.format(e.amount, currency: e.currency),
+                    balanceLabel: net > 0
+                        ? "you lent \(MoneyFormatter.format(net, currency: e.currency))"
+                        : (net < 0 ? "you borrowed \(MoneyFormatter.format(-net, currency: e.currency))" : nil),
+                    balanceSemantic: net > 0 ? .lent : (net < 0 ? .borrowed : .neutral),
                     sourceName: source
                 )
                 all.append(Dated(date: e.expenseDate, created: e.createdAt,

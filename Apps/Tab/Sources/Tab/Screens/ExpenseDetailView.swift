@@ -80,7 +80,6 @@ struct ExpenseDetailView: View {
     @ViewBuilder
     private func content(for expense: ExpenseEntity) -> some View {
         let userID = auth.currentUser?.id
-        let peopleByID = Dictionary(uniqueKeysWithValues: (expense.trip?.people ?? []).map { ($0.id, $0) })
         let currentPersonID = userID.flatMap { id in
             expense.trip?.people.first(where: { $0.userID == id })?.id
         }
@@ -89,25 +88,7 @@ struct ExpenseDetailView: View {
         let categoryTone = expense.categoryID.map { DefaultCategories.tone(for: $0) } ?? Sage.text
         let categoryIcon = category?.icon ?? "tag"
 
-        let isMultiPayer = expense.payments.count > 1
-        let payerIsYou = !isMultiPayer && expense.primaryPayerID == currentPersonID
-        let payerMember: MemberCard = {
-            if isMultiPayer {
-                return MemberCard(id: expense.id, displayName: "\(expense.payments.count) people")
-            }
-            if let payerID = expense.primaryPayerID {
-                if payerID == currentPersonID {
-                    return MemberCard(
-                        id: payerID,
-                        displayName: "You",
-                        avatarName: auth.currentUser?.displayName ?? peopleByID[payerID]?.displayName
-                    )
-                }
-                return MemberCard(id: payerID, displayName: peopleByID[payerID]?.displayName ?? "Member")
-            }
-            return MemberCard(id: expense.id, displayName: "—")
-        }()
-
+        let paymentRows = buildPaymentRows(expense: expense, currentPersonID: currentPersonID)
         let splitRows = buildSplitRows(expense: expense, currentPersonID: currentPersonID)
         let splitType = expense.splits.first?.splitType ?? .equal
         let participantCount = expense.splits.count
@@ -132,7 +113,8 @@ struct ExpenseDetailView: View {
                     date: expense.expenseDate
                 )
 
-                paidByCard(member: payerMember, isYou: payerIsYou)
+                sectionLabel("Paid by")
+                paidByCard(rows: paymentRows, currency: expense.currency)
 
                 sectionLabel("Split")
                 splitCard(rows: splitRows, splitType: splitType, count: participantCount, currency: expense.currency)
@@ -243,22 +225,27 @@ struct ExpenseDetailView: View {
         .padding(.bottom, 14)
     }
 
-    private func paidByCard(member: MemberCard, isYou: Bool) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("PAID BY")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(1.32)
-                    .foregroundStyle(Sage.textSecondary)
-                Text(isYou ? "You paid the bill" : "\(member.displayName) paid the bill")
-                    .font(.system(size: 14.5, weight: .medium))
-                    .tracking(-0.07)
-                    .foregroundStyle(Sage.text)
+    private func paidByCard(rows: [PaymentRowItem], currency: String) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                HStack(spacing: 12) {
+                    Avatar(initial: row.member.initial, tone: row.member.tone, size: 26, borderWidth: 2)
+                    Text(row.member.displayName)
+                        .font(.system(size: 14, weight: row.isYou ? .semibold : .medium))
+                        .tracking(-0.07)
+                        .foregroundStyle(Sage.text)
+                    Spacer()
+                    Text(MoneyFormatter.format(row.amount, currency: currency))
+                        .font(.system(size: 14, weight: row.isYou ? .semibold : .regular))
+                        .tracking(-0.07)
+                        .foregroundStyle(row.isYou ? Sage.accentStrong : Sage.textSecondary)
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                if index < rows.count - 1 { RowDivider() }
             }
-            Spacer(minLength: 8)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
         .background(Sage.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -531,6 +518,34 @@ struct ExpenseDetailView: View {
             }
     }
 
+    private func buildPaymentRows(expense: ExpenseEntity, currentPersonID: UUID?) -> [PaymentRowItem] {
+        let peopleByID = Dictionary(uniqueKeysWithValues: (expense.trip?.people ?? []).map { ($0.id, $0) })
+        return expense.payments
+            .map { payment -> PaymentRowItem in
+                let isYou = payment.tripPersonID == currentPersonID
+                let member = isYou
+                    ? MemberCard(
+                        id: payment.tripPersonID,
+                        displayName: "You",
+                        avatarName: auth.currentUser?.displayName ?? peopleByID[payment.tripPersonID]?.displayName
+                    )
+                    : MemberCard(
+                        id: payment.tripPersonID,
+                        displayName: peopleByID[payment.tripPersonID]?.displayName ?? "Member"
+                    )
+                return PaymentRowItem(
+                    id: payment.tripPersonID,
+                    member: member,
+                    amount: payment.amountPaid,
+                    isYou: isYou
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.isYou != rhs.isYou { return lhs.isYou }
+                return lhs.member.displayName.localizedCaseInsensitiveCompare(rhs.member.displayName) == .orderedAscending
+            }
+    }
+
     private func performDelete() {
         guard let expense else { return }
         Deletion.softDelete(expense: expense, in: context)
@@ -566,6 +581,13 @@ struct ExpenseDetailView: View {
 }
 
 private struct SplitRowItem: Identifiable, Hashable {
+    let id: UUID
+    let member: MemberCard
+    let amount: Decimal
+    let isYou: Bool
+}
+
+private struct PaymentRowItem: Identifiable, Hashable {
     let id: UUID
     let member: MemberCard
     let amount: Decimal

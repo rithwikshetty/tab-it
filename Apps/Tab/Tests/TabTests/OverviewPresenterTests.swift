@@ -33,8 +33,8 @@ struct OverviewPresenterTests {
     @Test("currency option set + page order follow the summaries")
     func currencyOptions() {
         let summaries = [
-            TripSpendSummary(currency: "EUR", total: 100, perPerson: [], perCategory: [], perDay: []),
-            TripSpendSummary(currency: "JPY", total: 8000, perPerson: [], perCategory: [], perDay: []),
+            TripSpendSummary(currency: "EUR", total: 100, perPerson: [], perCategory: []),
+            TripSpendSummary(currency: "JPY", total: 8000, perPerson: [], perCategory: []),
         ]
         let state = OverviewPresenter.resolve(summaries: summaries, currentPersonID: you, personName: names, categoryName: categoryNames)
         #expect(state.currencies == ["EUR", "JPY"])
@@ -49,7 +49,7 @@ struct OverviewPresenterTests {
                 PersonSpend(personID: you, paid: 150, share: 50),
                 PersonSpend(personID: marco, paid: 50, share: 150),
             ],
-            perCategory: [], perDay: []
+            perCategory: []
         )
         let page = try #require(OverviewPresenter.resolve(summaries: [summary], currentPersonID: you, personName: names, categoryName: categoryNames).pages.first)
         #expect(page.totalSpent == MoneyFormatter.formatSymbol(200, currency: "EUR"))
@@ -66,7 +66,7 @@ struct OverviewPresenterTests {
                 PersonSpend(personID: marco, paid: 50, share: 150),
                 PersonSpend(personID: you, paid: 150, share: 50),
             ],
-            perCategory: [], perDay: []
+            perCategory: []
         )
         let page = try #require(OverviewPresenter.resolve(summaries: [summary], currentPersonID: you, personName: names, categoryName: categoryNames).pages.first)
         let mine = try #require(page.people.first { $0.id == you })
@@ -86,37 +86,12 @@ struct OverviewPresenterTests {
             perCategory: [
                 CategorySpend(categoryID: lodging, total: 200),
                 CategorySpend(categoryID: food, total: 50),
-            ],
-            perDay: []
+            ]
         )
         let page = try #require(OverviewPresenter.resolve(summaries: [summary], currentPersonID: you, personName: names, categoryName: categoryNames).pages.first)
         #expect(page.categories.map(\.name) == ["Lodging", "Food & Drink"])
         #expect(page.categories[0].percent == 0.8)    // 200 / 250
         #expect(page.categories[0].fraction == 1.0)   // largest
         #expect(page.categories[1].fraction == 0.25)  // 50 / 200
-    }
-
-    @Test("day bars scale height to the busiest day and segments to that day's total")
-    func dayBars() throws {
-        let summary = TripSpendSummary(
-            currency: "EUR", total: 300,
-            perPerson: [], perCategory: [],
-            perDay: [
-                DailySpend(date: day(14), total: 200, byCategory: [
-                    CategorySpend(categoryID: lodging, total: 150),
-                    CategorySpend(categoryID: food, total: 50),
-                ]),
-                DailySpend(date: day(15), total: 100, byCategory: [
-                    CategorySpend(categoryID: food, total: 100),
-                ]),
-            ]
-        )
-        let page = try #require(OverviewPresenter.resolve(summaries: [summary], currentPersonID: you, personName: names, categoryName: categoryNames).pages.first)
-        #expect(page.days.count == 2)
-        #expect(page.days[0].label == "14")
-        #expect(page.days[0].heightFraction == 1.0)   // busiest day
-        #expect(page.days[1].heightFraction == 0.5)   // 100 / 200
-        #expect(page.days[0].segments[0].fraction == 0.75)  // 150 / 200
-        #expect(page.days[0].segments[1].fraction == 0.25)  // 50 / 200
     }
 }

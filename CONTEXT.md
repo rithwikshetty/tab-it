@@ -2,7 +2,7 @@
 
 A multi-user, multi-currency group expense tracker for trips. iOS-first, offline-first, private friend-group use; no monetisation.
 
-The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. Not in scope: itinerary, cross-trip *spend* analytics, simplified debts, payment-app links, currency conversion, Android, or percentage/share split UI.
+The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, [[Simplified debt|simplified trip debts]], settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. Not in scope: itinerary, cross-trip *spend* analytics, payment-app links, currency conversion, Android, or percentage/share split UI.
 
 This file is the project's domain glossary. Only terms meaningful to a domain expert (someone reasoning about expenses, balances, and trips) belong here — implementation specifics live in code.
 
@@ -18,7 +18,7 @@ A container of trip people, expenses, settlements, categories, activity, and per
 A trip-scoped ledger identity identified by normalized email and display name. It may already be linked to a [[Profile]], or it may be pending until someone signs in with that email. Expenses, payments, splits, and settlements reference trip people so a trip can be planned before every person has opened the app.
 
 ### Trip member
-A joined trip person: one whose email has been claimed by a signed-in Profile. Trip access is derived from joined trip people. Pending trip people can still appear in ledgers, but they do not grant app access until claimed.
+A joined trip person: one whose email has been claimed by a signed-in Profile. Trip access is derived from joined trip people. A joined member can inspect all expenses, payment shares, split shares, and debts inside that trip, including rows belonging to pending trip people who do not use the app. This visibility never crosses into another trip. Pending trip people can still appear in ledgers, but they do not grant app access until claimed.
 
 ### Email pre-add
 Adding a trip person by email before that person has signed in. If the email already belongs to a Profile, the trip person joins immediately. Otherwise it remains pending and is automatically claimed when someone signs in with the same normalized email. There is no global user search; suggestions are limited to people the current user has already shared trips with.
@@ -70,11 +70,14 @@ A trip person with ≥ 1 Split on a given Expense. May or may not also be a Paye
 Drives [[Pair balance]] aggregation. Sums to zero across all trip people on a single expense (because both ledgers sum to `expense.amount`).
 
 ### Pair balance
-Per `(trip_person_pair, currency)` balance derived from all expense nets plus settlements within a trip. Always pairwise — **never simplified across the group**. Computed by `BalanceEngine`.
+Per `(trip_person_pair, currency)` balance derived from all expense nets plus settlements within a trip. This is the raw, history-preserving source of truth computed by `BalanceEngine`; it is not mutated when the UI presents [[Simplified debt]]s.
 
 The canonical pair key sorts the two trip-person UUIDs `(lo, hi)`. Positive canonical amount means `hi` owes `lo`. External presentation uses mirrored [[User balance]] rows.
 
 For a multi-payer expense, each debtor's shortfall is allocated across creditors in proportion to each creditor's surplus. Settlements then subtract from the relevant pair/currency balance.
+
+### Simplified debt
+A derived repayment suggestion that reduces the number of payments needed to clear one trip while preserving every trip person's net position. Simplification runs independently per trip and per currency, may suggest repayment between people who did not transact directly, and is deterministic for equal positions. It never crosses trips or currencies and never rewrites the underlying [[Pair balance]], expenses, ledgers, or settlements. Recording a suggested payment creates a normal [[Settlement]].
 
 ### User balance
 The user-facing mirror of a [[Pair balance]]: `forUser`, `withUser`, `currency`, `amount`. Positive amount means `withUser` owes `forUser`; negative amount means `forUser` owes `withUser`.
@@ -91,7 +94,7 @@ Settlements are independent of [[Expense]]s: they do not mutate expenses or ledg
 The user workflow for creating or editing a Settlement. When suggesting defaults, the app first prefers a debt the current person owes, then a debt another person owes the current person. A settlement always targets a **single source** — one [[Trip]] or the [[Non-group expense]] context. Launched from [[Friends]], the user first picks which source to settle (there is no blended cross-source settle); the [[Overall balance]] then updates as a consequence.
 
 ### Active / Completed trip state
-A trip is **Completed** when all pair balances across all currencies are zero and `lastActivityAt` is at least 30 days old. Otherwise it is **Active**.
+A trip is **Completed** when its derived [[Simplified debt]] set is empty across all currencies and `lastActivityAt` is at least 30 days old. Otherwise it is **Active**. Raw pair balances may still contain a fully cancelling cycle; that cycle requires no repayment and therefore does not keep the trip active.
 
 The activity clock starts at trip creation and is bumped by expense or settlement writes, including edits/deletes. A new expense or settlement on a Completed trip reactivates it. State is derived from data; never stored.
 
@@ -99,7 +102,7 @@ The activity clock starts at trip creation and is bumped by expense or settlemen
 A trip-level concept only in the sense that each expense and settlement carries its own ISO currency code. **No FX conversion**. Totals, balances, and exports are computed and displayed strictly per currency.
 
 ### Overview
-A per-trip, read-only summary of **spend** — what the trip cost and how that cost is distributed. Scoped to one currency at a time (see [[Currency]]); a currency picker selects which when a trip has more than one. Shows total trip spend, the current user's *paid* and *share* totals, a per-person breakdown (both paid and share), a per-category breakdown, and daily spend (each day's total broken down by category, bucketed by expense date). **Settlements are excluded entirely** — a settlement is debt-clearing, not trip cost, so it never appears in any Overview total or chart. Distinct from the Balances tab, which answers debt (who owes whom, settlements included); Overview never shows net-owed. Surfaced as a third segment alongside Expenses and Balances on the trip detail screen.
+A per-trip, read-only summary of **spend** — what the trip cost and how that cost is distributed. Scoped to one currency at a time (see [[Currency]]); a currency picker selects which when a trip has more than one. Shows total trip spend, the current user's *paid* and *share* totals, a per-person breakdown (both paid and share), and a per-category breakdown. **Settlements are excluded entirely** — a settlement is debt-clearing, not trip cost, so it never appears in any Overview total or chart. Distinct from the Balances tab, which answers debt (who owes whom, settlements included); Overview never shows net-owed. Surfaced as a third segment alongside Expenses and Balances on the trip detail screen.
 
 "Spend" splits into two figures, never blurred:
 - **Paid** — what a trip person fronted (from the [[Payment ledger]]).

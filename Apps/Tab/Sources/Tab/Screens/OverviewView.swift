@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 /// Per-trip spend [[Overview]] — Direction A (donut-led).
-/// Summary (total / you paid / your share) → per-person → by-category → daily stacked bars.
+/// Summary (total / you paid / your share) → per-person → by-category.
 /// Scoped to one currency; a picker appears only when the trip has more than one.
 struct OverviewView: View {
     let state: OverviewState
@@ -25,9 +25,6 @@ struct OverviewView: View {
                 }
                 if !page.categories.isEmpty {
                     categoryCard(page)
-                }
-                if !page.days.isEmpty {
-                    dailyCard(page)
                 }
             }
         } else {
@@ -199,60 +196,6 @@ struct OverviewView: View {
                         .frame(height: 8)
                     }
                 }
-            }
-            .padding(18)
-        }
-    }
-
-    // MARK: daily
-
-    private func dailyCard(_ page: OverviewPage) -> some View {
-        struct Segment: Identifiable {
-            let id: String
-            let dayKey: String   // unique per calendar day (full date)
-            let day: String      // day-of-month label
-            let categoryID: UUID?
-            let height: Double
-        }
-        let segments: [Segment] = page.days.flatMap { day in
-            day.segments.enumerated().map { offset, seg in
-                Segment(
-                    id: "\(day.id)-\(offset)",
-                    dayKey: day.id,
-                    day: day.label,
-                    categoryID: seg.categoryID,
-                    height: day.heightFraction * seg.fraction
-                )
-            }
-        }
-        // Plot against the unique per-day key so two days that share a
-        // day-of-month across months (e.g. May 9 and June 9) don't collapse
-        // into one bar; show the day number on the axis.
-        let labelByKey = Dictionary(page.days.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
-        return Card {
-            VStack(alignment: .leading, spacing: 8) {
-                cardEyebrow("Daily spend")
-                Chart(segments) { seg in
-                    BarMark(
-                        x: .value("Day", seg.dayKey),
-                        y: .value("Spend", seg.height)
-                    )
-                    .foregroundStyle(color(for: seg.categoryID))
-                    .cornerRadius(2)
-                }
-                .chartYAxis(.hidden)
-                .chartXAxis {
-                    AxisMarks { value in
-                        AxisValueLabel {
-                            if let key = value.as(String.self), let label = labelByKey[key] {
-                                Text(label)
-                            }
-                        }
-                        .font(.system(size: 9))
-                        .foregroundStyle(Sage.textSecondary)
-                    }
-                }
-                .frame(height: 130)
             }
             .padding(18)
         }

@@ -18,6 +18,7 @@ struct TripCard: Identifiable, Hashable, Sendable {
     enum Status: Hashable, Sendable {
         case owed(String)
         case owe(String)
+        case mixed(String)
         case settled(String)
         case empty
     }
@@ -35,9 +36,9 @@ struct ExpenseRowItem: Identifiable, Hashable, Sendable {
     let icon: String
     let name: String
     let payerName: String
-    let payerIsYou: Bool
     let yourShare: String
-    let totalAmount: String
+    let balanceLabel: String?
+    let balanceSemantic: BalanceSemantic
     var sourceName: String? = nil
 }
 
@@ -51,12 +52,35 @@ struct BalanceDetailItem: Identifiable, Hashable, Sendable {
     let id: UUID
     let counterparty: String
     let amount: String
+    let semantic: BalanceSemantic
 }
 
 struct BalanceSummary: Hashable, Sendable {
     let label: String
     let amount: String
     let details: [BalanceDetailItem]
+    let semantic: BalanceSemantic
+}
+
+enum BalanceSemantic: Hashable, Sendable {
+    case lent
+    case borrowed
+    case neutral
+}
+
+struct SimplifiedDebtGroup: Identifiable, Hashable, Sendable {
+    var id: String { currency }
+    let currency: String
+    let debts: [SimplifiedDebtRowItem]
+}
+
+struct SimplifiedDebtRowItem: Identifiable, Hashable, Sendable {
+    let id: String
+    let fromName: String
+    let toName: String
+    let amount: String
+    let semantic: BalanceSemantic
+    let suggestion: SettleUpSuggestion
 }
 
 struct CategoryOption: Identifiable, Hashable, Sendable {
@@ -96,7 +120,15 @@ enum TimelineItem: Identifiable, Hashable, Sendable {
 struct TimelineDay: Identifiable, Hashable, Sendable {
     let id: String
     let dateLabel: String
+    let totals: [TimelineDayTotal]
     let items: [TimelineItem]
+}
+
+struct TimelineDayTotal: Identifiable, Hashable, Sendable {
+    var id: String { currency }
+    let currency: String
+    let totalSpend: String
+    let yourShare: String
 }
 
 // MARK: - Overview (per-trip spend)
@@ -123,7 +155,6 @@ struct OverviewPage: Identifiable, Hashable, Sendable {
     let yourSharePercent: String?
     let people: [OverviewPersonRow]
     let categories: [OverviewCategoryRow]
-    let days: [OverviewDayBar]
 }
 
 struct OverviewPersonRow: Identifiable, Hashable, Sendable {
@@ -144,19 +175,5 @@ struct OverviewCategoryRow: Identifiable, Hashable, Sendable {
     /// Share of trip total (0...1), for the "39%" readout.
     let percent: Double
     /// Width relative to the largest category (0...1), for the bar.
-    let fraction: Double
-}
-
-struct OverviewDayBar: Identifiable, Hashable, Sendable {
-    let id: String
-    let label: String
-    /// Height relative to the busiest day (0...1).
-    let heightFraction: Double
-    let segments: [OverviewDaySegment]
-}
-
-struct OverviewDaySegment: Hashable, Sendable {
-    let categoryID: UUID?
-    /// Share of that day's total (0...1).
     let fraction: Double
 }

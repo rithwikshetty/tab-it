@@ -7,7 +7,7 @@ struct TripDetailView: View {
     let tripID: UUID
     var onAddExpense: () -> Void = {}
     var onOpenExpense: (UUID) -> Void = { _ in }
-    var onSettleUp: () -> Void = {}
+    var onSettleUp: (SettleUpSuggestion?) -> Void = { _ in }
     var onOpenSettlement: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
@@ -35,6 +35,7 @@ struct TripDetailView: View {
     // saves that change nothing leave the signature untouched, so they trigger
     // no recompute at all.
     @State private var summaries: [BalanceSummary] = []
+    @State private var debtGroups: [SimplifiedDebtGroup] = []
     @State private var timeline: [TimelineDay] = []
     @State private var overview: OverviewState = .empty
     @State private var exportData: TripExporter.ExportData?
@@ -44,7 +45,7 @@ struct TripDetailView: View {
         tripID: UUID,
         onAddExpense: @escaping () -> Void = {},
         onOpenExpense: @escaping (UUID) -> Void = { _ in },
-        onSettleUp: @escaping () -> Void = {},
+        onSettleUp: @escaping (SettleUpSuggestion?) -> Void = { _ in },
         onOpenSettlement: @escaping (UUID) -> Void = { _ in }
     ) {
         self.tripID = tripID
@@ -134,7 +135,7 @@ struct TripDetailView: View {
                 if segment == 0 {
                     timelineSection(days: timeline)
                 } else if segment == 1 {
-                    balancesSection(summaries: summaries)
+                    balancesSection(groups: debtGroups)
                 } else {
                     OverviewView(state: overview)
                 }
@@ -174,7 +175,7 @@ struct TripDetailView: View {
                         Label("Edit details", systemImage: "pencil")
                     }
                     Button {
-                        onSettleUp()
+                        onSettleUp(nil)
                     } label: {
                         Label("Settle up", systemImage: "arrow.right.arrow.left")
                     }
@@ -277,6 +278,12 @@ struct TripDetailView: View {
             currentPersonID: currentPersonID,
             personFor: { id in peopleByID[id] }
         )
+        debtGroups = BalancePresenter.simplifiedGroups(
+            expenses: trip.expenses,
+            settlements: trip.settlements,
+            currentPersonID: currentPersonID,
+            personFor: { id in peopleByID[id] }
+        )
         timeline = timelineDays(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID)
         overview = overviewState(for: trip, currentPersonID: currentPersonID, peopleByID: peopleByID)
         exportData = buildExportData(for: trip)
@@ -315,14 +322,27 @@ struct TripDetailView: View {
         if !days.isEmpty {
             LazyVStack(spacing: 0) {
                 ForEach(days) { day in
-                    Text(day.dateLabel.uppercased())
-                        .font(.dateHeader)
-                        .tracking(1.32)
-                        .foregroundStyle(Sage.textSecondary)
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(day.dateLabel.uppercased())
+                            .font(.dateHeader)
+                            .tracking(1.32)
+                            .foregroundStyle(Sage.textSecondary)
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            ForEach(day.totals) { total in
+                                Text("\(total.totalSpend) (you \(total.yourShare))")
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(Sage.textSecondary)
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
+                        }
+                    }
                         .padding(.horizontal, 26)
                         .padding(.top, 18)
                         .padding(.bottom, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity)
 
                     ForEach(timelineBlocks(for: day.items)) { block in
                         switch block {
@@ -387,27 +407,55 @@ struct TripDetailView: View {
     }
 
     @ViewBuilder
-    private func balancesSection(summaries: [BalanceSummary]) -> some View {
-        if !summaries.isEmpty {
+    private func balancesSection(groups: [SimplifiedDebtGroup]) -> some View {
+        if !groups.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(summaries.enumerated()), id: \.offset) { _, summary in
+                ForEach(groups) { group in
                     Card {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(summary.label + " · " + summary.amount)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Sage.text)
-                                .padding(.bottom, 4)
-                            ForEach(summary.details) { detail in
-                                HStack {
-                                    Text(detail.counterparty)
+                        VStack(alignment: .leading, spacing: 0) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("SIMPLIFIED DEBTS · \(group.currency)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .tracking(1)
+                                    .foregroundStyle(Sage.textSecondary)
+                                Text("Fewer payments, same final balances")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Sage.textSecondary)
+                            }
+                            .padding(.bottom, 10)
+
+                            ForEach(Array(group.debts.enumerated()), id: \.element.id) { index, debt in
+                                if index > 0 { RowDivider() }
+                                Button {
+                                    Haptics.light()
+                                    onSettleUp(debt.suggestion)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        HStack(spacing: 4) {
+                                            Text(debt.fromName)
+                                                .foregroundStyle(Sage.warning)
+                                            Text("owes")
+                                                .foregroundStyle(Sage.textSecondary)
+                                            Text(debt.toName)
+                                                .foregroundStyle(Sage.accentStrong)
+                                        }
                                         .font(.balanceDetail)
-                                        .foregroundStyle(Sage.text.opacity(0.78))
-                                    Spacer()
-                                    Text(detail.amount)
-                                        .font(.balanceDetail.weight(.semibold))
-                                        .foregroundStyle(Sage.text)
-                                        .monospacedDigit()
+                                        .lineLimit(1)
+                                        Spacer(minLength: 8)
+                                        VStack(alignment: .trailing, spacing: 1) {
+                                            Text(debt.amount)
+                                                .font(.balanceDetail.weight(.semibold))
+                                                .foregroundStyle(balanceTone(debt.semantic))
+                                                .monospacedDigit()
+                                            Text("Settle up")
+                                                .font(.system(size: 9.5, weight: .medium))
+                                                .foregroundStyle(Sage.textSecondary)
+                                        }
+                                        Chevron(size: 9)
+                                    }
+                                    .padding(.vertical, 10)
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(16)
@@ -427,6 +475,14 @@ struct TripDetailView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.top, 24)
+        }
+    }
+
+    private func balanceTone(_ semantic: BalanceSemantic) -> Color {
+        switch semantic {
+        case .lent: Sage.accentStrong
+        case .borrowed: Sage.warning
+        case .neutral: Sage.text
         }
     }
 }

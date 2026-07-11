@@ -7,13 +7,14 @@ struct TripCardRow: View {
         switch trip.status {
         case .owed: Sage.accent
         case .owe: Sage.warning
+        case .mixed: Sage.textSecondary
         case .settled, .empty: Sage.textSecondary
         }
     }
 
     private var statusText: String {
         switch trip.status {
-        case .owed(let s), .owe(let s), .settled(let s): s
+        case .owed(let s), .owe(let s), .mixed(let s), .settled(let s): s
         case .empty: "no expenses yet"
         }
     }

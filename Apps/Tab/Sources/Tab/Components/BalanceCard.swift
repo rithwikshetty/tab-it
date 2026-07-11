@@ -3,23 +3,31 @@ import SwiftUI
 struct BalanceCard: View {
     let summary: BalanceSummary
 
+    private var tone: Color {
+        summary.semantic == .borrowed ? Sage.warning : Sage.accentStrong
+    }
+
+    private var tint: Color {
+        summary.semantic == .borrowed ? Sage.warning.opacity(0.08) : Sage.accentTint
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(summary.label.uppercased())
                     .font(.balanceLabel)
                     .tracking(1.10)
-                    .foregroundStyle(Sage.accentStrong.opacity(0.85))
+                    .foregroundStyle(tone.opacity(0.85))
                 Text(summary.amount)
                     .font(.balanceAmount)
                     .tracking(-0.85)
-                    .foregroundStyle(Sage.accentStrong)
+                    .foregroundStyle(tone)
                     .padding(.top, 4)
                     .monospacedDigit()
 
                 if !summary.details.isEmpty {
                     Rectangle()
-                        .fill(Sage.accentSoft)
+                        .fill(tone.opacity(0.25))
                         .frame(height: 1)
                         .padding(.top, 10)
 
@@ -32,7 +40,7 @@ struct BalanceCard: View {
                                 Spacer()
                                 Text(detail.amount)
                                     .font(.balanceDetail.weight(.semibold))
-                                    .foregroundStyle(Sage.text.opacity(0.95))
+                                    .foregroundStyle(detail.semantic == .borrowed ? Sage.warning : Sage.accentStrong)
                                     .monospacedDigit()
                             }
                         }
@@ -46,7 +54,7 @@ struct BalanceCard: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [Sage.accentGlow, .clear],
+                        colors: [tone.opacity(0.25), .clear],
                         center: .center,
                         startRadius: 0,
                         endRadius: 70
@@ -56,10 +64,10 @@ struct BalanceCard: View {
                 .offset(x: 40, y: -40)
                 .allowsHitTesting(false)
         }
-        .background(Sage.accentTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(tint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Sage.accentSoft, lineWidth: 1)
+                .stroke(tone.opacity(0.25), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 18)
@@ -98,21 +106,24 @@ struct EmptyBalanceCard: View {
                 label: "You're owed",
                 amount: "€42.50",
                 details: [
-                    BalanceDetailItem(id: UUID(), counterparty: "Alex owes you", amount: "€20.00"),
-                    BalanceDetailItem(id: UUID(), counterparty: "Jess owes you", amount: "€22.50"),
-                ]
+                    BalanceDetailItem(id: UUID(), counterparty: "Alex owes you", amount: "€20.00", semantic: .lent),
+                    BalanceDetailItem(id: UUID(), counterparty: "Jess owes you", amount: "€22.50", semantic: .lent),
+                ],
+                semantic: .lent
             ))
             BalanceCard(summary: BalanceSummary(
                 label: "You owe",
                 amount: "$18.00",
                 details: [
-                    BalanceDetailItem(id: UUID(), counterparty: "You owe Sam", amount: "$18.00"),
-                ]
+                    BalanceDetailItem(id: UUID(), counterparty: "You owe Sam", amount: "$18.00", semantic: .borrowed),
+                ],
+                semantic: .borrowed
             ))
             BalanceCard(summary: BalanceSummary(
                 label: "You're owed",
                 amount: "£12.00",
-                details: []
+                details: [],
+                semantic: .lent
             ))
             EmptyBalanceCard()
         }

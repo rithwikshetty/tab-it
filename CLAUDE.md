@@ -25,6 +25,7 @@ tab/
 │       │   ├── Models.swift
 │       │   ├── SplitCalculator.swift     ← Pure: expense splitting (equal, exact).
 │       │   ├── BalanceEngine.swift       ← Pure: per-currency pairwise balances.
+│       │   ├── DebtSimplifier.swift      ← Pure: derived trip-wide repayments.
 │       │   ├── TripStateDeriver.swift    ← Pure: active vs completed derivation.
 │       │   └── ConflictResolver.swift    ← Pure: LWW with delete-wins + writeID tiebreaker.
 │       └── Tests/TabCoreTests/
@@ -51,6 +52,7 @@ The iOS app target will be added later under `Apps/` (or root) and depends on `T
 
 - **Pure-logic modules go in `TabCore`** with no UIKit/SwiftUI/Foundation-app imports beyond what's strictly needed. Everything in `TabCore` is `Sendable`. Pure modules are `enum` (not `struct`) to make instantiation impossible.
 - **Balance computation uses canonical pair-key** (sorted UUIDs, lo/hi): positive amount means `hi` owes `lo`. Always emit both mirrored `UserBalance` rows when surfacing to callers.
+- **Simplified debts** are derived per trip and currency from net member positions. Pair balances remain the source of truth; simplification never rewrites expense, split, payment, or settlement history.
 - **Equal-split remainders** distribute 1 cent at a time to participants with lexicographically lowest UUIDs (deterministic, not random).
 - **Exact-split** validates: sum matches total, no missing participants, no extras. Throws on mismatch.
 - **No `XCTest`.** All tests are Swift Testing (`import Testing`).

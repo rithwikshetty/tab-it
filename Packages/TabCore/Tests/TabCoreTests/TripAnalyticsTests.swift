@@ -154,44 +154,9 @@ struct TripAnalyticsTests {
         ])
     }
 
-    // MARK: per-day
-
-    @Test("per-day buckets by expense date, ascending, each with its category breakdown")
-    func perDayBucketed() throws {
-        let d14 = day(2026, 3, 14)
-        let d15 = day(2026, 3, 15)
-        let expenses = [
-            // Day 15 (entered first to prove sorting by date, not input order)
-            makeExpense(amount: 30, currency: "EUR", category: food, date: d15,
-                        payments: [Payment(payerID: alice, amountPaid: 30, paymentMode: .equal)],
-                        splits: [split(alice, 30)]),
-            // Day 14: two expenses, two categories
-            makeExpense(amount: 200, currency: "EUR", category: lodging, date: d14,
-                        payments: [Payment(payerID: alice, amountPaid: 200, paymentMode: .equal)],
-                        splits: [split(alice, 200)]),
-            makeExpense(amount: 50, currency: "EUR", category: food, date: d14,
-                        payments: [Payment(payerID: alice, amountPaid: 50, paymentMode: .equal)],
-                        splits: [split(alice, 50)]),
-        ]
-        let s = try #require(TripAnalytics.summarize(expenses: expenses).first)
-        #expect(s.perDay.count == 2)
-
-        let first = s.perDay[0]
-        #expect(Calendar.current.isDate(first.date, inSameDayAs: d14))
-        #expect(first.total == 250)
-        #expect(first.byCategory == [
-            CategorySpend(categoryID: lodging, total: 200),
-            CategorySpend(categoryID: food, total: 50),
-        ])
-
-        let second = s.perDay[1]
-        #expect(Calendar.current.isDate(second.date, inSameDayAs: d15))
-        #expect(second.total == 30)
-    }
-
     // MARK: soft delete
 
-    @Test("soft-deleted expenses are excluded from totals, people, categories and days")
+    @Test("soft-deleted expenses are excluded from totals, people, and categories")
     func softDeletedExcluded() throws {
         let active = makeExpense(amount: 40, currency: "EUR", category: food,
                                  payments: [Payment(payerID: alice, amountPaid: 40, paymentMode: .equal)],
@@ -203,7 +168,6 @@ struct TripAnalyticsTests {
         let s = try #require(TripAnalytics.summarize(expenses: [active, deleted]).first)
         #expect(s.total == 40)
         #expect(s.perCategory == [CategorySpend(categoryID: food, total: 40)])
-        #expect(s.perDay.count == 1)
         #expect(s.perPerson.contains { $0.personID == bob } == false)
     }
 

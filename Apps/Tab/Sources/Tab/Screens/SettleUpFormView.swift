@@ -5,6 +5,7 @@ import TabCore
 struct SettleUpFormView: View {
     let tripID: UUID
     let editingSettlementID: UUID?
+    let suggestedPayment: SettleUpSuggestion?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
@@ -28,9 +29,14 @@ struct SettleUpFormView: View {
     private var isEditing: Bool { editingSettlementID != nil }
     private var editingSettlement: SettlementEntity? { editingSettlements.first }
 
-    init(tripID: UUID, editingSettlementID: UUID? = nil) {
+    init(
+        tripID: UUID,
+        editingSettlementID: UUID? = nil,
+        suggestedPayment: SettleUpSuggestion? = nil
+    ) {
         self.tripID = tripID
         self.editingSettlementID = editingSettlementID
+        self.suggestedPayment = suggestedPayment
         _trips = Query(filter: #Predicate<TripEntity> { $0.id == tripID })
         let eid = editingSettlementID ?? UUID()
         _editingSettlements = Query(filter: #Predicate<SettlementEntity> { $0.id == eid })
@@ -426,6 +432,17 @@ struct SettleUpFormView: View {
 
         guard let trip, let cpID = currentPersonID else { return }
         fromPersonID = cpID
+
+        if let suggestedPayment {
+            fromPersonID = suggestedPayment.fromPersonID
+            toPersonID = suggestedPayment.toPersonID
+            currency = suggestedPayment.currency
+            amountText = MoneyFormatter.plainAmountString(
+                suggestedPayment.amount,
+                currency: suggestedPayment.currency
+            )
+            return
+        }
 
         if let suggestion = SettleUpPresenter.suggestedPayment(
             balances: currentBalances,

@@ -96,7 +96,17 @@ enum TripPresenter {
         let coreExpenses = activeExpenses.map { $0.toCoreExpense() }
         let coreSettlements = activeSettlements.map { $0.toCoreSettlement() }
         let balances = BalanceEngine.compute(expenses: coreExpenses, settlements: coreSettlements)
-        let state = TripStateDeriver.derive(balances: balances, lastActivityAt: trip.lastActivityAt, now: now)
+        let simplifiedBalances = DebtSimplifier.simplify(balances).flatMap { debt in
+            [
+                UserBalance(forUser: debt.toUser, withUser: debt.fromUser, currency: debt.currency, amount: debt.amount),
+                UserBalance(forUser: debt.fromUser, withUser: debt.toUser, currency: debt.currency, amount: -debt.amount),
+            ]
+        }
+        let state = TripStateDeriver.derive(
+            balances: simplifiedBalances,
+            lastActivityAt: trip.lastActivityAt,
+            now: now
+        )
 
         let mine = balances.filter { $0.forUser == currentPersonID }
         let netByCurrency = Dictionary(grouping: mine, by: \.currency)
@@ -129,7 +139,7 @@ enum TripPresenter {
                             ? "+" + MoneyFormatter.format(amt, currency: cur)
                             : "-" + MoneyFormatter.format(-amt, currency: cur)
                     }
-                status = .owed("net " + parts.joined(separator: " "))
+                status = .mixed("net " + parts.joined(separator: " "))
             }
         }
 
@@ -204,10 +214,65 @@ enum BalancePresenter {
                         entry.amount > 0 ? entry.amount : -entry.amount,
                         currency: currency
                     )
-                    return BalanceDetailItem(id: entry.withUser, counterparty: phrase, amount: amount)
+                    return BalanceDetailItem(
+                        id: entry.withUser,
+                        counterparty: phrase,
+                        amount: amount,
+                        semantic: entry.amount > 0 ? .lent : .borrowed
+                    )
                 }
 
-            return BalanceSummary(label: label, amount: displayAmount, details: details)
+            return BalanceSummary(
+                label: label,
+                amount: displayAmount,
+                details: details,
+                semantic: net > 0 ? .lent : .borrowed
+            )
+        }
+    }
+
+    /// The same trip-wide simplified debts for every joined member, grouped by currency.
+    static func simplifiedGroups(
+        expenses: [ExpenseEntity],
+        settlements: [SettlementEntity],
+        currentPersonID: UUID,
+        personFor: (UUID) -> TripPersonEntity?
+    ) -> [SimplifiedDebtGroup] {
+        let coreExpenses = expenses.filter { $0.deletedAt == nil }.map { $0.toCoreExpense() }
+        let coreSettlements = settlements.filter { $0.deletedAt == nil }.map { $0.toCoreSettlement() }
+        let balances = BalanceEngine.compute(expenses: coreExpenses, settlements: coreSettlements)
+        let byCurrency = Dictionary(grouping: DebtSimplifier.simplify(balances), by: \.currency)
+
+        return byCurrency.keys.sorted().map { currency in
+            let rows = (byCurrency[currency] ?? []).map { debt in
+                let fromName = debt.fromUser == currentPersonID
+                    ? "You"
+                    : (personFor(debt.fromUser)?.displayName ?? "Member")
+                let toName = debt.toUser == currentPersonID
+                    ? "you"
+                    : (personFor(debt.toUser)?.displayName ?? "Member")
+                let semantic: BalanceSemantic = if debt.toUser == currentPersonID {
+                    .lent
+                } else if debt.fromUser == currentPersonID {
+                    .borrowed
+                } else {
+                    .neutral
+                }
+                return SimplifiedDebtRowItem(
+                    id: "\(currency)-\(debt.fromUser.uuidString)-\(debt.toUser.uuidString)",
+                    fromName: fromName,
+                    toName: toName,
+                    amount: MoneyFormatter.format(debt.amount, currency: currency),
+                    semantic: semantic,
+                    suggestion: SettleUpSuggestion(
+                        fromPersonID: debt.fromUser,
+                        toPersonID: debt.toUser,
+                        amount: debt.amount,
+                        currency: currency
+                    )
+                )
+            }
+            return SimplifiedDebtGroup(currency: currency, debts: rows)
         }
     }
 
@@ -279,37 +344,66 @@ enum TimelinePresenter {
             let item: TimelineItem
         }
 
+        struct DayAmounts {
+            var totalSpend: Decimal = 0
+            var yourShare: Decimal = 0
+        }
+
         var all: [Dated] = []
+        var totalsByDay: [Date: [String: DayAmounts]] = [:]
 
         for e in activeExpenses {
             let category = categoryFor(e.categoryID)
             let payerName: String
-            let payerIsYou: Bool
             if e.payments.count > 1 {
                 payerName = "\(e.payments.count) people"
-                payerIsYou = false
             } else if let firstPayer = e.primaryPayerID {
-                payerIsYou = firstPayer == currentPersonID
-                payerName = payerIsYou
+                payerName = firstPayer == currentPersonID
                     ? "you"
                     : (personFor(firstPayer)?.displayName ?? "Member")
             } else {
                 payerName = "\u{2014}"
-                payerIsYou = false
             }
             let yourShare = e.splits
-                .first(where: { $0.tripPersonID == currentPersonID })?.amountOwed ?? 0
+                .filter { $0.tripPersonID == currentPersonID }
+                .reduce(Decimal(0)) { $0 + $1.amountOwed }
+            let yourPayment = e.payments
+                .filter { $0.tripPersonID == currentPersonID }
+                .reduce(Decimal(0)) { $0 + $1.amountPaid }
+            let net = yourPayment - yourShare
+            let balanceSemantic: BalanceSemantic = if net > 0 {
+                .lent
+            } else if net < 0 {
+                .borrowed
+            } else {
+                .neutral
+            }
+            let balanceLabel: String? = if net > 0 {
+                "you lent \(MoneyFormatter.format(net, currency: e.currency))"
+            } else if net < 0 {
+                "you borrowed \(MoneyFormatter.format(-net, currency: e.currency))"
+            } else {
+                nil
+            }
             let rowItem = ExpenseRowItem(
                 id: e.id,
                 categoryID: category?.id ?? e.categoryID,
                 icon: category?.icon ?? "tag",
                 name: e.descriptionText,
                 payerName: payerName,
-                payerIsYou: payerIsYou,
                 yourShare: MoneyFormatter.format(yourShare, currency: e.currency),
-                totalAmount: MoneyFormatter.format(e.amount, currency: e.currency)
+                balanceLabel: balanceLabel,
+                balanceSemantic: balanceSemantic
             )
             all.append(Dated(id: e.id, date: e.expenseDate, created: e.createdAt, item: .expense(rowItem)))
+
+            let day = calendar.startOfDay(for: e.expenseDate)
+            var currencyTotals = totalsByDay[day] ?? [:]
+            var amounts = currencyTotals[e.currency] ?? DayAmounts()
+            amounts.totalSpend += e.amount
+            amounts.yourShare += yourShare
+            currencyTotals[e.currency] = amounts
+            totalsByDay[day] = currencyTotals
         }
 
         for s in activeSettlements {
@@ -336,9 +430,18 @@ enum TimelinePresenter {
             let dayItems = (grouped[day] ?? [])
                 .sorted { $0.created > $1.created }
                 .map(\.item)
+            let totals = (totalsByDay[day] ?? [:]).keys.sorted().map { currency in
+                let amounts = totalsByDay[day]?[currency] ?? DayAmounts()
+                return TimelineDayTotal(
+                    currency: currency,
+                    totalSpend: MoneyFormatter.format(amounts.totalSpend, currency: currency),
+                    yourShare: MoneyFormatter.format(amounts.yourShare, currency: currency)
+                )
+            }
             return TimelineDay(
                 id: dayIDFormatter.string(from: day),
                 dateLabel: dayLabelFormatter.string(from: day),
+                totals: totals,
                 items: dayItems
             )
         }

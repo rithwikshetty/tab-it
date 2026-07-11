@@ -11,7 +11,7 @@ enum Route: Hashable {
     case newNonGroupExpense
     case editExpense(tripID: UUID, expenseID: UUID)
     case expense(UUID)
-    case settleUp(tripID: UUID)
+    case settleUp(tripID: UUID, suggestion: SettleUpSuggestion?)
     case editSettlement(tripID: UUID, settlementID: UUID)
     case settlement(UUID)
 }
@@ -192,13 +192,17 @@ struct RootView: View {
                 tripID: id,
                 onAddExpense: { path.wrappedValue.append(.newExpense(id)) },
                 onOpenExpense: { expenseID in path.wrappedValue.append(.expense(expenseID)) },
-                onSettleUp: { path.wrappedValue.append(.settleUp(tripID: id)) },
+                onSettleUp: { suggestion in
+                    path.wrappedValue.append(.settleUp(tripID: id, suggestion: suggestion))
+                },
                 onOpenSettlement: { settlementID in path.wrappedValue.append(.settlement(settlementID)) }
             )
         case .friend(let identity):
             FriendDetailView(
                 friend: identity,
-                onSettleSource: { containerID in path.wrappedValue.append(.settleUp(tripID: containerID)) },
+                onSettleSource: { containerID in
+                    path.wrappedValue.append(.settleUp(tripID: containerID, suggestion: nil))
+                },
                 onOpenExpense: { expenseID in path.wrappedValue.append(.expense(expenseID)) },
                 onOpenSettlement: { settlementID in path.wrappedValue.append(.settlement(settlementID)) }
             )
@@ -218,8 +222,8 @@ struct RootView: View {
                     path.wrappedValue.append(.editExpense(tripID: tripID, expenseID: expenseID))
                 }
             )
-        case .settleUp(let tripID):
-            SettleUpFormView(tripID: tripID)
+        case .settleUp(let tripID, let suggestion):
+            SettleUpFormView(tripID: tripID, suggestedPayment: suggestion)
         case .editSettlement(let tripID, let settlementID):
             SettleUpFormView(tripID: tripID, editingSettlementID: settlementID)
         case .settlement(let settlementID):

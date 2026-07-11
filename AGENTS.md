@@ -20,7 +20,7 @@ tab/
 │   └── logo/                   ← Logo and app icon assets.
 ├── Packages/TabCore/          ← Swift Package — pure-logic modules.
 │   ├── Sources/TabCore/       ← Money, SplitType, Models, SplitCalculator, BalanceEngine,
-│   │                              TripStateDeriver, ConflictResolver.
+│   │                              DebtSimplifier, TripStateDeriver, ConflictResolver.
 │   └── Tests/TabCoreTests/    ← Swift Testing (@Test/#expect), 44 tests.
 └── supabase/                   ← Postgres schema + RLS + DB tests.
     ├── migrations/
@@ -49,6 +49,7 @@ iOS app target lives at the repo root (or `Apps/`) and depends on `TabCore` via 
 
 - **Pure-logic modules** live in `TabCore` as `enum` (uninstantiable) with `Sendable` types.
 - **Balance pair-key**: sort UUIDs `(lo, hi)`; positive amount means `hi` owes `lo`. Surface both mirrored `UserBalance` rows externally.
+- **Simplified debts**: derive per-trip, per-currency repayment suggestions from net member positions. Keep pair balances as the source of truth; never rewrite expense, split, payment, or settlement history to simplify debts.
 - **Equal-split remainder**: distribute 1¢ at a time to participants with lexicographically lowest UUIDs. Deterministic.
 - **Exact-split**: validates sum, no missing/extra participants. Throws on mismatch.
 - **Tests live in `Tests/<TargetName>Tests/`** (canonical SPM).
@@ -93,7 +94,7 @@ Mockups live in `design/` organised by feature area, one subfolder per area:
 
 ## Don't do these
 
-- Don't add features outside the current scope: itinerary, analytics, simplified debts, %/shares splits, payment-app links, currency conversion, Android.
+- Don't add features outside the current scope: itinerary, cross-trip spend analytics, %/shares splits, payment-app links, currency conversion, Android.
 - No `Double` for money — only `Decimal`.
 - No XCTest — Swift Testing only.
 - No mocking SwiftData or Supabase in unit tests. TabCore is pure; it doesn't need mocks.

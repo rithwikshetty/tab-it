@@ -57,3 +57,123 @@ struct ExpenseDatesTests {
         #expect(parts.hour == 12)
     }
 }
+
+@MainActor
+@Suite("Expense timeline presentation")
+struct ExpenseTimelinePresenterTests {
+    private let you = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    private let alex = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+
+    @Test("rows show viewer share and lending direction while day totals stay per currency")
+    func sharesAndDailyTotals() throws {
+        let date = DateComponents(calendar: .current, year: 2026, month: 7, day: 10, hour: 12).date!
+        let borrowed = expense(
+            amount: 100,
+            currency: "THB",
+            date: date,
+            viewerPaid: 0,
+            viewerShare: 40,
+            otherPaid: 100,
+            otherShare: 60,
+            createdAt: date.addingTimeInterval(1)
+        )
+        let lent = expense(
+            amount: 50,
+            currency: "THB",
+            date: date,
+            viewerPaid: 50,
+            viewerShare: 20,
+            otherPaid: 0,
+            otherShare: 30,
+            createdAt: date.addingTimeInterval(2)
+        )
+        let noShare = expense(
+            amount: 10,
+            currency: "USD",
+            date: date,
+            viewerPaid: 0,
+            viewerShare: 0,
+            otherPaid: 10,
+            otherShare: 10,
+            createdAt: date.addingTimeInterval(3)
+        )
+        let settlement = SettlementEntity(
+            fromPersonID: you,
+            toPersonID: alex,
+            amount: 999,
+            currency: "THB",
+            settledAt: date,
+            createdByID: you,
+            createdAt: date.addingTimeInterval(4)
+        )
+
+        let day = try #require(TimelinePresenter.days(
+            expenses: [borrowed, lent, noShare],
+            settlements: [settlement],
+            currentPersonID: you,
+            personFor: { _ in nil },
+            categoryFor: { _ in nil }
+        ).first)
+
+        #expect(day.totals == [
+            TimelineDayTotal(
+                currency: "THB",
+                totalSpend: MoneyFormatter.format(150, currency: "THB"),
+                yourShare: MoneyFormatter.format(60, currency: "THB")
+            ),
+            TimelineDayTotal(
+                currency: "USD",
+                totalSpend: MoneyFormatter.format(10, currency: "USD"),
+                yourShare: MoneyFormatter.format(0, currency: "USD")
+            ),
+        ])
+
+        let expenseRows = day.items.compactMap { item -> ExpenseRowItem? in
+            guard case .expense(let row) = item else { return nil }
+            return row
+        }
+        let lentRow = try #require(expenseRows.first { $0.id == lent.id })
+        #expect(lentRow.yourShare == MoneyFormatter.format(20, currency: "THB"))
+        #expect(lentRow.balanceLabel == "you lent \(MoneyFormatter.format(30, currency: "THB"))")
+        #expect(lentRow.balanceSemantic == .lent)
+
+        let borrowedRow = try #require(expenseRows.first { $0.id == borrowed.id })
+        #expect(borrowedRow.yourShare == MoneyFormatter.format(40, currency: "THB"))
+        #expect(borrowedRow.balanceSemantic == .borrowed)
+
+        let zeroRow = try #require(expenseRows.first { $0.id == noShare.id })
+        #expect(zeroRow.yourShare == MoneyFormatter.format(0, currency: "USD"))
+        #expect(zeroRow.balanceSemantic == .neutral)
+        #expect(zeroRow.balanceLabel == nil)
+    }
+
+    private func expense(
+        amount: Decimal,
+        currency: String,
+        date: Date,
+        viewerPaid: Decimal,
+        viewerShare: Decimal,
+        otherPaid: Decimal,
+        otherShare: Decimal,
+        createdAt: Date
+    ) -> ExpenseEntity {
+        let expense = ExpenseEntity(
+            amount: amount,
+            currency: currency,
+            descriptionText: "Expense",
+            expenseDate: date,
+            createdByID: you,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        expense.payments = [
+            PaymentEntity(tripPersonID: you, amountPaid: viewerPaid, paymentModeRaw: "exact", expense: expense),
+            PaymentEntity(tripPersonID: alex, amountPaid: otherPaid, paymentModeRaw: "exact", expense: expense),
+        ].filter { $0.amountPaid > 0 }
+        expense.splits = [
+            ExpenseSplitEntity(tripPersonID: you, amountOwed: viewerShare, splitTypeRaw: "exact", expense: expense),
+            ExpenseSplitEntity(tripPersonID: alex, amountOwed: otherShare, splitTypeRaw: "exact", expense: expense),
+        ].filter { $0.amountOwed > 0 }
+        return expense
+    }
+}
