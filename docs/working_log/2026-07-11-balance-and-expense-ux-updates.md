@@ -27,3 +27,7 @@ Expense detail now lists every payer and paid amount instead of collapsing multi
 ## 2026-07-11 11:36 ICT — Verification
 
 TabCore passed 152 Swift Testing tests, including seven new debt-simplification scenarios. The app unit target passed 86 tests, including new timeline aggregation/semantic-direction coverage and a trip-wide pending-person debt presentation test. The generic iOS Simulator app build succeeded. The existing mock-auth seeded trip UI test passed after repeatedly switching Expenses, Balances, and Overview and scrolling the expense timeline. SQL assembly remained up to date; existing RLS tests already cover member read access and non-member denial for expense payments and splits. A simulator screenshot confirmed the sage/rust semantics remain visually coherent on trip rows. The first fresh simulator test launch logged SwiftData creating its missing Application Support store and then recovered successfully; tests were unaffected.
+
+## 2026-07-11 11:40 ICT — Published and issues closed
+
+Committed the implementation as `5a1e114` on `main` and pushed it to `origin/main`. The push also published the pre-existing local-main commit `8b0f869`; no history was rewritten. Added an issue-specific implementation and verification comment to GitHub issues #8, #9, #10, #11, and #12, then closed all five as completed.
