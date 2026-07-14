@@ -166,6 +166,10 @@ enum TripPresenter {
 @MainActor
 enum BalancePresenter {
     /// One BalanceSummary per currency with non-zero net for the current user.
+    /// Detail rows are the current user's simplified debts, so the card always
+    /// matches the trip-wide simplified repayments rather than raw pairwise
+    /// balances. Simplification preserves net positions, so the headline
+    /// amount is unchanged by this.
     static func summaries(
         expenses: [ExpenseEntity],
         settlements: [SettlementEntity],
@@ -176,49 +180,46 @@ enum BalancePresenter {
         let coreExpenses = expenses.filter { $0.deletedAt == nil }.map { $0.toCoreExpense() }
         let coreSettlements = settlements.filter { $0.deletedAt == nil }.map { $0.toCoreSettlement() }
         let balances = BalanceEngine.compute(expenses: coreExpenses, settlements: coreSettlements)
-        let mine = balances.filter { $0.forUser == currentPersonID }
+        let mine = DebtSimplifier.simplify(balances)
+            .filter { $0.fromUser == currentPersonID || $0.toUser == currentPersonID }
         let byCurrency = Dictionary(grouping: mine, by: \.currency)
 
         return byCurrency.keys.sorted().compactMap { currency -> BalanceSummary? in
-            let entries = byCurrency[currency] ?? []
-            let net = entries.reduce(Decimal(0)) { $0 + $1.amount }
+            let debts = byCurrency[currency] ?? []
+            let net = debts.reduce(Decimal(0)) { sum, debt in
+                debt.toUser == currentPersonID ? sum + debt.amount : sum - debt.amount
+            }
             if net == 0 { return nil }
 
             let label = net > 0 ? "You're owed" : "You owe"
             let displayAmount = MoneyFormatter.format(net > 0 ? net : -net, currency: currency)
 
-            let details: [BalanceDetailItem] = entries
-                .filter { $0.amount != 0 }
-                .map { entry in
-                    BalanceDetailCandidate(
-                        entry: entry,
-                        name: personFor(entry.withUser)?.displayName ?? "Member"
+            let details: [BalanceDetailItem] = debts
+                .map { debt -> BalanceDetailCandidate in
+                    let otherID = debt.toUser == currentPersonID ? debt.fromUser : debt.toUser
+                    return BalanceDetailCandidate(
+                        debt: debt,
+                        otherID: otherID,
+                        name: personFor(otherID)?.displayName ?? "Member"
                     )
                 }
                 .sorted { lhs, rhs in
-                    let lhsAmount = abs(lhs.entry.amount)
-                    let rhsAmount = abs(rhs.entry.amount)
-                    if lhsAmount != rhsAmount { return lhsAmount > rhsAmount }
+                    if lhs.debt.amount != rhs.debt.amount { return lhs.debt.amount > rhs.debt.amount }
 
                     let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
                     if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
 
-                    return lhs.entry.withUser.uuidString < rhs.entry.withUser.uuidString
+                    return lhs.otherID.uuidString < rhs.otherID.uuidString
                 }
                 .map { candidate in
-                    let entry = candidate.entry
-                    let phrase = entry.amount > 0
-                        ? "\(candidate.name) owes you"
-                        : "You owe \(candidate.name)"
-                    let amount = MoneyFormatter.format(
-                        entry.amount > 0 ? entry.amount : -entry.amount,
-                        currency: currency
-                    )
+                    let lent = candidate.debt.toUser == currentPersonID
                     return BalanceDetailItem(
-                        id: entry.withUser,
-                        counterparty: phrase,
-                        amount: amount,
-                        semantic: entry.amount > 0 ? .lent : .borrowed
+                        id: candidate.otherID,
+                        counterparty: lent
+                            ? "\(candidate.name) owes you"
+                            : "You owe \(candidate.name)",
+                        amount: MoneyFormatter.format(candidate.debt.amount, currency: currency),
+                        semantic: lent ? .lent : .borrowed
                     )
                 }
 
@@ -277,7 +278,8 @@ enum BalancePresenter {
     }
 
     private struct BalanceDetailCandidate {
-        let entry: UserBalance
+        let debt: SimplifiedDebt
+        let otherID: UUID
         let name: String
     }
 }

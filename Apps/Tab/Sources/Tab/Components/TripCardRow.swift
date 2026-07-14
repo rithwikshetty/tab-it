@@ -34,7 +34,7 @@ struct TripCardRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            AvatarGroup(members: trip.members, size: 28, borderWidth: 2)
+            AvatarGroup(members: trip.members, size: 28, borderWidth: 2, maxVisible: 4)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)

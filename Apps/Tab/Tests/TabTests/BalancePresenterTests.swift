@@ -51,6 +51,61 @@ struct BalancePresenterTests {
         #expect(summary.semantic == .lent)
     }
 
+    @Test("summary detail rows follow simplified debts, not raw pairwise balances")
+    func summaryDetailsUseSimplifiedDebts() throws {
+        let trip = TripEntity(name: "Demo", createdByID: you)
+        let people = [
+            person(id: you, name: "You", trip: trip),
+            person(id: sam, name: "Sam", trip: trip),
+            person(id: alex, name: "Alex", trip: trip),
+        ]
+        // You owe Sam 30 and Sam owes Alex 30, so the simplified repayment
+        // is a single "You owe Alex" — the raw pairwise view would say Sam.
+        let dinner = ExpenseEntity(
+            amount: 30,
+            currency: "GBP",
+            descriptionText: "Dinner",
+            expenseDate: Date(timeIntervalSince1970: 1_780_000_000),
+            createdByID: you,
+            trip: trip
+        )
+        dinner.payments = [
+            PaymentEntity(tripPersonID: sam, amountPaid: 30, paymentModeRaw: "equal", expense: dinner)
+        ]
+        dinner.splits = [
+            ExpenseSplitEntity(tripPersonID: you, amountOwed: 30, splitTypeRaw: "equal", expense: dinner)
+        ]
+        let taxi = ExpenseEntity(
+            amount: 30,
+            currency: "GBP",
+            descriptionText: "Taxi",
+            expenseDate: Date(timeIntervalSince1970: 1_780_000_000),
+            createdByID: you,
+            trip: trip
+        )
+        taxi.payments = [
+            PaymentEntity(tripPersonID: alex, amountPaid: 30, paymentModeRaw: "equal", expense: taxi)
+        ]
+        taxi.splits = [
+            ExpenseSplitEntity(tripPersonID: sam, amountOwed: 30, splitTypeRaw: "equal", expense: taxi)
+        ]
+
+        let peopleByID = Dictionary(uniqueKeysWithValues: people.map { ($0.id, $0) })
+        let summary = try #require(BalancePresenter.summaries(
+            expenses: [dinner, taxi],
+            settlements: [],
+            people: people,
+            currentPersonID: you,
+            personFor: { peopleByID[$0] }
+        ).first)
+
+        #expect(summary.label == "You owe")
+        #expect(summary.amount == MoneyFormatter.format(30, currency: "GBP"))
+        #expect(summary.semantic == .borrowed)
+        #expect(summary.details.map(\.counterparty) == ["You owe Alex"])
+        #expect(summary.details.map(\.semantic) == [.borrowed])
+    }
+
     @Test("simplified groups expose debts between other and pending trip people")
     func simplifiedTripWideDebts() throws {
         let pending = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!

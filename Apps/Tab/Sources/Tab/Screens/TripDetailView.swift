@@ -98,27 +98,16 @@ struct TripDetailView: View {
 
         ZStack(alignment: .bottomTrailing) {
             ScrollView {
-                HStack(alignment: .center, spacing: 12) {
-                    Text(trip.name)
-                        .font(.largeTitle30)
-                        .tracking(-0.75)
-                        .foregroundStyle(Sage.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-
-                    Spacer(minLength: 8)
-
-                    AvatarGroup(
-                        members: memberCards,
-                        size: 34,
-                        borderWidth: 2.5,
-                        maxVisible: 5,
-                        onAddTap: { showingPeople = true }
-                    )
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
+                Text(trip.name)
+                    .font(.largeTitle30)
+                    .tracking(-0.75)
+                    .foregroundStyle(Sage.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 14)
 
                 if !summaries.isEmpty {
                     ForEach(Array(summaries.enumerated()), id: \.offset) { _, summary in
@@ -167,6 +156,17 @@ struct TripDetailView: View {
                 .presentationDragIndicator(.visible)
         }
         .toolbar {
+            // Avatars live in the navbar centre so a big group can never
+            // squeeze the trip title, and the add button gets its own slot.
+            ToolbarItem(placement: .principal) {
+                AvatarGroup(
+                    members: memberCards,
+                    size: 30,
+                    borderWidth: 2,
+                    maxVisible: 4,
+                    onAddTap: { showingPeople = true }
+                )
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
@@ -434,7 +434,9 @@ struct TripDetailView: View {
                                         HStack(spacing: 4) {
                                             Text(debt.fromName)
                                                 .foregroundStyle(Sage.warning)
-                                            Text("owes")
+                                            // .borrowed means the current user is the debtor,
+                                            // so the row reads "You owe", not "You owes".
+                                            Text(debt.semantic == .borrowed ? "owe" : "owes")
                                                 .foregroundStyle(Sage.textSecondary)
                                             Text(debt.toName)
                                                 .foregroundStyle(Sage.accentStrong)

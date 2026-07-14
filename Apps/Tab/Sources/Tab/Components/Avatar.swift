@@ -74,12 +74,17 @@ struct AvatarGroup: View {
     }
 
     var body: some View {
-        HStack(spacing: -8) {
-            ForEach(visibleMembers) { member in
-                Avatar(initial: member.initial, tone: member.tone, size: size, borderWidth: borderWidth)
-            }
-            if overflowCount > 0 {
-                AvatarOverflow(count: overflowCount, size: size, borderWidth: borderWidth)
+        // The add button sits outside the overlapping stack: AvatarAdd has no
+        // opaque fill, so tucking it under the overflow badge showed the badge
+        // through the dashed ring.
+        HStack(spacing: 5) {
+            HStack(spacing: -8) {
+                ForEach(visibleMembers) { member in
+                    Avatar(initial: member.initial, tone: member.tone, size: size, borderWidth: borderWidth)
+                }
+                if overflowCount > 0 {
+                    AvatarOverflow(count: overflowCount, size: size, borderWidth: borderWidth)
+                }
             }
             if let onAddTap {
                 Button {
