@@ -129,6 +129,10 @@ enum MoneyFormatter {
         return formatter.string(from: amount as NSDecimalNumber) ?? NSDecimalNumber(decimal: amount).stringValue
     }
 
+    /// Symbol and amount only (e.g. `£640.00`) — the ISO code is dropped because
+    /// showing both (`GBP £640.00`) doubled up on every row. Falls back to
+    /// `CODE value` when the currency has no distinct symbol (e.g. CHF), so
+    /// disambiguation is never fully lost.
     static func format(_ amount: Decimal, currency: String) -> String {
         let metadata = CurrencyCatalog.displayMetadata(for: currency)
         let formatter = formatter(in: groupedFormatters, fractionDigits: metadata.fractionDigits)
@@ -137,26 +141,11 @@ enum MoneyFormatter {
         guard metadata.symbol.uppercased() != metadata.code else {
             return "\(metadata.code) \(value)"
         }
-        return "\(metadata.code) \(metadata.symbol)\(value)"
+        return "\(metadata.symbol)\(value)"
     }
 
     static func format(_ money: Money) -> String {
         format(money.amount, currency: money.currency)
-    }
-
-    /// Like `format`, but without the ISO code prefix — just the symbol and amount
-    /// (e.g. `£640.00`). Used where the currency is already established by context
-    /// (the Overview tab is scoped to one currency). Falls back to the code when the
-    /// currency has no distinct symbol, so disambiguation is never fully lost.
-    static func formatSymbol(_ amount: Decimal, currency: String) -> String {
-        let metadata = CurrencyCatalog.displayMetadata(for: currency)
-        let formatter = formatter(in: groupedFormatters, fractionDigits: metadata.fractionDigits)
-        let value = formatter.string(from: amount as NSDecimalNumber) ?? plainAmountString(amount, currency: currency)
-
-        guard metadata.symbol.uppercased() != metadata.code else {
-            return "\(metadata.code) \(value)"
-        }
-        return "\(metadata.symbol)\(value)"
     }
 
     static func formatSigned(_ amount: Decimal, currency: String) -> String {

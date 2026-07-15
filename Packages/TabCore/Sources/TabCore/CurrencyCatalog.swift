@@ -110,6 +110,16 @@ public enum CurrencyCatalog {
         return formatter.currencySymbol.map(cleanSymbol) ?? code
     }
 
+    /// Claim order for symbols shared across currencies ("$", "£", "¥", "kr"):
+    /// the most-traded currency keeps the bare symbol and every later claimant
+    /// takes a still-free disambiguated candidate ("CA$", "A$") or its code.
+    /// Amounts render symbol-only, so two supported currencies must never
+    /// display the same symbol.
+    private static let symbolClaimPriority: [String] = [
+        "USD", "EUR", "JPY", "GBP", "CNY", "AUD", "CAD", "CHF", "HKD", "SGD",
+        "SEK", "KRW", "NOK", "NZD", "INR", "MXN", "TWD", "ZAR", "BRL", "DKK",
+    ]
+
     private static func makeLocalizedSymbolsByCode() -> [String: String] {
         var candidatesByCode: [String: Set<String>] = [:]
 
@@ -126,15 +136,46 @@ public enum CurrencyCatalog {
             candidatesByCode[code, default: []].insert(symbol)
         }
 
+        // A reference locale contributes the disambiguated variants ("A$",
+        // "MX$", "CN¥") that home locales never use, and guarantees every
+        // supported code enters the claim pass.
+        for code in supportedCodes {
+            let formatter = NumberFormatter()
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.numberStyle = .currency
+            formatter.currencyCode = code
+            if let symbol = formatter.currencySymbol.map(cleanSymbol), !symbol.isEmpty {
+                candidatesByCode[code, default: []].insert(symbol)
+            }
+        }
+
+        let rank = Dictionary(uniqueKeysWithValues: symbolClaimPriority.enumerated().map { ($1, $0) })
+        let orderedCodes = candidatesByCode.keys.sorted { lhs, rhs in
+            let lhsRank = rank[lhs] ?? Int.max
+            let rhsRank = rank[rhs] ?? Int.max
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            return lhs < rhs
+        }
+
+        // NFKC-fold claim keys so lookalike variants collide: fullwidth "￥"
+        // must not pass as distinct from JPY's "¥".
+        func claimKey(_ symbol: String) -> String {
+            symbol.precomposedStringWithCompatibilityMapping.uppercased()
+        }
+
+        var claimed: Set<String> = []
         var result: [String: String] = [:]
-        for (code, candidates) in candidatesByCode {
-            result[code] = candidates.sorted { lhs, rhs in
+        for code in orderedCodes {
+            let candidates = candidatesByCode[code]!.sorted { lhs, rhs in
                 let lhsIsCode = lhs.uppercased() == code
                 let rhsIsCode = rhs.uppercased() == code
                 if lhsIsCode != rhsIsCode { return !lhsIsCode }
                 if lhs.count != rhs.count { return lhs.count < rhs.count }
                 return lhs < rhs
-            }.first
+            }
+            let symbol = candidates.first { !claimed.contains(claimKey($0)) } ?? code
+            claimed.insert(claimKey(symbol))
+            result[code] = symbol
         }
         return result
     }

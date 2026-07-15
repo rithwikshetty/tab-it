@@ -40,8 +40,8 @@ enum OverviewPresenter {
                     id: p.personID,
                     name: isYou ? "You" : personName(p.personID),
                     isYou: isYou,
-                    paid: MoneyFormatter.formatSymbol(p.paid, currency: summary.currency),
-                    share: MoneyFormatter.formatSymbol(p.share, currency: summary.currency),
+                    paid: MoneyFormatter.format(p.paid, currency: summary.currency),
+                    share: MoneyFormatter.format(p.share, currency: summary.currency),
                     shareFraction: ratio(p.share, of: total)
                 )
             }
@@ -52,7 +52,7 @@ enum OverviewPresenter {
                     id: c.categoryID?.uuidString ?? "uncategorized",
                     categoryID: c.categoryID,
                     name: categoryName(c.categoryID),
-                    amount: MoneyFormatter.formatSymbol(c.total, currency: summary.currency),
+                    amount: MoneyFormatter.format(c.total, currency: summary.currency),
                     percent: ratio(c.total, of: total),
                     fraction: ratio(c.total, of: maxCategory)
                 )
@@ -67,9 +67,9 @@ enum OverviewPresenter {
 
             return OverviewPage(
                 currency: summary.currency,
-                totalSpent: MoneyFormatter.formatSymbol(total, currency: summary.currency),
-                youPaid: MoneyFormatter.formatSymbol(yourPaid, currency: summary.currency),
-                yourShare: MoneyFormatter.formatSymbol(yourShare, currency: summary.currency),
+                totalSpent: MoneyFormatter.format(total, currency: summary.currency),
+                youPaid: MoneyFormatter.format(yourPaid, currency: summary.currency),
+                yourShare: MoneyFormatter.format(yourShare, currency: summary.currency),
                 yourSharePercent: percentLabel,
                 people: people,
                 categories: categories

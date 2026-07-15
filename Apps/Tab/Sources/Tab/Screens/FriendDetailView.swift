@@ -4,7 +4,7 @@ import TabCore
 
 struct FriendDetailView: View {
     let friend: FriendIdentity
-    var onSettleSource: (UUID) -> Void = { _ in }
+    var onSettleSource: (UUID, SettleUpSuggestion) -> Void = { _, _ in }
     var onOpenExpense: (UUID) -> Void = { _ in }
     var onOpenSettlement: (UUID) -> Void = { _ in }
 
@@ -120,7 +120,7 @@ struct FriendDetailView: View {
     @ViewBuilder
     private func sourceRows(_ sources: [FriendSourceRow]) -> some View {
         ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
-            Button { onSettleSource(source.containerID) } label: {
+            Button { onSettleSource(source.containerID, source.suggestion) } label: {
                 HStack(spacing: 12) {
                     Image(systemName: source.isNonGroup ? "person.2.fill" : "suitcase.fill")
                         .font(.system(size: 14))

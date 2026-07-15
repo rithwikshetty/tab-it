@@ -194,7 +194,7 @@ enum ActivityPresenter {
     private static func trailingMoney(_ s: [String: String]) -> String? {
         guard let amountRaw = s["amount"], let currency = s["currency"],
               let amount = MoneyFormatter.decimal(from: amountRaw) else { return nil }
-        return MoneyFormatter.formatSymbol(amount, currency: currency)
+        return MoneyFormatter.format(amount, currency: currency)
     }
 
     private static func settlementDetail(_ s: [String: String]) -> String? {

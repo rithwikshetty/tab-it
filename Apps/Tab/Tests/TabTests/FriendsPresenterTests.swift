@@ -12,6 +12,7 @@ struct FriendsPresenterTests {
 
     private let meGoa  = UUID(uuidString: "00000000-0000-0000-00A0-000000000001")!
     private let bobGoa = UUID(uuidString: "00000000-0000-0000-00B0-000000000001")!
+    private let carolGoa = UUID(uuidString: "00000000-0000-0000-00C0-000000000001")!
     private let meNG   = UUID(uuidString: "00000000-0000-0000-00A0-000000000002")!
     private let bobNG  = UUID(uuidString: "00000000-0000-0000-00B0-000000000002")!
     private let meCarolNG = UUID(uuidString: "00000000-0000-0000-00A0-000000000003")!
@@ -56,6 +57,43 @@ struct FriendsPresenterTests {
         ]
         ng.expenses = [e]
         return ng
+    }
+
+    /// Three-person trip: I owe Bob 10 and Bob owes Carol 10, so I owe Carol 10.
+    private func redirectedTrip() -> TripEntity {
+        let trip = TripEntity(name: "Redirected", kind: "trip", createdByID: meUser)
+        trip.people = [
+            person(meGoa, userID: meUser, name: "Me", email: "me@x.com", trip: trip),
+            person(bobGoa, userID: bobUser, name: "Bob", email: "bob@x.com", trip: trip),
+            person(carolGoa, userID: carolUser, name: "Carol", email: "carol@x.com", trip: trip),
+        ]
+
+        let bobExpense = ExpenseEntity(
+            amount: 20, currency: "GBP", descriptionText: "Bob expense",
+            expenseDate: when, createdByID: bobUser, trip: trip
+        )
+        bobExpense.payments = [
+            PaymentEntity(tripPersonID: bobGoa, amountPaid: 20, paymentModeRaw: "equal", expense: bobExpense),
+        ]
+        bobExpense.splits = [
+            ExpenseSplitEntity(tripPersonID: meGoa, amountOwed: 10, splitTypeRaw: "equal", expense: bobExpense),
+            ExpenseSplitEntity(tripPersonID: bobGoa, amountOwed: 10, splitTypeRaw: "equal", expense: bobExpense),
+        ]
+
+        let carolExpense = ExpenseEntity(
+            amount: 20, currency: "GBP", descriptionText: "Carol expense",
+            expenseDate: when, createdByID: carolUser, trip: trip
+        )
+        carolExpense.payments = [
+            PaymentEntity(tripPersonID: carolGoa, amountPaid: 20, paymentModeRaw: "equal", expense: carolExpense),
+        ]
+        carolExpense.splits = [
+            ExpenseSplitEntity(tripPersonID: bobGoa, amountOwed: 10, splitTypeRaw: "equal", expense: carolExpense),
+            ExpenseSplitEntity(tripPersonID: carolGoa, amountOwed: 10, splitTypeRaw: "equal", expense: carolExpense),
+        ]
+
+        trip.expenses = [bobExpense, carolExpense]
+        return trip
     }
 
     @Test("a friend nets across a trip and a non-group container into one line")
@@ -118,6 +156,26 @@ struct FriendsPresenterTests {
         #expect(ng.sourceName == "Non-group")
         #expect(!ng.isPositive)               // you owe
         #expect(ng.amount.contains("5"))
+    }
+
+    @Test("friend balance and source suggestion reflect a redirected three-person debt")
+    func redirectedFriendBalance() throws {
+        let trip = redirectedTrip()
+        let state = FriendsPresenter.list(trips: [trip], currentUserID: meUser)
+        let carol = try #require(state.active.first { $0.friend == .user(carolUser) })
+        let line = try #require(carol.lines.first)
+        #expect(!line.isPositive)
+        #expect(line.amount.contains("10"))
+
+        let detail = try #require(
+            FriendsPresenter.detail(trips: [trip], currentUserID: meUser, friend: .user(carolUser))
+        )
+        let source = try #require(detail.sources.first)
+        #expect(source.amount.contains("10"))
+        #expect(source.suggestion.fromPersonID == meGoa)
+        #expect(source.suggestion.toPersonID == carolGoa)
+        #expect(source.suggestion.amount == 10)
+        #expect(source.suggestion.currency == "GBP")
     }
 
     @Test("friend detail timeline tags each shared item with its source")

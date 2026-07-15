@@ -40,6 +40,31 @@ struct CurrencyCatalogTests {
         #expect(!CurrencyCatalog.hasValidPrecision(Decimal(string: "1.2345")!, currency: "KWD"))
     }
 
+    @Test("display symbols are unique — amounts render symbol-only, so shared symbols must disambiguate")
+    func displaySymbolsAreUnique() {
+        // NFKC-fold so lookalikes count as collisions (fullwidth ￥ vs ¥).
+        let symbols = CurrencyCatalog.supported.map {
+            $0.symbol.precomposedStringWithCompatibilityMapping.uppercased()
+        }
+        #expect(Set(symbols).count == symbols.count)
+    }
+
+    @Test("major currencies keep their bare symbol; other dollar currencies disambiguate")
+    func sharedSymbolClaiming() throws {
+        #expect(try #require(CurrencyCatalog.metadata(for: "USD")).symbol == "$")
+        #expect(try #require(CurrencyCatalog.metadata(for: "GBP")).symbol == "£")
+        #expect(try #require(CurrencyCatalog.metadata(for: "JPY")).symbol == "¥")
+        #expect(try #require(CurrencyCatalog.metadata(for: "EUR")).symbol == "€")
+        #expect(try #require(CurrencyCatalog.metadata(for: "INR")).symbol == "₹")
+        #expect(try #require(CurrencyCatalog.metadata(for: "THB")).symbol == "฿")
+
+        let cad = try #require(CurrencyCatalog.metadata(for: "CAD")).symbol
+        let aud = try #require(CurrencyCatalog.metadata(for: "AUD")).symbol
+        #expect(cad != "$")
+        #expect(aud != "$")
+        #expect(cad != aud)
+    }
+
     @Test("search matches code and localized currency name")
     func search() {
         #expect(CurrencyCatalog.search("usd").contains { $0.code == "USD" })

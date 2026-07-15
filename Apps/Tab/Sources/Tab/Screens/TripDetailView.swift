@@ -330,7 +330,7 @@ struct TripDetailView: View {
                         Spacer(minLength: 8)
                         VStack(alignment: .trailing, spacing: 2) {
                             ForEach(day.totals) { total in
-                                Text("\(total.totalSpend) (you \(total.yourShare))")
+                                Text("\(total.totalSpend) · your share \(total.yourShare)")
                                     .font(.system(size: 10.5, weight: .semibold))
                                     .foregroundStyle(Sage.textSecondary)
                                     .monospacedDigit()
@@ -413,16 +413,13 @@ struct TripDetailView: View {
                 ForEach(groups) { group in
                     Card {
                         VStack(alignment: .leading, spacing: 0) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("SIMPLIFIED DEBTS · \(group.currency)")
+                            if groups.count > 1 {
+                                Text(group.currency)
                                     .font(.system(size: 10, weight: .semibold))
                                     .tracking(1)
                                     .foregroundStyle(Sage.textSecondary)
-                                Text("Fewer payments, same final balances")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Sage.textSecondary)
+                                    .padding(.bottom, 10)
                             }
-                            .padding(.bottom, 10)
 
                             ForEach(Array(group.debts.enumerated()), id: \.element.id) { index, debt in
                                 if index > 0 { RowDivider() }

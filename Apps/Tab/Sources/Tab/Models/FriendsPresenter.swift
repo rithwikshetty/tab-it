@@ -51,6 +51,7 @@ struct FriendSourceRow: Identifiable, Hashable, Sendable {
     let label: String          // "you owe" / "owes you"
     let amount: String
     let isPositive: Bool
+    let suggestion: SettleUpSuggestion
 }
 
 struct FriendTimelineEntry: Identifiable, Hashable, Sendable {
@@ -170,14 +171,32 @@ enum FriendsPresenter {
         )
         let sources: [FriendSourceRow] = sourceBalances.compactMap { src in
             guard let trip = ctx.trip(src.containerID) else { return nil }
+            guard let myPID = ctx.personID(in: trip, claim: me),
+                  let friendPID = ctx.personID(in: trip, claim: claim) else { return nil }
+            let suggestion = if src.amount > 0 {
+                SettleUpSuggestion(
+                    fromPersonID: friendPID,
+                    toPersonID: myPID,
+                    amount: abs(src.amount),
+                    currency: src.currency
+                )
+            } else {
+                SettleUpSuggestion(
+                    fromPersonID: myPID,
+                    toPersonID: friendPID,
+                    amount: abs(src.amount),
+                    currency: src.currency
+                )
+            }
             return FriendSourceRow(
                 containerID: src.containerID,
                 sourceName: ctx.sourceName(trip),
                 isNonGroup: trip.isNonGroup,
                 currency: src.currency,
                 label: src.amount > 0 ? "owes you" : "you owe",
-                amount: MoneyFormatter.formatSymbol(abs(src.amount), currency: src.currency),
-                isPositive: src.amount > 0
+                amount: MoneyFormatter.format(abs(src.amount), currency: src.currency),
+                isPositive: src.amount > 0,
+                suggestion: suggestion
             )
         }
 
@@ -238,9 +257,16 @@ enum FriendsPresenter {
             self.containers = active.map { trip in
                 let expenses = trip.expenses.filter { $0.deletedAt == nil }.map { $0.toCoreExpense() }
                 let settlements = trip.settlements.filter { $0.deletedAt == nil }.map { $0.toCoreSettlement() }
+                let balances = BalanceEngine.compute(expenses: expenses, settlements: settlements)
+                let simplifiedBalances = DebtSimplifier.simplify(balances).flatMap { debt in
+                    [
+                        UserBalance(forUser: debt.toUser, withUser: debt.fromUser, currency: debt.currency, amount: debt.amount),
+                        UserBalance(forUser: debt.fromUser, withUser: debt.toUser, currency: debt.currency, amount: -debt.amount),
+                    ]
+                }
                 return ContainerBalances(
                     containerID: trip.id,
-                    balances: BalanceEngine.compute(expenses: expenses, settlements: settlements)
+                    balances: simplifiedBalances
                 )
             }
             self.overall = OverallBalanceAggregator.aggregate(self.containers, identityMap: map)
@@ -288,7 +314,7 @@ enum FriendsPresenter {
                 FriendAmountLine(
                     currency: b.currency,
                     label: b.amount > 0 ? "owes you" : "you owe",
-                    amount: MoneyFormatter.formatSymbol(abs(b.amount), currency: b.currency),
+                    amount: MoneyFormatter.format(abs(b.amount), currency: b.currency),
                     isPositive: b.amount > 0
                 )
             }

@@ -241,8 +241,8 @@ struct RootView: View {
         case .friend(let identity):
             FriendDetailView(
                 friend: identity,
-                onSettleSource: { containerID in
-                    path.wrappedValue.append(.settleUp(tripID: containerID, suggestion: nil))
+                onSettleSource: { containerID, suggestion in
+                    path.wrappedValue.append(.settleUp(tripID: containerID, suggestion: suggestion))
                 },
                 onOpenExpense: { expenseID in path.wrappedValue.append(.expense(expenseID)) },
                 onOpenSettlement: { settlementID in path.wrappedValue.append(.settlement(settlementID)) }

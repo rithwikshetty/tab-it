@@ -285,35 +285,47 @@ enum BalancePresenter {
 }
 
 enum SettleUpPresenter {
-    /// Prefer debts the current person can pay off before suggesting that
-    /// someone else reimburse them. This matches the form's "From pays To"
-    /// direction and avoids defaulting to a payment that increases a debt.
+    /// Prefer paying off the current person's own simplified debt before
+    /// suggesting that someone else reimburse them.
     static func suggestedPayment(
         balances: [UserBalance],
         currentPersonID: UUID
     ) -> SettleUpSuggestion? {
-        if let balance = balances
-            .filter({ $0.forUser == currentPersonID && $0.amount < 0 })
-            .max(by: { abs($0.amount) < abs($1.amount) }) {
+        let debts = DebtSimplifier.simplify(balances)
+
+        if let debt = debts
+            .filter({ $0.fromUser == currentPersonID })
+            .sorted(by: { paymentPrecedes($0, $1, counterparty: \SimplifiedDebt.toUser) })
+            .first {
             return SettleUpSuggestion(
                 fromPersonID: currentPersonID,
-                toPersonID: balance.withUser,
-                amount: -balance.amount,
-                currency: balance.currency
+                toPersonID: debt.toUser,
+                amount: debt.amount,
+                currency: debt.currency
             )
         }
 
-        guard let balance = balances
-            .filter({ $0.forUser == currentPersonID && $0.amount > 0 })
-            .max(by: { $0.amount < $1.amount })
-        else { return nil }
+        guard let debt = debts
+            .filter({ $0.toUser == currentPersonID })
+            .sorted(by: { paymentPrecedes($0, $1, counterparty: \SimplifiedDebt.fromUser) })
+            .first else { return nil }
 
         return SettleUpSuggestion(
-            fromPersonID: balance.withUser,
+            fromPersonID: debt.fromUser,
             toPersonID: currentPersonID,
-            amount: balance.amount,
-            currency: balance.currency
+            amount: debt.amount,
+            currency: debt.currency
         )
+    }
+
+    private static func paymentPrecedes(
+        _ lhs: SimplifiedDebt,
+        _ rhs: SimplifiedDebt,
+        counterparty: KeyPath<SimplifiedDebt, UUID>
+    ) -> Bool {
+        if lhs.amount != rhs.amount { return lhs.amount > rhs.amount }
+        if lhs.currency != rhs.currency { return lhs.currency < rhs.currency }
+        return lhs[keyPath: counterparty].uuidString < rhs[keyPath: counterparty].uuidString
     }
 }
 

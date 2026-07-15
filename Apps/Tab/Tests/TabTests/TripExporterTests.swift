@@ -226,8 +226,8 @@ struct SettleUpPrefillTests {
         #expect(suggestion.currency == "EUR")
     }
 
-    @Test("prefill pays what the current user owes before collecting from someone else")
-    func suggestsCurrentUsersDebtFirst() throws {
+    @Test("prefill uses the current user's redirected trip-wide balance")
+    func suggestsRedirectedTripWideBalance() throws {
         let expenses = [
             makeExpense(
                 id: UUID(uuidString: "aaaaaaaa-0000-0000-0000-000000000201")!,
@@ -251,9 +251,29 @@ struct SettleUpPrefillTests {
             currentPersonID: alice
         ))
 
+        #expect(suggestion.fromPersonID == cara)
+        #expect(suggestion.toPersonID == alice)
+        #expect(suggestion.amount == 135)
+        #expect(suggestion.currency == "EUR")
+    }
+
+    @Test("prefill redirects a debt through an intermediary")
+    func suggestsCrossSettledRedirect() throws {
+        let balances = [
+            UserBalance(forUser: bob, withUser: alice, currency: "EUR", amount: 10),
+            UserBalance(forUser: alice, withUser: bob, currency: "EUR", amount: -10),
+            UserBalance(forUser: cara, withUser: bob, currency: "EUR", amount: 10),
+            UserBalance(forUser: bob, withUser: cara, currency: "EUR", amount: -10),
+        ]
+
+        let suggestion = try #require(SettleUpPresenter.suggestedPayment(
+            balances: balances,
+            currentPersonID: alice
+        ))
+
         #expect(suggestion.fromPersonID == alice)
-        #expect(suggestion.toPersonID == bob)
-        #expect(suggestion.amount == 15)
+        #expect(suggestion.toPersonID == cara)
+        #expect(suggestion.amount == 10)
         #expect(suggestion.currency == "EUR")
     }
 

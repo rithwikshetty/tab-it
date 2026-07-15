@@ -137,13 +137,13 @@ private struct OverallBanner: View {
         // wrap to the next line instead of clipping off the edge of the card.
         var text = Text("")
         if line.youOwe > 0 {
-            text = text + phrase("You owe ", MoneyFormatter.formatSymbol(line.youOwe, currency: line.currency), Sage.warning)
+            text = text + phrase("You owe ", MoneyFormatter.format(line.youOwe, currency: line.currency), Sage.warning)
         }
         if line.youOwe > 0 && line.youAreOwed > 0 {
             text = text + Text("  ·  ").foregroundStyle(Sage.textSecondary)
         }
         if line.youAreOwed > 0 {
-            text = text + phrase("you are owed ", MoneyFormatter.formatSymbol(line.youAreOwed, currency: line.currency), Sage.accentStrong)
+            text = text + phrase("you are owed ", MoneyFormatter.format(line.youAreOwed, currency: line.currency), Sage.accentStrong)
         }
         return text
             .font(.system(size: 14))

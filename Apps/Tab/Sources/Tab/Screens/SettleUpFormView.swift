@@ -86,9 +86,8 @@ struct SettleUpFormView: View {
         return BalanceEngine.compute(expenses: coreExpenses, settlements: coreSettlements)
     }
 
-    private var pairBalance: Decimal? {
-        guard let from = fromPersonID, let to = toPersonID else { return nil }
-        return currentBalances.first(where: { $0.forUser == from && $0.withUser == to && $0.currency == currency })?.amount
+    private var simplifiedDebts: [SimplifiedDebt] {
+        DebtSimplifier.simplify(currentBalances)
     }
 
     private func displayName(for personID: UUID) -> String {
@@ -102,8 +101,9 @@ struct SettleUpFormView: View {
     private var selectablePeople: [TripPersonEntity] {
         guard let trip else { return [] }
         var keep = Set<UUID>()
-        for balance in currentBalances where balance.amount != 0 {
-            keep.insert(balance.forUser)
+        for debt in simplifiedDebts {
+            keep.insert(debt.fromUser)
+            keep.insert(debt.toUser)
         }
         if let fromPersonID { keep.insert(fromPersonID) }
         if let toPersonID { keep.insert(toPersonID) }
@@ -306,30 +306,31 @@ struct SettleUpFormView: View {
         let fromName = displayName(for: from)
         let toName = displayName(for: to)
 
-        guard let balance = pairBalance else { return nil }
-
-        if balance == 0 { return nil }
-
-        if balance < 0 {
-            let amount = -balance
-            let formatted = MoneyFormatter.format(amount, currency: currency)
-            let remaining = amount - totalAmount
+        if let debt = simplifiedDebts.first(where: {
+            $0.fromUser == from && $0.toUser == to && $0.currency == currency
+        }) {
+            let owed = debt.amount
+            let formattedOwed = MoneyFormatter.format(owed, currency: currency)
+            let remaining = owed - totalAmount
             if remaining > 0 {
-                let remainFormatted = MoneyFormatter.format(remaining, currency: currency)
-                return "\(fromName) owes \(toName) \(formatted). After this, \(remainFormatted) will remain."
+                let formattedRemaining = MoneyFormatter.format(remaining, currency: currency)
+                return "\(fromName) owes \(toName) \(formattedOwed). After this, \(formattedRemaining) will remain."
             }
             if remaining == 0 {
-                return "\(fromName) owes \(toName) \(formatted). This will settle the full balance."
+                return "\(fromName) owes \(toName) \(formattedOwed). This will settle the full balance."
             }
-            let overpaid = -remaining
-            let overpaidFormatted = MoneyFormatter.format(overpaid, currency: currency)
-            return "\(fromName) owes \(toName) \(formatted). This overpays by \(overpaidFormatted), so \(toName) will owe \(fromName) \(overpaidFormatted)."
+            let formattedOverpay = MoneyFormatter.format(-remaining, currency: currency)
+            return "\(fromName) owes \(toName) \(formattedOwed). This overpays by \(formattedOverpay)."
         }
 
-        let formatted = MoneyFormatter.format(balance, currency: currency)
-        let increased = balance + totalAmount
-        let increasedFormatted = MoneyFormatter.format(increased, currency: currency)
-        return "\(toName) already owes \(fromName) \(formatted). This payment is opposite that balance; after this, \(toName) will owe \(fromName) \(increasedFormatted)."
+        if let debt = simplifiedDebts.first(where: {
+            $0.fromUser == to && $0.toUser == from && $0.currency == currency
+        }) {
+            let formatted = MoneyFormatter.format(debt.amount, currency: currency)
+            return "\(toName) owes \(fromName) \(formatted). This payment goes the opposite direction."
+        }
+
+        return nil
     }
 
     private func balanceContextBanner(_ text: String) -> some View {
@@ -459,11 +460,10 @@ struct SettleUpFormView: View {
 
     private func updateAmountForPair() {
         guard !isEditing, let from = fromPersonID, let to = toPersonID else { return }
-        if let entry = currentBalances.first(where: { $0.forUser == from && $0.withUser == to && $0.currency == currency }) {
-            let owed = abs(entry.amount)
-            if owed > 0 {
-                amountText = plainAmountString(owed)
-            }
+        if let debt = simplifiedDebts.first(where: {
+            $0.fromUser == from && $0.toUser == to && $0.currency == currency
+        }) {
+            amountText = plainAmountString(debt.amount)
         }
     }
 

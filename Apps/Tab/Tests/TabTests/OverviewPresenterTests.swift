@@ -52,9 +52,9 @@ struct OverviewPresenterTests {
             perCategory: []
         )
         let page = try #require(OverviewPresenter.resolve(summaries: [summary], currentPersonID: you, personName: names, categoryName: categoryNames).pages.first)
-        #expect(page.totalSpent == MoneyFormatter.formatSymbol(200, currency: "EUR"))
-        #expect(page.youPaid == MoneyFormatter.formatSymbol(150, currency: "EUR"))
-        #expect(page.yourShare == MoneyFormatter.formatSymbol(50, currency: "EUR"))
+        #expect(page.totalSpent == MoneyFormatter.format(200, currency: "EUR"))
+        #expect(page.youPaid == MoneyFormatter.format(150, currency: "EUR"))
+        #expect(page.yourShare == MoneyFormatter.format(50, currency: "EUR"))
         #expect(page.yourSharePercent == "25% of trip spend")  // 50 / 200
     }
 
