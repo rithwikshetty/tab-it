@@ -432,7 +432,10 @@ create trigger trg_profiles_name_to_trip_people
 -- Advances the caller's Activity read cursor. Monotonic (never moves backwards)
 -- so a stale write from another device can't resurrect already-seen unread state.
 -- Bumps write_id (via set_sync_fields) so the next pull carries the new cursor.
-create or replace function public.mark_activity_seen()
+-- p_seen_at lets an offline read be acknowledged later with the time it actually
+-- happened; it is clamped to the server clock so a skewed or replayed client
+-- timestamp can never mark not-yet-seen events as read.
+create or replace function public.mark_activity_seen(p_seen_at timestamptz default null)
 returns timestamptz
 language plpgsql
 security definer
@@ -447,7 +450,10 @@ begin
   end if;
 
   update public.profiles
-  set activity_last_seen_at = greatest(coalesce(activity_last_seen_at, '-infinity'::timestamptz), clock_timestamp())
+  set activity_last_seen_at = greatest(
+    coalesce(activity_last_seen_at, '-infinity'::timestamptz),
+    least(coalesce(p_seen_at, clock_timestamp()), clock_timestamp())
+  )
   where id = v_actor
   returning activity_last_seen_at into v_seen;
 
@@ -455,8 +461,25 @@ begin
 end;
 $$;
 
-comment on function public.mark_activity_seen() is
-  'Advances profiles.activity_last_seen_at to now for the caller. Called when the Activity tab is opened.';
+comment on function public.mark_activity_seen(timestamptz) is
+  'Advances profiles.activity_last_seen_at for the caller (to p_seen_at clamped to now, or now). Called when the Activity tab is opened or a pending offline read is acked.';
+
+-- The caller's own read cursor. visible_profiles and the column grants on
+-- profiles deliberately hide activity_last_seen_at from shared reads, so this
+-- self-only accessor is the sync pull's way to seed the cursor on a fresh
+-- install or second device.
+create or replace function public.activity_read_cursor()
+returns timestamptz
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select activity_last_seen_at from public.profiles where id = auth.uid();
+$$;
+
+comment on function public.activity_read_cursor() is
+  'Returns the caller''s own activity_last_seen_at. Self-only; used by sync pull.';
 
 
 -- ============================================================================
@@ -1451,6 +1474,45 @@ create index push_devices_user_id_idx on public.push_devices(user_id);
 create trigger trg_push_devices_sync_fields
   before insert or update on public.push_devices
   for each row execute function public.set_sync_fields();
+
+-- Registration goes through an RPC (not a plain upsert) so the server can
+-- release the token from any other account first. On a shared device,
+-- sign-out + sign-in with a second account would otherwise leave both users'
+-- rows for one physical device, and APNs would deliver both accounts' pushes.
+create or replace function public.register_push_device(
+  p_apns_token  text,
+  p_device_name text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_apns_token is null or char_length(p_apns_token) = 0 or char_length(p_apns_token) > 1024 then
+    raise exception 'Invalid APNs token' using errcode = '23514';
+  end if;
+
+  delete from public.push_devices
+  where apns_token = p_apns_token and user_id <> v_user;
+
+  insert into public.push_devices (user_id, apns_token, device_name, last_seen_at)
+  values (v_user, p_apns_token, left(p_device_name, 100), now())
+  on conflict (user_id, apns_token)
+  do update set device_name = excluded.device_name, last_seen_at = now();
+end;
+$$;
+
+comment on function public.register_push_device(text, text) is
+  'Upserts the caller''s APNs device token and releases it from any other account (shared-device sign-out/sign-in).';
+
+revoke execute on function public.register_push_device(text, text) from public, anon;
+grant execute on function public.register_push_device(text, text) to authenticated;
 
 create table public.trip_mute_prefs (
   trip_id    uuid not null references public.trips(id) on delete cascade,
@@ -2487,8 +2549,10 @@ revoke execute on function public.create_expense_with_payments_and_splits(jsonb,
 grant  execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) to authenticated;
 -- resolve_or_create_non_group_container privileges live in 19_rpc_non_group.sql:
 -- the function is defined there, and this file sorts before it in the build.
-revoke execute on function public.mark_activity_seen() from public, anon;
-grant  execute on function public.mark_activity_seen() to authenticated;
+revoke execute on function public.mark_activity_seen(timestamptz) from public, anon;
+grant  execute on function public.mark_activity_seen(timestamptz) to authenticated;
+revoke execute on function public.activity_read_cursor() from public, anon;
+grant  execute on function public.activity_read_cursor() to authenticated;
 
 -- private helpers are not PostgREST-exposed, but authenticated sessions need
 -- EXECUTE for policy evaluation.
@@ -2550,8 +2614,10 @@ as $$
 $$;
 
 -- Unread Activity count for one user: events on their joined trips, not their
--- own, newer than their read cursor, excluding muted trips. Used by the edge
--- function to stamp aps.badge so the app-icon badge is correct with the app closed.
+-- own, newer than their read cursor, excluding muted trips and anything that
+-- predates them joining the trip (a member claimed after months of activity
+-- must not start at badge 100). Used by the edge function to stamp aps.badge
+-- so the app-icon badge is correct with the app closed.
 create or replace function public.unread_activity_count(p_user uuid)
 returns integer
 language sql
@@ -2566,7 +2632,11 @@ as $$
     and a.timestamp > coalesce(p.activity_last_seen_at, '-infinity'::timestamptz)
     and exists (
       select 1 from public.trip_people tp
-      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null and tp.removed_at is null
+      where tp.trip_id = a.trip_id
+        and tp.user_id = p_user
+        and tp.joined_at is not null
+        and tp.removed_at is null
+        and a.timestamp >= tp.joined_at
     )
     and not exists (
       select 1 from public.trip_mute_prefs m

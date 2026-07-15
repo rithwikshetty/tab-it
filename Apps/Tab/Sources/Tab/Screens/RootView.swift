@@ -49,16 +49,32 @@ struct RootView: View {
     @Query private var activities: [ActivityEntity]
     @Query private var profiles: [ProfileEntity]
     @Query private var mutes: [TripMuteEntity]
+    @Query private var tripPeople: [TripPersonEntity]
 
     private var currentUserID: UUID? { auth.currentUser?.id }
 
     private var mutedTripIDs: Set<UUID> { Set(mutes.filter(\.isMuted).map(\.tripID)) }
 
+    private var joinedAtByTrip: [UUID: Date] {
+        guard let uid = currentUserID else { return [:] }
+        var map: [UUID: Date] = [:]
+        for person in tripPeople where person.userID == uid {
+            if let tripID = person.trip?.id, let joinedAt = person.joinedAt {
+                map[tripID] = joinedAt
+            }
+        }
+        return map
+    }
+
     private var unreadCount: Int {
         guard let uid = currentUserID else { return 0 }
         let cursor = profiles.first { $0.id == uid }?.activityLastSeenAt
         return ActivityPresenter.unreadCount(
-            from: activities, currentUserID: uid, lastSeenAt: cursor, mutedTripIDs: mutedTripIDs
+            from: activities,
+            currentUserID: uid,
+            lastSeenAt: cursor,
+            mutedTripIDs: mutedTripIDs,
+            joinedAtByTrip: joinedAtByTrip
         )
     }
 
@@ -125,6 +141,20 @@ struct RootView: View {
             #else
             await push.requestAuthorizationAndRegister()
             #endif
+            // Register explicitly even when the token value didn't change:
+            // after an account switch on the same device APNs re-issues the
+            // same token, so .onChange(of: push.deviceToken) never fires and
+            // the new account would otherwise stay unregistered.
+            if let token = push.deviceToken {
+                await sync.registerPushDevice(token: token, deviceName: UIDevice.current.name)
+            }
+            // A notification tap that cold-launches the app sets lastTap before
+            // this view exists, so .onChange(of: push.lastTap) never fires for
+            // it — consume the pending tap here.
+            if let tap = push.lastTap {
+                push.lastTap = nil
+                handlePushTap(tap)
+            }
         }
         .onAppear {
             #if DEBUG
@@ -160,7 +190,18 @@ struct RootView: View {
             if phase == .active && wasBackgrounded {
                 wasBackgrounded = false
                 Task { await sync.pullAll() }
+                // Also pick up a notification permission the user just flipped
+                // on in the Settings app — without this, pushes only start
+                // after a full relaunch.
+                Task { await push.registerIfAuthorized() }
             }
+        }
+        .onChange(of: push.lastForegroundReceipt) { _, receipt in
+            // A banner shown while the app is open announces content the local
+            // store may not have yet — refresh so the feed matches the banner.
+            guard receipt != nil else { return }
+            push.lastForegroundReceipt = nil
+            Task { await sync.pullAll() }
         }
         .onAppear {
             Task { await push.setBadgeCount(unreadCount) }
@@ -246,21 +287,36 @@ struct RootView: View {
     }
 
     /// Deep-link from a tapped push notification (opens in the Trips tab).
+    /// The push usually races the sync pull, so when the target entity isn't
+    /// local yet, land on the trip, pull, and only then push the detail screen
+    /// — and only if the user hasn't navigated away in the meantime.
     private func handlePushTap(_ tap: PushPayload) {
-        var stack: [Route] = [.trip(tap.tripID)]
-        if let type = tap.entityType, let entityID = tap.entityID {
-            switch type {
-            case "expense" where expenseIsOpenable(entityID):
-                stack.append(.expense(entityID))
-            case "settlement" where settlementIsOpenable(entityID):
-                stack.append(.settlement(entityID))
-            default:
-                break
+        selectedTab = .trips
+        let base: [Route] = [.trip(tap.tripID)]
+        if let route = entityRoute(for: tap) {
+            tripsPath = base + [route]
+            Task { await sync.pullAll() }
+            return
+        }
+        tripsPath = base
+        Task {
+            await sync.pullAll()
+            if let route = entityRoute(for: tap), tripsPath == base {
+                tripsPath.append(route)
             }
         }
-        selectedTab = .trips
-        tripsPath = stack
-        Task { await sync.pullAll() }
+    }
+
+    private func entityRoute(for tap: PushPayload) -> Route? {
+        guard let type = tap.entityType, let entityID = tap.entityID else { return nil }
+        switch type {
+        case "expense" where expenseIsOpenable(entityID):
+            return .expense(entityID)
+        case "settlement" where settlementIsOpenable(entityID):
+            return .settlement(entityID)
+        default:
+            return nil
+        }
     }
 
     private func expenseIsOpenable(_ id: UUID) -> Bool {

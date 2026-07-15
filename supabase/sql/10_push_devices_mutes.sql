@@ -21,6 +21,45 @@ create trigger trg_push_devices_sync_fields
   before insert or update on public.push_devices
   for each row execute function public.set_sync_fields();
 
+-- Registration goes through an RPC (not a plain upsert) so the server can
+-- release the token from any other account first. On a shared device,
+-- sign-out + sign-in with a second account would otherwise leave both users'
+-- rows for one physical device, and APNs would deliver both accounts' pushes.
+create or replace function public.register_push_device(
+  p_apns_token  text,
+  p_device_name text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_apns_token is null or char_length(p_apns_token) = 0 or char_length(p_apns_token) > 1024 then
+    raise exception 'Invalid APNs token' using errcode = '23514';
+  end if;
+
+  delete from public.push_devices
+  where apns_token = p_apns_token and user_id <> v_user;
+
+  insert into public.push_devices (user_id, apns_token, device_name, last_seen_at)
+  values (v_user, p_apns_token, left(p_device_name, 100), now())
+  on conflict (user_id, apns_token)
+  do update set device_name = excluded.device_name, last_seen_at = now();
+end;
+$$;
+
+comment on function public.register_push_device(text, text) is
+  'Upserts the caller''s APNs device token and releases it from any other account (shared-device sign-out/sign-in).';
+
+revoke execute on function public.register_push_device(text, text) from public, anon;
+grant execute on function public.register_push_device(text, text) to authenticated;
+
 create table public.trip_mute_prefs (
   trip_id    uuid not null references public.trips(id) on delete cascade,
   user_id    uuid not null references public.profiles(id) on delete cascade,

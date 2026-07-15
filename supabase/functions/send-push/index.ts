@@ -55,11 +55,17 @@ Deno.serve(async (req) => {
     return new Response("unauthorized", { status: 401 });
   }
 
-  let event: ActivityEvent;
+  let body_: { activity_id?: string };
   try {
-    event = (await req.json()) as ActivityEvent;
+    body_ = (await req.json()) as { activity_id?: string };
   } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  if (!body_.activity_id) {
+    return new Response(JSON.stringify({ error: "missing_activity_id" }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });
@@ -74,6 +80,31 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Only the activity ID is trusted from the request; title/body/deep-link all
+  // come from the canonical row, so a replayed or tampered webhook body can't
+  // put words in a banner.
+  const { data: row, error: rowError } = await supabase
+    .from("activity_log")
+    .select("id, trip_id, actor_id, action, entity_type, entity_id, snapshot_json")
+    .eq("id", body_.activity_id)
+    .maybeSingle();
+  if (rowError) {
+    return new Response(JSON.stringify({ error: rowError.message }), { status: 500 });
+  }
+  if (!row) {
+    return new Response(JSON.stringify({ error: "unknown_activity" }), { status: 404 });
+  }
+  const event: ActivityEvent = {
+    activity_id: row.id,
+    trip_id: row.trip_id,
+    actor_id: row.actor_id,
+    action: row.action,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    snapshot: row.snapshot_json as Record<string, string> | null,
+  };
+
   const { data: targets, error } = await supabase.rpc("push_targets_for_activity", {
     p_activity_id: event.activity_id,
   });
@@ -97,7 +128,14 @@ Deno.serve(async (req) => {
       entity_type: event.entity_type,
       entity_id: event.entity_id,
     };
-    const result = await sendPush(target.apns_token, payload, { collapseId: event.entity_id });
+    // One bad token or network hiccup must not abort the rest of the fan-out.
+    let result;
+    try {
+      result = await sendPush(target.apns_token, payload, { collapseId: event.entity_id });
+    } catch (e) {
+      console.error(`apns send threw device=${target.push_device_id}: ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
     if (result.ok) {
       sent++;
     } else if (result.tokenDead) {

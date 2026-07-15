@@ -24,6 +24,14 @@ struct TabApp: App {
         // device never sees the previous user's trips or pending writes.
         auth.onSignedOut = { [container] in
             try? LocalStore.wipe(container.mainContext)
+            // The badge belongs to the account that just left; don't let it
+            // linger for the next sign-in.
+            await PushService.shared.setBadgeCount(0)
+        }
+        // Before the session dies, drop this device's push registration so the
+        // signed-out account's notifications stop arriving on this device.
+        auth.onWillSignOut = { [sync] in
+            await sync.unregisterPushDevice(token: PushService.shared.deviceToken)
         }
         self.container = container
         _auth = State(initialValue: auth)

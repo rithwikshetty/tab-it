@@ -394,6 +394,19 @@ final class SyncService {
         for dto in rows {
             try SyncMerge.apply(dto, in: ctx)
         }
+
+        // visible_profiles deliberately omits the private activity_last_seen_at
+        // column, so a fresh install or second device would otherwise start
+        // with a nil cursor and badge all history as unread. Fetch the caller's
+        // own cursor separately and merge it forward.
+        if let userID = auth?.currentUser?.id,
+           let cursor: Date = try? await client.rpc("activity_read_cursor").execute().value {
+            let profile = try ctx.fetch(FetchDescriptor<ProfileEntity>(
+                predicate: #Predicate { $0.id == userID }
+            )).first
+            profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, cursor)
+        }
+
         try ctx.save()
         return Set(rows.map(\.id))
     }
@@ -692,6 +705,7 @@ final class SyncService {
             try await pushExpensesAndSplits()
             await pushPendingReceiptUploads()
             try await pushMutes()
+            await pushActivitySeen()
             if pushFailures > 0 {
                 phase = .error("\(pushFailures) change(s) failed to sync")
             } else {
@@ -1024,8 +1038,12 @@ final class SyncService {
 
     // MARK: - Notifications
 
+    private static let pendingActivitySeenKey = "sync.pendingActivitySeenAt"
+
     /// Advances the local read cursor immediately (clears the badge), then persists
     /// it server-side. The optimistic local write also covers mock auth (no session).
+    /// The server ack is durable: the pending timestamp survives failures and is
+    /// retried from pushPending, so reading offline still reaches the push badge.
     func markActivitySeen() async {
         let ctx = container.mainContext
         guard let userID = auth?.currentUser?.id else { return }
@@ -1041,9 +1059,25 @@ final class SyncService {
         profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, now)
         try? ctx.save()
 
-        guard hasRealSession else { return }
+        UserDefaults.standard.set(now, forKey: Self.pendingActivitySeenKey)
+        await pushActivitySeen()
+    }
+
+    /// Sends the pending read-cursor ack, if any. The server clamps the value
+    /// to its own clock, so a retried (or skewed) timestamp can never mark
+    /// events read that the user hasn't actually seen.
+    func pushActivitySeen() async {
+        guard hasRealSession, let userID = auth?.currentUser?.id else { return }
+        guard let pending = UserDefaults.standard.object(forKey: Self.pendingActivitySeenKey) as? Date else { return }
         do {
-            let serverSeenAt: Date = try await client.rpc("mark_activity_seen").execute().value
+            let serverSeenAt: Date = try await client.rpc("mark_activity_seen", params: [
+                "p_seen_at": AnyJSON.string(Self.timestampFormatter.string(from: pending)),
+            ]).execute().value
+            UserDefaults.standard.removeObject(forKey: Self.pendingActivitySeenKey)
+            let ctx = container.mainContext
+            let profile = (try? ctx.fetch(FetchDescriptor<ProfileEntity>(
+                predicate: #Predicate { $0.id == userID }
+            )))?.first
             profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, serverSeenAt)
             try? ctx.save()
         } catch {
@@ -1065,18 +1099,34 @@ final class SyncService {
     }
 
     /// Registers (or refreshes) this device's APNs token. Idempotent on (user, token);
-    /// called on every launch so reinstalls and token rotation self-heal.
+    /// called on every launch so reinstalls and token rotation self-heal. Goes
+    /// through an RPC so the server can also release the token from any other
+    /// account (RLS blocks the client from touching other users' rows).
     func registerPushDevice(token: String, deviceName: String?) async {
-        guard hasRealSession, let userID = auth?.currentUser?.id else { return }
+        guard hasRealSession, auth?.currentUser != nil else { return }
         do {
-            try await client.from("push_devices")
-                .upsert(
-                    PushDeviceInsertDTO(userID: userID, apnsToken: token, deviceName: deviceName),
-                    onConflict: "user_id,apns_token"
-                )
-                .execute()
+            try await client.rpc("register_push_device", params: [
+                "p_apns_token":  AnyJSON.string(token),
+                "p_device_name": deviceName.map { AnyJSON.string($0) } ?? .null,
+            ]).execute()
         } catch {
             syncLog.error("push device register failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Deletes this device's push registration for the current user. Called on
+    /// explicit sign-out (while the session is still valid) so the signed-out
+    /// account's pushes stop arriving on this device.
+    func unregisterPushDevice(token: String?) async {
+        guard hasRealSession, let userID = auth?.currentUser?.id, let token else { return }
+        do {
+            try await client.from("push_devices")
+                .delete()
+                .eq("user_id", value: userID.uuidString)
+                .eq("apns_token", value: token)
+                .execute()
+        } catch {
+            syncLog.error("push device unregister failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

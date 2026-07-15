@@ -61,6 +61,10 @@ final class AuthService {
     /// clear local state (SwiftData) before the previous user's session ends.
     var onSignedOut: (@MainActor () async -> Void)?
 
+    /// Invoked at the start of an explicit sign-out, while the session is still
+    /// valid — server-side cleanup (push device deregistration) needs auth.
+    var onWillSignOut: (@MainActor () async -> Void)?
+
     private let client = SupabaseClientProvider.shared
     private let pendingEmailNamePrefix = "auth.pendingEmailSignInName."
 
@@ -236,6 +240,7 @@ final class AuthService {
     }
 
     func signOut() async {
+        await onWillSignOut?()
         try? await client.auth.signOut()
         // Mock auth has no real session, so authStateChanges never fires the
         // signedOut transition — drive it (and the local wipe) directly. For

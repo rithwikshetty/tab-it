@@ -36,6 +36,7 @@ enum ActivityPresenter {
         lastSeenAt: Date?,
         mutedTripIDs: Set<UUID>,
         myTripPersonIDs: Set<UUID>,
+        joinedAtByTrip: [UUID: Date] = [:],
         calendar: Calendar = .current,
         now: Date = .now
     ) -> [ActivitySection] {
@@ -48,7 +49,13 @@ enum ActivityPresenter {
         var grouped: [String: [ActivityRow]] = [:]
 
         for activity in visible {
-            let isUnread = isUnread(activity, currentUserID: currentUserID, since: since, mutedTripIDs: mutedTripIDs)
+            let isUnread = isUnread(
+                activity,
+                currentUserID: currentUserID,
+                since: since,
+                mutedTripIDs: mutedTripIDs,
+                joinedAtByTrip: joinedAtByTrip
+            )
             let row = row(for: activity, myTripPersonIDs: myTripPersonIDs, isUnread: isUnread, calendar: calendar)
             let day = calendar.startOfDay(for: activity.timestamp)
             let key = ISO8601DateFormatter.dayKey.string(from: day)
@@ -69,27 +76,39 @@ enum ActivityPresenter {
         from activities: [ActivityEntity],
         currentUserID: UUID,
         lastSeenAt: Date?,
-        mutedTripIDs: Set<UUID>
+        mutedTripIDs: Set<UUID>,
+        joinedAtByTrip: [UUID: Date] = [:]
     ) -> Int {
         let since = lastSeenAt ?? .distantPast
         return activities.filter {
-            isUnread($0, currentUserID: currentUserID, since: since, mutedTripIDs: mutedTripIDs)
+            isUnread(
+                $0,
+                currentUserID: currentUserID,
+                since: since,
+                mutedTripIDs: mutedTripIDs,
+                joinedAtByTrip: joinedAtByTrip
+            )
         }.count
     }
 
     // MARK: - Row mapping
 
+    /// Events that predate the user joining a trip stay visible as history but
+    /// never count as unread — a member claimed after months of activity should
+    /// not land on badge 100. Mirrors the server's unread_activity_count bound.
     private static func isUnread(
         _ activity: ActivityEntity,
         currentUserID: UUID,
         since: Date,
-        mutedTripIDs: Set<UUID>
+        mutedTripIDs: Set<UUID>,
+        joinedAtByTrip: [UUID: Date]
     ) -> Bool {
         activity.actorID != currentUserID
             && !mutedTripIDs.contains(activity.tripID)
             && activity.readAt == nil
             && activity.dismissedAt == nil
             && activity.timestamp > since
+            && activity.timestamp >= (joinedAtByTrip[activity.tripID] ?? .distantPast)
     }
 
     private static func row(

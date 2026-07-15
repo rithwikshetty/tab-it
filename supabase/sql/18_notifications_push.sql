@@ -31,8 +31,10 @@ as $$
 $$;
 
 -- Unread Activity count for one user: events on their joined trips, not their
--- own, newer than their read cursor, excluding muted trips. Used by the edge
--- function to stamp aps.badge so the app-icon badge is correct with the app closed.
+-- own, newer than their read cursor, excluding muted trips and anything that
+-- predates them joining the trip (a member claimed after months of activity
+-- must not start at badge 100). Used by the edge function to stamp aps.badge
+-- so the app-icon badge is correct with the app closed.
 create or replace function public.unread_activity_count(p_user uuid)
 returns integer
 language sql
@@ -47,7 +49,11 @@ as $$
     and a.timestamp > coalesce(p.activity_last_seen_at, '-infinity'::timestamptz)
     and exists (
       select 1 from public.trip_people tp
-      where tp.trip_id = a.trip_id and tp.user_id = p_user and tp.joined_at is not null and tp.removed_at is null
+      where tp.trip_id = a.trip_id
+        and tp.user_id = p_user
+        and tp.joined_at is not null
+        and tp.removed_at is null
+        and a.timestamp >= tp.joined_at
     )
     and not exists (
       select 1 from public.trip_mute_prefs m

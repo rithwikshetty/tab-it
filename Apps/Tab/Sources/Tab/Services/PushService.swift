@@ -32,6 +32,9 @@ final class PushService {
     private(set) var deviceToken: String?
     /// Set when the user taps a notification; the UI consumes it to deep-link, then clears it.
     var lastTap: PushPayload?
+    /// Set when a push arrives while the app is foregrounded; the UI consumes
+    /// it to refresh the feed the banner is announcing, then clears it.
+    var lastForegroundReceipt: PushPayload?
     private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
 
     /// First launch: ask permission (Apple's HIG — ask when value is clear), then register.
@@ -61,6 +64,19 @@ final class PushService {
         authorizationStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
+    /// Re-registers with APNs if permission is (now) granted, without ever
+    /// prompting. Called on foreground so flipping notifications on in the
+    /// Settings app takes effect without a relaunch.
+    func registerIfAuthorized() async {
+        await refreshAuthorizationStatus()
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            UIApplication.shared.registerForRemoteNotifications()
+        default:
+            break
+        }
+    }
+
     #if DEBUG
     /// Provisional auth is granted silently (no prompt) — used only to exercise the
     /// receive path in the Simulator, where the permission alert can't be tapped.
@@ -85,6 +101,10 @@ final class PushService {
 
     func didReceiveTap(_ payload: PushPayload) {
         lastTap = payload
+    }
+
+    func didReceiveForeground(_ payload: PushPayload) {
+        lastForegroundReceipt = payload
     }
 }
 
@@ -114,12 +134,16 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         pushLog.error("remote registration failed: \(error.localizedDescription, privacy: .public)")
     }
 
-    // Foreground: still show the banner (and let the payload's badge apply).
+    // Foreground: still show the banner (and let the payload's badge apply),
+    // and hand the payload to the UI so the feed refreshes to match it.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound, .badge]
+        if let payload = PushPayload(userInfo: notification.request.content.userInfo) {
+            await MainActor.run { PushService.shared.didReceiveForeground(payload) }
+        }
+        return [.banner, .list, .sound, .badge]
     }
 
     // Tap: deep-link to the relevant content. Extract the Sendable payload off the

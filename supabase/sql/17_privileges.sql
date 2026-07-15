@@ -53,8 +53,10 @@ revoke execute on function public.create_expense_with_payments_and_splits(jsonb,
 grant  execute on function public.create_expense_with_payments_and_splits(jsonb, jsonb, jsonb) to authenticated;
 -- resolve_or_create_non_group_container privileges live in 19_rpc_non_group.sql:
 -- the function is defined there, and this file sorts before it in the build.
-revoke execute on function public.mark_activity_seen() from public, anon;
-grant  execute on function public.mark_activity_seen() to authenticated;
+revoke execute on function public.mark_activity_seen(timestamptz) from public, anon;
+grant  execute on function public.mark_activity_seen(timestamptz) to authenticated;
+revoke execute on function public.activity_read_cursor() from public, anon;
+grant  execute on function public.activity_read_cursor() to authenticated;
 
 -- private helpers are not PostgREST-exposed, but authenticated sessions need
 -- EXECUTE for policy evaluation.

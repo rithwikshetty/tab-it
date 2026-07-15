@@ -401,16 +401,3 @@ struct TripMuteInsertDTO: Codable, Sendable {
     }
 }
 
-// MARK: - Push device
-
-struct PushDeviceInsertDTO: Codable, Sendable {
-    let userID: UUID
-    let apnsToken: String
-    let deviceName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case userID = "user_id"
-        case apnsToken = "apns_token"
-        case deviceName = "device_name"
-    }
-}

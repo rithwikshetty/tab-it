@@ -133,7 +133,10 @@ create trigger trg_profiles_name_to_trip_people
 -- Advances the caller's Activity read cursor. Monotonic (never moves backwards)
 -- so a stale write from another device can't resurrect already-seen unread state.
 -- Bumps write_id (via set_sync_fields) so the next pull carries the new cursor.
-create or replace function public.mark_activity_seen()
+-- p_seen_at lets an offline read be acknowledged later with the time it actually
+-- happened; it is clamped to the server clock so a skewed or replayed client
+-- timestamp can never mark not-yet-seen events as read.
+create or replace function public.mark_activity_seen(p_seen_at timestamptz default null)
 returns timestamptz
 language plpgsql
 security definer
@@ -148,7 +151,10 @@ begin
   end if;
 
   update public.profiles
-  set activity_last_seen_at = greatest(coalesce(activity_last_seen_at, '-infinity'::timestamptz), clock_timestamp())
+  set activity_last_seen_at = greatest(
+    coalesce(activity_last_seen_at, '-infinity'::timestamptz),
+    least(coalesce(p_seen_at, clock_timestamp()), clock_timestamp())
+  )
   where id = v_actor
   returning activity_last_seen_at into v_seen;
 
@@ -156,8 +162,25 @@ begin
 end;
 $$;
 
-comment on function public.mark_activity_seen() is
-  'Advances profiles.activity_last_seen_at to now for the caller. Called when the Activity tab is opened.';
+comment on function public.mark_activity_seen(timestamptz) is
+  'Advances profiles.activity_last_seen_at for the caller (to p_seen_at clamped to now, or now). Called when the Activity tab is opened or a pending offline read is acked.';
+
+-- The caller's own read cursor. visible_profiles and the column grants on
+-- profiles deliberately hide activity_last_seen_at from shared reads, so this
+-- self-only accessor is the sync pull's way to seed the cursor on a fresh
+-- install or second device.
+create or replace function public.activity_read_cursor()
+returns timestamptz
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select activity_last_seen_at from public.profiles where id = auth.uid();
+$$;
+
+comment on function public.activity_read_cursor() is
+  'Returns the caller''s own activity_last_seen_at. Self-only; used by sync pull.';
 
 
 -- ============================================================================

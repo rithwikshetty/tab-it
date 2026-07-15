@@ -75,12 +75,29 @@ export async function sendPush(
   payload: unknown,
   opts?: { collapseId?: string },
 ): Promise<SendResult> {
+  const first = await sendOnce(deviceToken, payload, opts);
+  // The cached JWT can age past Apple's 1h window between mints; sendOnce
+  // already dropped it, so one retry re-signs instead of losing the push.
+  if (!first.ok && first.reason === "ExpiredProviderToken") {
+    return await sendOnce(deviceToken, payload, opts);
+  }
+  return first;
+}
+
+async function sendOnce(
+  deviceToken: string,
+  payload: unknown,
+  opts?: { collapseId?: string },
+): Promise<SendResult> {
   const host = PRODUCTION ? "api.push.apple.com" : "api.sandbox.push.apple.com";
   const headers: Record<string, string> = {
     authorization: `bearer ${await providerToken()}`,
     "apns-topic": BUNDLE_ID,
     "apns-push-type": "alert",
     "apns-priority": "10",
+    // Without this, APNs stores undeliverable pushes for up to 30 days — a
+    // week-old "added Dinner" banner (with a stale badge) helps no one.
+    "apns-expiration": String(Math.floor(Date.now() / 1000) + 24 * 60 * 60),
     "content-type": "application/json",
   };
   if (opts?.collapseId) headers["apns-collapse-id"] = opts.collapseId;

@@ -29,6 +29,17 @@ struct ActivityView: View {
         return Set(people.filter { $0.userID == uid }.map(\.id))
     }
 
+    private var joinedAtByTrip: [UUID: Date] {
+        guard let uid = currentUserID else { return [:] }
+        var map: [UUID: Date] = [:]
+        for person in people where person.userID == uid {
+            if let tripID = person.trip?.id, let joinedAt = person.joinedAt {
+                map[tripID] = joinedAt
+            }
+        }
+        return map
+    }
+
     private var sections: [ActivitySection] {
         guard let uid = currentUserID else { return [] }
         return ActivityPresenter.sections(
@@ -36,7 +47,8 @@ struct ActivityView: View {
             currentUserID: uid,
             lastSeenAt: lastSeenAt,
             mutedTripIDs: mutedTripIDs,
-            myTripPersonIDs: myTripPersonIDs
+            myTripPersonIDs: myTripPersonIDs,
+            joinedAtByTrip: joinedAtByTrip
         )
     }
 

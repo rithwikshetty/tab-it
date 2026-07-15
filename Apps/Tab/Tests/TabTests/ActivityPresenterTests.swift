@@ -129,6 +129,36 @@ struct ActivityPresenterTests {
         #expect(count == 1)
     }
 
+    @Test("events that predate joining the trip are not unread")
+    func preJoinEventsAreNotUnread() {
+        let joinedAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+        let count = ActivityPresenter.unreadCount(
+            from: [
+                activity(
+                    actorID: otherUser,
+                    action: "expense_created",
+                    entityID: UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000001")!,
+                    timestamp: joinedAt.addingTimeInterval(-3600),
+                    snapshot: ["actor_name": "Bo", "trip_name": "Lisbon", "description": "Old dinner"]
+                ),
+                activity(
+                    actorID: otherUser,
+                    action: "expense_created",
+                    entityID: UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000002")!,
+                    timestamp: joinedAt.addingTimeInterval(60),
+                    snapshot: ["actor_name": "Bo", "trip_name": "Lisbon", "description": "New dinner"]
+                ),
+            ],
+            currentUserID: currentUser,
+            lastSeenAt: nil,
+            mutedTripIDs: [],
+            joinedAtByTrip: [tripID: joinedAt]
+        )
+
+        #expect(count == 1)
+    }
+
     @Test("muted trips are not unread")
     func mutedTripsAreNotUnread() throws {
         let seenAt = Date(timeIntervalSince1970: 1_800_000_000)
