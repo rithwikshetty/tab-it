@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import SwiftData
 import Supabase
 import os
@@ -27,6 +28,7 @@ final class SyncService {
 
     enum SyncError: LocalizedError {
         case signInRequired
+        case offline
         case localTripMissing
         case deletedTrip
         case nonGroupResolveFailed
@@ -34,6 +36,7 @@ final class SyncService {
         var errorDescription: String? {
             switch self {
             case .signInRequired: "Sign in to sync this trip."
+            case .offline: "You're offline. Connect to the internet and try again."
             case .localTripMissing: "Trip not found on this device."
             case .deletedTrip: "This trip has been deleted."
             case .nonGroupResolveFailed: "Couldn't set up this non-group expense. Check your connection and try again."
@@ -47,27 +50,44 @@ final class SyncService {
     private let client = SupabaseClientProvider.shared
     private let container: ModelContainer
     private weak var auth: AuthService?
+    private let pathMonitor = NWPathMonitor()
+    private var wasNetworkSatisfied: Bool?
 
     init(container: ModelContainer, auth: AuthService) {
         self.container = container
         self.auth = auth
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let isSatisfied = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let wasSatisfied = self.wasNetworkSatisfied
+                self.wasNetworkSatisfied = isSatisfied
+                guard wasSatisfied == false, isSatisfied, self.auth?.currentUser != nil else { return }
+                await self.pushPending()
+                await self.pullAll()
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "com.example.tab.sync-network"))
     }
 
-    /// Returns true when a real Supabase session exists (i.e. not mock auth).
-    private var hasRealSession: Bool {
+    private func resolveRealSession() async -> Session? {
         #if DEBUG
-        if auth?.isUsingMockAuth == true { return false }
+        if auth?.isUsingMockAuth == true { return nil }
         #endif
-        guard let session = client.auth.currentSession,
-              !session.isExpired,
-              let currentUserID = auth?.currentUser?.id else {
-            return false
+        guard let currentUserID = auth?.currentUser?.id,
+              let session = try? await client.auth.session,
+              session.user.id == currentUserID else {
+            return nil
         }
-        return session.user.id == currentUserID
+        return session
+    }
+
+    private var unresolvedSessionError: SyncError {
+        auth?.currentUser != nil && client.auth.currentSession != nil ? .offline : .signInRequired
     }
 
     func ensureTripUploaded(tripID: UUID) async throws {
-        guard hasRealSession else { throw SyncError.signInRequired }
+        guard await resolveRealSession() != nil else { throw unresolvedSessionError }
 
         let ctx = container.mainContext
         let trip = try ctx.fetch(FetchDescriptor<TripEntity>(
@@ -84,7 +104,7 @@ final class SyncService {
     }
 
     func claimTripPeopleForCurrentEmail() async {
-        guard hasRealSession else { return }
+        guard await resolveRealSession() != nil else { return }
         do {
             try await client
                 .rpc("claim_trip_people_for_current_email")
@@ -131,7 +151,7 @@ final class SyncService {
             return
         }
         #endif
-        guard hasRealSession else { throw SyncError.signInRequired }
+        guard await resolveRealSession() != nil else { throw unresolvedSessionError }
 
         let row: TripPersonDTO = try await client
             .rpc("update_trip_person_email", params: [
@@ -161,7 +181,7 @@ final class SyncService {
             return
         }
         #endif
-        guard hasRealSession else { throw SyncError.signInRequired }
+        guard await resolveRealSession() != nil else { throw unresolvedSessionError }
 
         let row: TripPersonDTO = try await client
             .rpc("remove_trip_person", params: [
@@ -176,7 +196,7 @@ final class SyncService {
     }
 
     func suggestTripPeople(query: String? = nil) async throws -> [TripPersonSuggestionDTO] {
-        guard hasRealSession else { return [] }
+        guard await resolveRealSession() != nil else { return [] }
         return try await client
             .rpc("suggest_trip_people", params: [
                 "p_query": query.map { AnyJSON.string($0) } ?? .null,
@@ -222,7 +242,7 @@ final class SyncService {
                 signature: signature, selfEmail: selfEmail, user: user, participants: normalized
             )
         }
-        guard hasRealSession else { throw SyncError.signInRequired }
+        guard await resolveRealSession() != nil else { throw unresolvedSessionError }
 
         let payload = normalized.map { p in
             AnyJSON.object([
@@ -315,7 +335,7 @@ final class SyncService {
     /// requests collapse into a single trailing pull (so a change that arrives
     /// mid-pull is still picked up) instead of stacking redundant full pulls.
     func pullAll() async {
-        guard hasRealSession else { return }
+        guard await resolveRealSession() != nil else { return }
         if pullInFlight {
             pullQueued = true
             return
@@ -695,7 +715,7 @@ final class SyncService {
     private var pushFailures = 0
 
     func pushPending() async {
-        guard hasRealSession else { return }
+        guard await resolveRealSession() != nil else { return }
         phase = .pushing
         pushFailures = 0
         do {
@@ -1067,7 +1087,7 @@ final class SyncService {
     /// to its own clock, so a retried (or skewed) timestamp can never mark
     /// events read that the user hasn't actually seen.
     func pushActivitySeen() async {
-        guard hasRealSession, let userID = auth?.currentUser?.id else { return }
+        guard await resolveRealSession() != nil, let userID = auth?.currentUser?.id else { return }
         guard let pending = UserDefaults.standard.object(forKey: Self.pendingActivitySeenKey) as? Date else { return }
         do {
             let serverSeenAt: Date = try await client.rpc("mark_activity_seen", params: [
@@ -1103,7 +1123,7 @@ final class SyncService {
     /// through an RPC so the server can also release the token from any other
     /// account (RLS blocks the client from touching other users' rows).
     func registerPushDevice(token: String, deviceName: String?) async {
-        guard hasRealSession, auth?.currentUser != nil else { return }
+        guard await resolveRealSession() != nil, auth?.currentUser != nil else { return }
         do {
             try await client.rpc("register_push_device", params: [
                 "p_apns_token":  AnyJSON.string(token),
@@ -1118,7 +1138,7 @@ final class SyncService {
     /// explicit sign-out (while the session is still valid) so the signed-out
     /// account's pushes stop arriving on this device.
     func unregisterPushDevice(token: String?) async {
-        guard hasRealSession, let userID = auth?.currentUser?.id, let token else { return }
+        guard await resolveRealSession() != nil, let userID = auth?.currentUser?.id, let token else { return }
         do {
             try await client.from("push_devices")
                 .delete()

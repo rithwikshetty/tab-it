@@ -179,7 +179,7 @@ struct RootView: View {
             Task { await push.setBadgeCount(count) }
         }
         .onChange(of: scenePhase) { _, phase in
-            // Only a real return from the background warrants a catch-up pull.
+            // Only a real return from the background warrants a catch-up sync.
             // Cold launch is already covered by the .task above, and
             // inactive→active flickers (app switcher, notification shade)
             // shouldn't each trigger a full sync. Foregrounding passes through
@@ -189,7 +189,10 @@ struct RootView: View {
             if phase == .background { wasBackgrounded = true }
             if phase == .active && wasBackgrounded {
                 wasBackgrounded = false
-                Task { await sync.pullAll() }
+                Task {
+                    await sync.pushPending()
+                    await sync.pullAll()
+                }
                 // Also pick up a notification permission the user just flipped
                 // on in the Settings app — without this, pushes only start
                 // after a full relaunch.

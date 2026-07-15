@@ -85,6 +85,11 @@ enum ReceiptStorage {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
+    static func pendingUploadURL(for path: String) -> URL? {
+        let fileURL = pendingFileURL(for: path)
+        return FileManager.default.fileExists(atPath: fileURL.path) ? fileURL : nil
+    }
+
     static func signedURL(path: String, expiresIn: Int = 3600) async throws -> URL {
         try await SupabaseClientProvider.shared.storage
             .from(bucket)

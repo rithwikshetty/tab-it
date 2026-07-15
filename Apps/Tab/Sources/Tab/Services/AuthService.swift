@@ -119,30 +119,14 @@ final class AuthService {
     #endif
 
     private func observeAuthState() async {
-        for await (event, session) in client.auth.authStateChanges {
+        for await (_, session) in client.auth.authStateChanges {
             if let session {
-                if event == .initialSession, session.isExpired {
-                    currentUser = nil
-                    phase = .loading
-                    Task { [weak self] in
-                        await self?.resolveExpiredInitialSession()
-                    }
-                    continue
-                }
-
+                // Offline-first: the SDK keeps expired sessions through network failures and
+                // emits signedOut itself on definitive revocation, handled by the nil branch.
                 await setSignedIn(from: session.user)
             } else {
                 await enterSignedOut()
             }
-        }
-    }
-
-    private func resolveExpiredInitialSession() async {
-        do {
-            let session = try await client.auth.session
-            await setSignedIn(from: session.user)
-        } catch {
-            await enterSignedOut()
         }
     }
 

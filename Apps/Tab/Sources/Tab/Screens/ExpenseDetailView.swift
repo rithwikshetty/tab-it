@@ -457,6 +457,14 @@ struct ExpenseDetailView: View {
             return
         }
         if loadedReceiptForPath == path, receiptURL != nil { return }
+        if let url = ReceiptStorage.pendingUploadURL(for: path) {
+            await MainActor.run {
+                receiptURL = url
+                loadedReceiptForPath = path
+                receiptLoadFailed = false
+            }
+            return
+        }
         do {
             let url = try await ReceiptStorage.signedURL(path: path)
             await MainActor.run {

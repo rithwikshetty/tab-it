@@ -779,6 +779,10 @@ struct ExpenseEntryView: View {
                 .stroke(Sage.cardBorder, lineWidth: 1)
         )
         .task(id: path) {
+            if let url = ReceiptStorage.pendingUploadURL(for: path) {
+                existingReceiptURL = url
+                return
+            }
             do {
                 existingReceiptURL = try await ReceiptStorage.signedURL(path: path)
             } catch {
