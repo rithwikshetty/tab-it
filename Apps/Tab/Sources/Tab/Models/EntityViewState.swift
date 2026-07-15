@@ -392,21 +392,18 @@ enum TimelinePresenter {
             } else {
                 .neutral
             }
-            let balanceLabel: String? = if net > 0 {
-                "you lent \(MoneyFormatter.format(net, currency: e.currency))"
-            } else if net < 0 {
-                "you borrowed \(MoneyFormatter.format(-net, currency: e.currency))"
-            } else {
-                nil
-            }
+            let netAmount: String? = net == 0
+                ? nil
+                : MoneyFormatter.format(abs(net), currency: e.currency)
             let rowItem = ExpenseRowItem(
                 id: e.id,
                 categoryID: category?.id ?? e.categoryID,
                 icon: category?.icon ?? "tag",
                 name: e.descriptionText,
                 payerName: payerName,
+                totalAmount: MoneyFormatter.format(e.amount, currency: e.currency),
                 yourShare: MoneyFormatter.format(yourShare, currency: e.currency),
-                balanceLabel: balanceLabel,
+                netAmount: netAmount,
                 balanceSemantic: balanceSemantic
             )
             all.append(Dated(id: e.id, date: e.expenseDate, created: e.createdAt, item: .expense(rowItem)))

@@ -134,17 +134,20 @@ struct ExpenseTimelinePresenterTests {
         }
         let lentRow = try #require(expenseRows.first { $0.id == lent.id })
         #expect(lentRow.yourShare == MoneyFormatter.format(20, currency: "THB"))
-        #expect(lentRow.balanceLabel == "you lent \(MoneyFormatter.format(30, currency: "THB"))")
+        #expect(lentRow.totalAmount == MoneyFormatter.format(50, currency: "THB"))
+        #expect(lentRow.netAmount == MoneyFormatter.format(30, currency: "THB"))
         #expect(lentRow.balanceSemantic == .lent)
 
         let borrowedRow = try #require(expenseRows.first { $0.id == borrowed.id })
         #expect(borrowedRow.yourShare == MoneyFormatter.format(40, currency: "THB"))
+        #expect(borrowedRow.netAmount == MoneyFormatter.format(40, currency: "THB"))
         #expect(borrowedRow.balanceSemantic == .borrowed)
 
         let zeroRow = try #require(expenseRows.first { $0.id == noShare.id })
         #expect(zeroRow.yourShare == MoneyFormatter.format(0, currency: "USD"))
+        #expect(zeroRow.totalAmount == MoneyFormatter.format(10, currency: "USD"))
         #expect(zeroRow.balanceSemantic == .neutral)
-        #expect(zeroRow.balanceLabel == nil)
+        #expect(zeroRow.netAmount == nil)
     }
 
     private func expense(

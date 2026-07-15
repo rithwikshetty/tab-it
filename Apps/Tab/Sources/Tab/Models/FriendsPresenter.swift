@@ -367,10 +367,9 @@ enum FriendsPresenter {
                 let row = ExpenseRowItem(
                     id: e.id, categoryID: e.categoryID, icon: "tag", name: e.descriptionText,
                     payerName: payerName,
+                    totalAmount: MoneyFormatter.format(e.amount, currency: e.currency),
                     yourShare: MoneyFormatter.format(yourShare, currency: e.currency),
-                    balanceLabel: net > 0
-                        ? "you lent \(MoneyFormatter.format(net, currency: e.currency))"
-                        : (net < 0 ? "you borrowed \(MoneyFormatter.format(-net, currency: e.currency))" : nil),
+                    netAmount: net == 0 ? nil : MoneyFormatter.format(abs(net), currency: e.currency),
                     balanceSemantic: net > 0 ? .lent : (net < 0 ? .borrowed : .neutral),
                     sourceName: source
                 )

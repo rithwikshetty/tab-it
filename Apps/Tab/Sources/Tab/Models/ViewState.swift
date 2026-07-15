@@ -36,8 +36,9 @@ struct ExpenseRowItem: Identifiable, Hashable, Sendable {
     let icon: String
     let name: String
     let payerName: String
+    let totalAmount: String
     let yourShare: String
-    let balanceLabel: String?
+    let netAmount: String?
     let balanceSemantic: BalanceSemantic
     var sourceName: String? = nil
 }

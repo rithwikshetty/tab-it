@@ -16,6 +16,15 @@ struct ExpenseRow: View {
         }
     }
 
+    private var captionLabel: String {
+        guard item.netAmount != nil else { return "your share" }
+        switch item.balanceSemantic {
+        case .lent: return "you lent"
+        case .borrowed: return "you borrowed"
+        case .neutral: return "your share"
+        }
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             phosphorIcon(named: item.icon)
@@ -37,11 +46,8 @@ struct ExpenseRow: View {
                         Text("·")
                     }
                     Text("Paid by \(item.payerName)")
-                    if let balanceLabel = item.balanceLabel {
-                        Text("·")
-                        Text(balanceLabel)
-                            .foregroundStyle(balanceTone)
-                    }
+                    Text("·")
+                    Text(item.totalAmount)
                 }
                     .font(.expenseMeta)
                     .tracking(-0.07)
@@ -51,12 +57,12 @@ struct ExpenseRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
-                Text(item.yourShare)
+                Text(item.netAmount ?? item.yourShare)
                     .font(.expenseAmount)
                     .tracking(-0.07)
-                    .foregroundStyle(Sage.text)
+                    .foregroundStyle(item.netAmount == nil ? Sage.text : balanceTone)
                     .monospacedDigit()
-                Text("your share")
+                Text(captionLabel)
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(Sage.textSecondary)
             }
@@ -73,13 +79,15 @@ struct ExpenseRow: View {
         ExpenseRow(item: ExpenseRowItem(
             id: UUID(), categoryID: nil, icon: "ForkKnife",
             name: "Pizza dinner", payerName: "Alex",
-            yourShare: "€12.50", balanceLabel: "you borrowed €12.50", balanceSemantic: .borrowed
+            totalAmount: "€25.00",
+            yourShare: "€12.50", netAmount: "€12.50", balanceSemantic: .borrowed
         ))
         RowDivider()
         ExpenseRow(item: ExpenseRowItem(
             id: UUID(), categoryID: nil, icon: "Car",
             name: "Airport taxi", payerName: "You",
-            yourShare: "€8.00", balanceLabel: "you lent €24.00", balanceSemantic: .lent
+            totalAmount: "€32.00",
+            yourShare: "€8.00", netAmount: "€24.00", balanceSemantic: .lent
         ))
     }
     .background(Sage.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
