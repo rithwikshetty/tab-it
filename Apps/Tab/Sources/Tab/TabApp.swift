@@ -8,6 +8,7 @@ struct TabApp: App {
     @State private var sync: SyncService
     @State private var realtime: RealtimeService
     @State private var push = PushService.shared
+    @State private var invites = InviteLinkService()
     let container: ModelContainer
 
     init() {
@@ -46,6 +47,7 @@ struct TabApp: App {
                 .environment(sync)
                 .environment(realtime)
                 .environment(push)
+                .environment(invites)
                 .preferredColorScheme(.light)
         }
         .modelContainer(container)
@@ -54,6 +56,7 @@ struct TabApp: App {
 
 private struct AppShell: View {
     @Environment(AuthService.self) private var auth
+    @Environment(InviteLinkService.self) private var invites
     @State private var splashAnimationDone = false
 
     private var isLoading: Bool {
@@ -85,9 +88,20 @@ private struct AppShell: View {
             }
         }
         .onOpenURL { url in
-            auth.handleAuthCallback(url)
+            handle(url)
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL {
+                handle(url)
+            }
         }
         .animation(.easeOut(duration: 0.35), value: splashAnimationDone)
         .animation(.easeOut(duration: 0.35), value: isLoading)
+    }
+
+    private func handle(_ url: URL) {
+        if !invites.capture(url: url) {
+            auth.handleAuthCallback(url)
+        }
     }
 }

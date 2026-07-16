@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Supabase
 import UIKit
 
 enum RootTab: Hashable { case friends, trips, activity, settings }
@@ -39,12 +40,16 @@ struct RootView: View {
     @Environment(AuthService.self) private var auth
     @Environment(SyncService.self) private var sync
     @Environment(PushService.self) private var push
+    @Environment(InviteLinkService.self) private var invites
 
     @State private var selectedTab: RootTab = .trips
     @State private var friendsPath: [Route] = []
     @State private var tripsPath: [Route] = []
     @State private var activityPath: [Route] = []
     @State private var wasBackgrounded = false
+    @State private var isJoiningInvite = false
+    @State private var inviteJoinAlertMessage = ""
+    @State private var showingInviteJoinAlert = false
 
     @Query private var activities: [ActivityEntity]
     @Query private var profiles: [ProfileEntity]
@@ -130,7 +135,14 @@ struct RootView: View {
             #endif
             await sync.pushPending()
             await sync.claimTripPeopleForCurrentEmail()
+            let joinedTripID = await joinPendingInvite()
+            let inviteNavigationBase = tripsPath
             await sync.pullAll()
+            if let joinedTripID,
+               selectedTab == .trips,
+               tripsPath == inviteNavigationBase {
+                tripsPath = [.trip(joinedTripID)]
+            }
             #if DEBUG
             let env = ProcessInfo.processInfo.environment
             if env["TAB_PROVISIONAL_PUSH"] == "1" {
@@ -175,6 +187,10 @@ struct RootView: View {
             handlePushTap(tap)
             push.lastTap = nil
         }
+        .onChange(of: invites.pendingJoinToken) { _, token in
+            guard token != nil else { return }
+            Task { await handlePendingInvite() }
+        }
         .onChange(of: unreadCount) { _, count in
             Task { await push.setBadgeCount(count) }
         }
@@ -208,6 +224,11 @@ struct RootView: View {
         }
         .onAppear {
             Task { await push.setBadgeCount(unreadCount) }
+        }
+        .alert("Can't join trip", isPresented: $showingInviteJoinAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(inviteJoinAlertMessage)
         }
     }
 
@@ -308,6 +329,49 @@ struct RootView: View {
                 tripsPath.append(route)
             }
         }
+    }
+
+    private func handlePendingInvite() async {
+        guard let tripID = await joinPendingInvite() else { return }
+        let base = tripsPath
+        await sync.pullAll()
+        if selectedTab == .trips, tripsPath == base {
+            tripsPath = [.trip(tripID)]
+        }
+    }
+
+    private func joinPendingInvite() async -> UUID? {
+        guard !isJoiningInvite,
+              let token = invites.pendingJoinToken else { return nil }
+        isJoiningInvite = true
+        defer { isJoiningInvite = false }
+
+        do {
+            guard let result = try await sync.joinTripWithInvite(token: token) else {
+                showInviteJoinAlert("You're offline. The invite will open when you're back online.")
+                return nil
+            }
+            if invites.pendingJoinToken == token {
+                _ = invites.consumePendingToken()
+            }
+            selectedTab = .trips
+            return result.tripID
+        } catch let error as PostgrestError
+            where error.code == "P0002" || error.code == "42501" || error.code == "22023" {
+            if invites.pendingJoinToken == token {
+                _ = invites.consumePendingToken()
+            }
+            showInviteJoinAlert("This invite link is invalid or was turned off.")
+            return nil
+        } catch {
+            showInviteJoinAlert("You're offline. The invite will open when you're back online.")
+            return nil
+        }
+    }
+
+    private func showInviteJoinAlert(_ message: String) {
+        inviteJoinAlertMessage = message
+        showingInviteJoinAlert = true
     }
 
     private func entityRoute(for tap: PushPayload) -> Route? {

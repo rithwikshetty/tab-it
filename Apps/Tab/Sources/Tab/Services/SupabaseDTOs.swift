@@ -62,6 +62,22 @@ struct TripUpdateDTO: Codable, Sendable {
     }
 }
 
+struct TripInviteDTO: Codable, Sendable {
+    let token: String
+}
+
+struct JoinTripInviteResultDTO: Codable, Sendable {
+    let tripID: UUID
+    let personID: UUID
+    let tripName: String
+
+    enum CodingKeys: String, CodingKey {
+        case tripID = "trip_id"
+        case personID = "person_id"
+        case tripName = "trip_name"
+    }
+}
+
 // MARK: - TripPerson
 
 struct TripPersonDTO: Codable, Sendable {
@@ -400,4 +416,3 @@ struct TripMuteInsertDTO: Codable, Sendable {
         case userID = "user_id"
     }
 }
-

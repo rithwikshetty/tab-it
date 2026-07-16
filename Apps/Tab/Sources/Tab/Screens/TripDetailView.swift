@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import CoreTransferable
 import UniformTypeIdentifiers
+import UIKit
 
 struct TripDetailView: View {
     let tripID: UUID
@@ -23,6 +24,11 @@ struct TripDetailView: View {
     @State private var segment: Int = 0
     @State private var showingPeople: Bool = false
     @State private var showingEditDetails: Bool = false
+    @State private var inviteURL: URL?
+    @State private var isFetchingInvite = false
+    @State private var showingInviteShareSheet = false
+    @State private var showingRevokeInviteConfirmation = false
+    @State private var showingInviteOfflineAlert = false
 
     // Derived view-state is memoised. The balance summaries, expense timeline,
     // overview, and export workbook are all O(expenses x splits) to build and
@@ -155,6 +161,28 @@ struct TripDetailView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingInviteShareSheet, onDismiss: { inviteURL = nil }) {
+            if let inviteURL {
+                InviteActivityView(url: inviteURL)
+            }
+        }
+        .confirmationDialog(
+            "Turn off invite link?",
+            isPresented: $showingRevokeInviteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Turn off invite link", role: .destructive) {
+                Task { await revokeInvite(for: trip) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("People with the old link won't be able to join. Sharing again creates a new link.")
+        }
+        .alert("Invite link unavailable", isPresented: $showingInviteOfflineAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("You're offline. Try again when you're back online.")
+        }
         .toolbar {
             // Avatars live in the navbar centre so a big group can never
             // squeeze the trip title, and the add button gets its own slot.
@@ -188,6 +216,27 @@ struct TripDetailView: View {
                             systemImage: isMuted ? "bell.slash" : "bell"
                         )
                     }
+                    if !trip.isNonGroup {
+                        Button {
+                            Task { await shareInvite(for: trip) }
+                        } label: {
+                            if isFetchingInvite {
+                                Label {
+                                    Text("Share invite link")
+                                } icon: {
+                                    ProgressView()
+                                }
+                            } else {
+                                Label("Share invite link", systemImage: "person.badge.plus")
+                            }
+                        }
+                        .disabled(isFetchingInvite)
+                        Button(role: .destructive) {
+                            showingRevokeInviteConfirmation = true
+                        } label: {
+                            Label("Turn off invite link", systemImage: "link.badge.minus")
+                        }
+                    }
                     ShareLink(
                         item: TripExportTransferable(data: exportData ?? buildExportData(for: trip)),
                         preview: SharePreview("\(trip.name) Expenses")
@@ -202,6 +251,26 @@ struct TripDetailView: View {
                 }
                 .accessibilityIdentifier("tripDetail.actionsButton")
             }
+        }
+    }
+
+    private func shareInvite(for trip: TripEntity) async {
+        guard !isFetchingInvite else { return }
+        isFetchingInvite = true
+        defer { isFetchingInvite = false }
+
+        guard let url = await sync.tripInviteURL(tripID: trip.id) else {
+            showingInviteOfflineAlert = true
+            return
+        }
+        inviteURL = url
+        showingInviteShareSheet = true
+    }
+
+    private func revokeInvite(for trip: TripEntity) async {
+        let didRevoke = await sync.revokeTripInvite(tripID: trip.id)
+        if !didRevoke {
+            showingInviteOfflineAlert = true
         }
     }
 
@@ -484,6 +553,16 @@ struct TripDetailView: View {
         case .neutral: Sage.text
         }
     }
+}
+
+private struct InviteActivityView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private enum TimelineBlock: Identifiable {

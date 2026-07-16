@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tab-it · you're invited</title>
+<meta name="description" content="Someone invited you to a trip on tab-it, a free iOS app for tracking shared expenses on group trips.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<meta name="theme-color" content="#F3EEE2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cork: #F3EEE2;
+    --card: #FFFEF9;
+    --ink: #33402F;
+    --soft: #6E7A64;
+    --sage: #5C7560;
+    --tape: rgba(232, 200, 124, 0.5);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--cork);
+    background-image: radial-gradient(rgba(92, 117, 96, 0.09) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    color: var(--ink); font-family: "Fraunces", serif; line-height: 1.65;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 26px;
+  }
+  .card {
+    background: var(--card); max-width: 460px; width: 100%;
+    padding: 44px 36px 40px; border-radius: 6px; text-align: center;
+    transform: rotate(-0.6deg); position: relative;
+    box-shadow: 0 10px 28px rgba(51, 64, 47, 0.14);
+  }
+  .card::before {
+    content: ""; position: absolute; top: -14px; left: 50%;
+    width: 110px; height: 30px; background: var(--tape);
+    transform: translateX(-50%) rotate(-2deg);
+  }
+  .brand {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 24px; font-weight: 600; letter-spacing: -0.8px; color: var(--sage);
+  }
+  h1 { font-weight: 700; font-size: 30px; line-height: 1.2; margin: 18px 0 10px; }
+  h1 .scribble { font-family: "Gochi Hand", cursive; color: var(--sage); font-weight: 400; }
+  p { color: var(--soft); font-size: 16px; }
+  ol {
+    text-align: left; margin: 24px auto; padding: 18px 22px 18px 40px;
+    background: rgba(92, 117, 96, 0.07); border-radius: 6px; max-width: 340px;
+  }
+  ol li { margin: 6px 0; color: var(--ink); }
+  .cta {
+    display: inline-block; background: var(--sage); color: #fff;
+    font-family: "Gochi Hand", cursive; font-size: 21px; padding: 13px 30px;
+    border-radius: 14px; transform: rotate(-1.5deg); text-decoration: none;
+    box-shadow: 4px 5px 0 rgba(51, 64, 47, 0.25); transition: transform .2s ease, box-shadow .2s ease;
+    margin-top: 6px;
+  }
+  .cta:hover { transform: rotate(-1.5deg) translateY(-2px); box-shadow: 4px 7px 0 rgba(51, 64, 47, 0.25); }
+  .fine { font-size: 13.5px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand">tab-it</div>
+  <h1>You're invited to <span class="scribble">a&nbsp;trip</span></h1>
+  <p>tab-it keeps track of who paid for what on group trips. Free, no ads.</p>
+  <ol>
+    <li>Get tab-it from the App Store.</li>
+    <li>Go back to your chat and tap the invite link again.</li>
+  </ol>
+  <!-- TODO: point at the real App Store page once the app is live. -->
+  <a class="cta" href="https://apps.apple.com/">Get tab-it</a>
+  <p class="fine">Already have the app? Tapping the invite link opens it directly.</p>
+</main>
+</body>
+</html>

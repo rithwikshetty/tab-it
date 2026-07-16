@@ -114,6 +114,50 @@ final class SyncService {
         }
     }
 
+    func joinTripWithInvite(token: String) async throws -> (tripID: UUID, tripName: String)? {
+        guard await resolveRealSession() != nil else { return nil }
+
+        let row: JoinTripInviteResultDTO = try await client
+            .rpc("join_trip_with_invite", params: [
+                "p_token": AnyJSON.string(token),
+            ])
+            .single()
+            .execute()
+            .value
+        return (row.tripID, row.tripName)
+    }
+
+    func tripInviteURL(tripID: UUID) async -> URL? {
+        guard await resolveRealSession() != nil else { return nil }
+        do {
+            let row: TripInviteDTO = try await client
+                .rpc("get_or_create_trip_invite", params: [
+                    "p_trip_id": AnyJSON.string(tripID.uuidString),
+                ])
+                .execute()
+                .value
+            return URL(string: "https://tab-it.app/join/\(row.token)")
+        } catch {
+            syncLog.error("trip invite fetch failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func revokeTripInvite(tripID: UUID) async -> Bool {
+        guard await resolveRealSession() != nil else { return false }
+        do {
+            try await client
+                .rpc("revoke_trip_invite", params: [
+                    "p_trip_id": AnyJSON.string(tripID.uuidString),
+                ])
+                .execute()
+            return true
+        } catch {
+            syncLog.error("trip invite revoke failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     @discardableResult
     func addTripPerson(tripID: UUID, email: String, displayName: String? = nil, personID: UUID = UUID()) async throws -> UUID {
         try await ensureTripUploaded(tripID: tripID)

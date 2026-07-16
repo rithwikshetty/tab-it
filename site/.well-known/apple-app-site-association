@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["KR8C647GCW.com.rithwikshetty.tab"],
+        "components": [
+          {
+            "/": "/join/*",
+            "comment": "Trip invite links: tab-it.app/join/<token>"
+          }
+        ]
+      }
+    ]
+  }
+}
