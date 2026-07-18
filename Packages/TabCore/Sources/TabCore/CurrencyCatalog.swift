@@ -63,6 +63,15 @@ public enum CurrencyCatalog {
         return scaled == roundedToInteger(scaled)
     }
 
+    /// Rounds an amount to the currency's minor-unit scale. Midpoint ties are
+    /// rounded away from zero so normalization is deterministic across clients.
+    public static func normalizedAmount(_ amount: Decimal, currency: String) -> Decimal {
+        var input = amount
+        var result = Decimal()
+        NSDecimalRound(&result, &input, fractionDigits(for: currency), .plain)
+        return result
+    }
+
     /// Names pre-folded once — folding every currency name on each keystroke is
     /// what made search-as-you-type drag.
     private static let foldedNames: [String] = supported.map {

@@ -203,6 +203,146 @@ struct SyncMergeTests {
         #expect(expense.pushedWriteID != expense.writeID)
     }
 
+    @Test("pulled monetary amounts are normalized on insert and update")
+    func pulledMoneyIsNormalized() throws {
+        let ctx = try makeContext()
+        let tripID = UUID()
+        let expenseID = UUID()
+        let payerID = UUID()
+        let participantID = UUID()
+        let settlementID = UUID()
+        let creatorID = UUID()
+        ctx.insert(TripEntity(id: tripID, name: "Lisbon", createdByID: creatorID))
+
+        try SyncMerge.apply(
+            expenseDTO(
+                id: expenseID,
+                tripID: tripID,
+                amount: Decimal(string: "10.005")!,
+                description: "Dinner",
+                updatedAt: t0,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            ExpensePaymentDTO(
+                expenseID: expenseID,
+                tripPersonID: payerID,
+                amountPaid: Decimal(string: "10.005")!,
+                paymentMode: "exact",
+                createdAt: t0,
+                updatedAt: t0,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            ExpenseSplitDTO(
+                expenseID: expenseID,
+                tripPersonID: participantID,
+                amountOwed: Decimal(string: "10.004")!,
+                splitType: "exact",
+                shareUnits: nil,
+                percentage: nil,
+                createdAt: t0,
+                updatedAt: t0,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            SettlementDTO(
+                id: settlementID,
+                tripID: tripID,
+                fromPersonID: payerID,
+                toPersonID: participantID,
+                amount: Decimal(string: "0.4")!,
+                currency: "JPY",
+                note: nil,
+                settledAt: t0,
+                createdBy: creatorID,
+                createdAt: t0,
+                updatedAt: t0,
+                deletedAt: nil,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try ctx.save()
+
+        let expense = try #require(ctx.fetch(FetchDescriptor<ExpenseEntity>()).first { $0.id == expenseID })
+        let payment = try #require(expense.payments.first { $0.tripPersonID == payerID })
+        let split = try #require(expense.splits.first { $0.tripPersonID == participantID })
+        let settlement = try #require(ctx.fetch(FetchDescriptor<SettlementEntity>()).first { $0.id == settlementID })
+        #expect(expense.amount == Decimal(string: "10.01")!)
+        #expect(payment.amountPaid == Decimal(string: "10.01")!)
+        #expect(split.amountOwed == Decimal(string: "10.00")!)
+        #expect(settlement.amount == 0)
+
+        let newer = t0.addingTimeInterval(60)
+        try SyncMerge.apply(
+            expenseDTO(
+                id: expenseID,
+                tripID: tripID,
+                amount: Decimal(string: "20.004")!,
+                description: "Dinner",
+                updatedAt: newer,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            ExpensePaymentDTO(
+                expenseID: expenseID,
+                tripPersonID: payerID,
+                amountPaid: Decimal(string: "20.004")!,
+                paymentMode: "exact",
+                createdAt: t0,
+                updatedAt: newer,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            ExpenseSplitDTO(
+                expenseID: expenseID,
+                tripPersonID: participantID,
+                amountOwed: Decimal(string: "20.005")!,
+                splitType: "exact",
+                shareUnits: nil,
+                percentage: nil,
+                createdAt: t0,
+                updatedAt: newer,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+        try SyncMerge.apply(
+            SettlementDTO(
+                id: settlementID,
+                tripID: tripID,
+                fromPersonID: payerID,
+                toPersonID: participantID,
+                amount: Decimal(string: "1.5")!,
+                currency: "JPY",
+                note: nil,
+                settledAt: newer,
+                createdBy: creatorID,
+                createdAt: t0,
+                updatedAt: newer,
+                deletedAt: nil,
+                writeID: UUID()
+            ),
+            in: ctx
+        )
+
+        #expect(expense.amount == Decimal(string: "20.00")!)
+        #expect(payment.amountPaid == Decimal(string: "20.00")!)
+        #expect(split.amountOwed == Decimal(string: "20.01")!)
+        #expect(settlement.amount == 2)
+    }
+
     @Test("trip created and deleted before its first push is purged, never pushed live")
     func unpushedTripTombstonePurged() throws {
         let ctx = try makeContext()
@@ -232,14 +372,19 @@ struct SyncMergeTests {
     }
 
     private func expenseDTO(
-        id: UUID, tripID: UUID, description: String, updatedAt: Date, writeID: UUID
+        id: UUID,
+        tripID: UUID,
+        amount: Decimal = 10,
+        description: String,
+        updatedAt: Date,
+        writeID: UUID
     ) throws -> ExpenseDTO {
         let formatter = ISO8601DateFormatter()
         let json = """
         {
           "id": "\(id.uuidString)",
           "trip_id": "\(tripID.uuidString)",
-          "amount": 10,
+          "amount": \(amount),
           "currency": "EUR",
           "category_id": null,
           "description": "\(description)",
