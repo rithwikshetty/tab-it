@@ -10,7 +10,7 @@ grant insert, select on _r to authenticated;
 
 -- Schema surface
 insert into _r select has_column('public', 'profiles', 'activity_last_seen_at', 'profiles.activity_last_seen_at exists');
-insert into _r select has_function('public', 'mark_activity_seen', array[]::text[], 'mark_activity_seen() exists');
+insert into _r select has_function('public', 'mark_activity_seen', array['timestamptz'], 'mark_activity_seen(timestamptz) exists');
 insert into _r select has_function('public', 'unread_activity_count', array['uuid'], 'unread_activity_count(uuid) exists');
 insert into _r select ok(
   has_function_privilege('service_role', 'public.push_targets_for_activity(uuid)', 'execute'),
@@ -40,6 +40,19 @@ insert into _r select is(
 -- Bob claims the pending invite so unread counts and mute prefs treat him as a member.
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}';
 select public.claim_trip_people_for_current_email();
+
+-- Make event chronology deterministic inside this single transaction. Initial
+-- trip/member events predate Bob's membership; later lifecycle events occur at
+-- the join boundary and are included by timestamp >= joined_at.
+reset role;
+update public.activity_log
+set timestamp = transaction_timestamp() - interval '1 microsecond'
+where trip_id = '11111111-1111-1111-1111-111111111111';
+update public.trip_people
+set joined_at = transaction_timestamp()
+where id = '10000000-0000-0000-0000-000000000002';
+
+set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}';
 
 -- Expense lifecycle
@@ -91,14 +104,15 @@ insert into _r select throws_ok(
 
 -- Badge counts (run as owner: execute revoked from authenticated)
 reset role;
--- alice authored everything -> 0 unread; bob authored nothing -> all 5 (trip_created,member_joined,exp_created,exp_updated,exp_deleted,settlement = 6)
+-- Alice authored everything -> 0 unread. Bob joined after trip_created and
+-- member_joined, so only the four later lifecycle events are unread.
 insert into _r select is(public.unread_activity_count('00000000-0000-0000-0000-000000000001'), 0, 'actor sees 0 unread (own actions excluded)');
-insert into _r select is(public.unread_activity_count('00000000-0000-0000-0000-000000000002'), 6, 'other member sees all 6 events as unread');
+insert into _r select is(public.unread_activity_count('00000000-0000-0000-0000-000000000002'), 4, 'member sees only events at or after joining as unread');
 
 -- bob marks seen -> 0 unread
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}';
-select public.mark_activity_seen();
+select public.mark_activity_seen(null);
 reset role;
 insert into _r select is(public.unread_activity_count('00000000-0000-0000-0000-000000000002'), 0, 'unread clears after mark_activity_seen');
 
