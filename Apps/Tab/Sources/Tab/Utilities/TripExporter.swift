@@ -108,8 +108,8 @@ enum TripExporter {
         categories: [UUID: CategoryEntity],
         peopleByID: [UUID: TripPersonEntity]
     ) -> ExportData {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let settlementDateFormatter = DateFormatter()
+        settlementDateFormatter.dateFormat = "yyyy-MM-dd"
         let timestampFormatter = DateFormatter()
         timestampFormatter.dateFormat = "yyyy-MM-dd HH:mm"
 
@@ -142,7 +142,7 @@ enum TripExporter {
             for payment in sortedPayments {
                 expensePaymentRows.append(ExpensePaymentRow(
                     expenseID: expense.id.uuidString,
-                    date: dateFormatter.string(from: expense.expenseDate),
+                    date: ExpenseDates.serialized(expense.expenseDate),
                     description: expense.descriptionText,
                     payerID: payment.tripPersonID.uuidString,
                     payerName: personName(payment.tripPersonID, peopleByID: peopleByID),
@@ -155,7 +155,7 @@ enum TripExporter {
             for split in sortedSplits {
                 expenseSplitRows.append(ExpenseSplitRow(
                     expenseID: expense.id.uuidString,
-                    date: dateFormatter.string(from: expense.expenseDate),
+                    date: ExpenseDates.serialized(expense.expenseDate),
                     description: expense.descriptionText,
                     participantID: split.tripPersonID.uuidString,
                     participantName: personName(split.tripPersonID, peopleByID: peopleByID),
@@ -183,7 +183,7 @@ enum TripExporter {
 
             return ExpenseRow(
                 id: expense.id.uuidString,
-                date: dateFormatter.string(from: expense.expenseDate),
+                date: ExpenseDates.serialized(expense.expenseDate),
                 description: expense.descriptionText,
                 amount: expense.amount,
                 currency: expense.currency,
@@ -210,7 +210,7 @@ enum TripExporter {
             let fromName = peopleByID[settlement.fromPersonID]?.displayName ?? "Unknown"
             let toName = peopleByID[settlement.toPersonID]?.displayName ?? "Unknown"
             return SettlementRow(
-                date: dateFormatter.string(from: settlement.settledAt),
+                date: settlementDateFormatter.string(from: settlement.settledAt),
                 from: fromName,
                 to: toName,
                 amount: settlement.amount,

@@ -40,6 +40,16 @@ struct CurrencyCatalogTests {
         #expect(!CurrencyCatalog.hasValidPrecision(Decimal(string: "1.2345")!, currency: "KWD"))
     }
 
+    @Test("normalization rounds to minor units with midpoint ties away from zero")
+    func normalizationUsesCurrencyMinorUnits() {
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "0.001")!, currency: "EUR") == Decimal(string: "0.00")!)
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "0.005")!, currency: "EUR") == Decimal(string: "0.01")!)
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "0.4")!, currency: "JPY") == 0)
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "1.2344")!, currency: "BHD") == Decimal(string: "1.234")!)
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "1.2345")!, currency: "BHD") == Decimal(string: "1.235")!)
+        #expect(CurrencyCatalog.normalizedAmount(Decimal(string: "-0.005")!, currency: "EUR") == Decimal(string: "-0.01")!)
+    }
+
     @Test("display symbols are unique — amounts render symbol-only, so shared symbols must disambiguate")
     func displaySymbolsAreUnique() {
         // NFKC-fold so lookalikes count as collisions (fullwidth ￥ vs ¥).

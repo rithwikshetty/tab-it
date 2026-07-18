@@ -125,3 +125,37 @@ struct PaymentSplitDraftTests {
         #expect(draft.computedSplits(totalAmount: 80, currency: "USD") == nil)
     }
 }
+
+@Suite("Expense payment ledger")
+struct ExpensePaymentLedgerTests {
+    private let alice = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
+    private let bob = UUID(uuidString: "00000000-0000-0000-0000-00000000000B")!
+
+    @Test("currency changes re-render committed exact payment amounts")
+    func exactPaymentsFollowCurrencyPrecision() {
+        let payments = [
+            Payment(payerID: alice, amountPaid: Decimal(string: "600.25")!, paymentMode: .exact),
+            Payment(payerID: bob, amountPaid: Decimal(string: "400.25")!, paymentMode: .exact),
+        ]
+
+        let normalized = ExpensePaymentLedger.normalizedExactPayments(payments, currency: "JPY")
+
+        #expect(normalized.map(\.amountPaid) == [600, 400])
+        #expect(normalized.allSatisfy { $0.paymentMode == .exact })
+    }
+
+    @Test("every payment must match the selected currency precision")
+    func individualPaymentPrecisionIsValidated() {
+        let invalid = [
+            Payment(payerID: alice, amountPaid: Decimal(string: "600.5")!, paymentMode: .exact),
+            Payment(payerID: bob, amountPaid: Decimal(string: "399.5")!, paymentMode: .exact),
+        ]
+        let valid = [
+            Payment(payerID: alice, amountPaid: 600, paymentMode: .exact),
+            Payment(payerID: bob, amountPaid: 400, paymentMode: .exact),
+        ]
+
+        #expect(!ExpensePaymentLedger.isValid(invalid, totalAmount: 1000, currency: "JPY"))
+        #expect(ExpensePaymentLedger.isValid(valid, totalAmount: 1000, currency: "JPY"))
+    }
+}

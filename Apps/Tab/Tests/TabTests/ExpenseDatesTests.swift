@@ -56,6 +56,27 @@ struct ExpenseDatesTests {
         #expect(parts.year == 2026 && parts.month == 12 && parts.day == 31)
         #expect(parts.hour == 12)
     }
+
+    @Test("picked day displays and reopens unchanged in extreme timezones")
+    func displayAndPickerRoundTripAcrossTimezones() {
+        for timeZoneID in ["Pacific/Kiritimati", "Pacific/Chatham", "Pacific/Pago_Pago", "UTC"] {
+            let cal = calendar(timeZoneID)
+            let picked = instant(2026, 6, 10, hour: 8, in: cal)
+            let anchored = ExpenseDates.utcNoonAnchor(forLocalDay: picked, calendar: cal)
+            let displayed = ExpenseDates.displayString(
+                anchored,
+                dateFormat: "yyyy-MM-dd",
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            let reopened = ExpenseDates.localDateForPicker(anchored, calendar: cal)
+            let reopenedDay = cal.dateComponents([.year, .month, .day], from: reopened)
+
+            #expect(displayed == "2026-06-10", "displayed day drifted in \(timeZoneID)")
+            #expect(reopenedDay.year == 2026, "picker year drifted in \(timeZoneID)")
+            #expect(reopenedDay.month == 6, "picker month drifted in \(timeZoneID)")
+            #expect(reopenedDay.day == 10, "picker day drifted in \(timeZoneID)")
+        }
+    }
 }
 
 @MainActor
@@ -148,6 +169,35 @@ struct ExpenseTimelinePresenterTests {
         #expect(zeroRow.totalAmount == MoneyFormatter.format(10, currency: "USD"))
         #expect(zeroRow.balanceSemantic == .neutral)
         #expect(zeroRow.netAmount == nil)
+    }
+
+    @Test("expense rows stay under their stored calendar day east of UTC noon")
+    func expenseRowsUseStoredCalendarDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Pacific/Kiritimati")!
+        let picked = calendar.date(from: DateComponents(year: 2026, month: 6, day: 10, hour: 8))!
+        let anchored = ExpenseDates.utcNoonAnchor(forLocalDay: picked, calendar: calendar)
+        let item = expense(
+            amount: 10,
+            currency: "EUR",
+            date: anchored,
+            viewerPaid: 10,
+            viewerShare: 5,
+            otherPaid: 0,
+            otherShare: 5,
+            createdAt: anchored
+        )
+
+        let day = try #require(TimelinePresenter.days(
+            expenses: [item],
+            settlements: [],
+            currentPersonID: you,
+            personFor: { _ in nil },
+            categoryFor: { _ in nil },
+            calendar: calendar
+        ).first)
+
+        #expect(day.dateLabel == "Jun 10")
     }
 
     private func expense(

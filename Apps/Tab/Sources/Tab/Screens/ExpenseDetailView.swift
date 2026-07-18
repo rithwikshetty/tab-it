@@ -191,10 +191,10 @@ struct ExpenseDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .trailing, spacing: 0) {
-                Text(Self.dayFormatter.string(from: date))
+                Text(ExpenseDates.displayString(date, dateFormat: "d"))
                     .font(.system(size: 22, weight: .semibold, design: .serif))
                     .foregroundStyle(Sage.text.opacity(0.85))
-                Text(Self.monthYearFormatter.string(from: date).lowercased())
+                Text(ExpenseDates.displayString(date, dateFormat: "MMM yyyy").lowercased())
                     .font(.system(size: 11, weight: .medium))
                     .tracking(0.88)
                     .foregroundStyle(Sage.textSecondary)
@@ -312,7 +312,7 @@ struct ExpenseDetailView: View {
 
     private func detailsCard(expense: ExpenseEntity, loggedByName: String, editedByName: String?) -> some View {
         VStack(spacing: 0) {
-            detailRow(label: "Date", value: Self.fullDateFormatter.string(from: expense.expenseDate))
+            detailRow(label: "Date", value: ExpenseDates.displayString(expense.expenseDate, dateStyle: .long))
             RowDivider()
             detailRow(label: "Paid via", value: expense.paymentMethod.displayName)
             RowDivider()
@@ -561,24 +561,6 @@ struct ExpenseDetailView: View {
         dismiss()
         Task { await sync.pushPending() }
     }
-
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d"
-        return f
-    }()
-
-    private static let monthYearFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "MMM yyyy"
-        return f
-    }()
-
-    private static let fullDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .long
-        return f
-    }()
 
     private static let timestampFormatter: DateFormatter = {
         let f = DateFormatter()

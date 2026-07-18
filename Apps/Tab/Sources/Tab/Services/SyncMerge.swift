@@ -208,7 +208,7 @@ enum SyncMerge {
         )).first else {
             ctx.insert(ExpenseEntity(
                 id: dto.id,
-                amount: dto.amount,
+                amount: CurrencyCatalog.normalizedAmount(dto.amount, currency: dto.currency),
                 currency: dto.currency,
                 categoryID: dto.categoryID,
                 descriptionText: dto.description,
@@ -239,7 +239,7 @@ enum SyncMerge {
             localWriteID: entity.writeID, localPushedWriteID: entity.pushedWriteID,
             remoteUpdatedAt: dto.updatedAt, remoteDeletedAt: dto.deletedAt, remoteWriteID: dto.writeID
         ) else { return }
-        entity.amount = dto.amount
+        entity.amount = CurrencyCatalog.normalizedAmount(dto.amount, currency: dto.currency)
         entity.currency = dto.currency
         entity.categoryID = dto.categoryID
         entity.descriptionText = dto.description
@@ -265,7 +265,7 @@ enum SyncMerge {
         guard let entity = expense.payments.first(where: { $0.tripPersonID == dto.tripPersonID }) else {
             ctx.insert(PaymentEntity(
                 tripPersonID: dto.tripPersonID,
-                amountPaid: dto.amountPaid,
+                amountPaid: CurrencyCatalog.normalizedAmount(dto.amountPaid, currency: expense.currency),
                 paymentModeRaw: dto.paymentMode,
                 expense: expense,
                 updatedAt: dto.updatedAt,
@@ -279,7 +279,7 @@ enum SyncMerge {
             localWriteID: entity.writeID, localPushedWriteID: entity.pushedWriteID,
             remoteUpdatedAt: dto.updatedAt, remoteDeletedAt: nil, remoteWriteID: dto.writeID
         ) else { return }
-        entity.amountPaid = dto.amountPaid
+        entity.amountPaid = CurrencyCatalog.normalizedAmount(dto.amountPaid, currency: expense.currency)
         entity.paymentModeRaw = dto.paymentMode
         entity.updatedAt = dto.updatedAt
         entity.writeID = dto.writeID
@@ -297,7 +297,7 @@ enum SyncMerge {
         guard let entity = expense.splits.first(where: { $0.tripPersonID == dto.tripPersonID }) else {
             ctx.insert(ExpenseSplitEntity(
                 tripPersonID: dto.tripPersonID,
-                amountOwed: dto.amountOwed,
+                amountOwed: CurrencyCatalog.normalizedAmount(dto.amountOwed, currency: expense.currency),
                 splitTypeRaw: dto.splitType,
                 shareUnits: dto.shareUnits,
                 percentage: dto.percentage,
@@ -313,7 +313,7 @@ enum SyncMerge {
             localWriteID: entity.writeID, localPushedWriteID: entity.pushedWriteID,
             remoteUpdatedAt: dto.updatedAt, remoteDeletedAt: nil, remoteWriteID: dto.writeID
         ) else { return }
-        entity.amountOwed = dto.amountOwed
+        entity.amountOwed = CurrencyCatalog.normalizedAmount(dto.amountOwed, currency: expense.currency)
         entity.splitTypeRaw = dto.splitType
         entity.shareUnits = dto.shareUnits
         entity.percentage = dto.percentage
@@ -338,7 +338,7 @@ enum SyncMerge {
                 id: dto.id,
                 fromPersonID: dto.fromPersonID,
                 toPersonID: dto.toPersonID,
-                amount: dto.amount,
+                amount: CurrencyCatalog.normalizedAmount(dto.amount, currency: dto.currency),
                 currency: dto.currency,
                 note: dto.note,
                 settledAt: dto.settledAt,
@@ -364,7 +364,7 @@ enum SyncMerge {
         ) else { return }
         entity.fromPersonID = dto.fromPersonID
         entity.toPersonID = dto.toPersonID
-        entity.amount = dto.amount
+        entity.amount = CurrencyCatalog.normalizedAmount(dto.amount, currency: dto.currency)
         entity.currency = dto.currency
         entity.note = dto.note
         entity.settledAt = dto.settledAt
