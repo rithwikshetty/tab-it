@@ -620,16 +620,14 @@ final class SyncService {
     private func pullActivity() async throws -> Set<UUID> {
         let cutoffDate = Date().addingTimeInterval(-Self.activityWindowSeconds)
         let cutoff = ISO8601DateFormatter().string(from: cutoffDate)
-        let rows: [ActivityDTO] = try await fetchAllPages { [client] range in
-            try await client
-                .from("activity_log")
-                .select()
-                .gte("timestamp", value: cutoff)
-                .order("id")
-                .range(from: range.lowerBound, to: range.upperBound)
-                .execute()
-                .value
-        }
+        let rows: [ActivityDTO] = try await client
+            .from("activity_log")
+            .select()
+            .gte("timestamp", value: cutoff)
+            .order("timestamp", ascending: false)
+            .limit(300)
+            .execute()
+            .value
 
         let ctx = container.mainContext
         // One batched ID fetch instead of an existence query per pulled row.
