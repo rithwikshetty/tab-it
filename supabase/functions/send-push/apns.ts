@@ -1,12 +1,14 @@
 // Direct APNs over HTTP/2 using token-based auth (.p8 key) — no third-party SDK.
 // WebCrypto ES256 returns a raw r||s (JOSE) signature directly: NO DER conversion.
 // Deno's native fetch negotiates HTTP/2 to APNs automatically.
+import { classifyApnsFailure } from "./apns_response.ts";
 
 const TEAM_ID = Deno.env.get("APNS_TEAM_ID") ?? "";   // 10 chars -> iss
 const KEY_ID = Deno.env.get("APNS_KEY_ID") ?? "";     // 10 chars -> kid
 const BUNDLE_ID = Deno.env.get("APNS_BUNDLE_ID") ?? ""; // apns-topic
 const P8_PEM = Deno.env.get("APNS_P8_KEY") ?? "";     // full -----BEGIN PRIVATE KEY----- PEM
-const PRODUCTION = (Deno.env.get("APNS_ENV") ?? "sandbox").toLowerCase() === "production";
+const APNS_ENV = (Deno.env.get("APNS_ENV") ?? "sandbox").toLowerCase();
+const PRODUCTION = APNS_ENV === "production";
 
 export function apnsConfigured(): boolean {
   return TEAM_ID !== "" && KEY_ID !== "" && BUNDLE_ID !== "" && P8_PEM !== "";
@@ -67,7 +69,7 @@ export interface SendResult {
   ok: boolean;
   status: number;
   reason?: string;
-  tokenDead: boolean; // 410 / BadDeviceToken / Unregistered -> delete the token
+  tokenDead: boolean; // 410 / Unregistered -> delete the token
 }
 
 export async function sendPush(
@@ -113,6 +115,16 @@ async function sendOnce(
   const body = await res.json().catch(() => ({} as Record<string, unknown>));
   const reason = (body.reason as string) ?? "Unknown";
   if (reason === "ExpiredProviderToken") cachedJwt = null; // force re-mint next call
-  const tokenDead = res.status === 410 || reason === "BadDeviceToken" || reason === "Unregistered";
-  return { ok: false, status: res.status, reason, tokenDead };
+  const classification = classifyApnsFailure(res.status, reason);
+  if (classification === "environment-mismatch") {
+    console.warn(
+      `APNs returned BadDeviceToken with APNS_ENV=${APNS_ENV}; the server environment likely does not match the device token environment. Keeping the device registration.`,
+    );
+  }
+  return {
+    ok: false,
+    status: res.status,
+    reason,
+    tokenDead: classification === "token-dead",
+  };
 }
