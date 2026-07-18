@@ -84,7 +84,7 @@ struct TripListView: View {
             Button("Delete", role: .destructive) { confirmDelete(trip) }
             Button("Cancel", role: .cancel) { pendingDeletion = nil }
         } message: { trip in
-            Text("\"\(trip.name)\" will be removed for everyone. You can recover it for 30 days.")
+            Text("\"\(trip.name)\" will be removed for everyone.")
         }
     }
 

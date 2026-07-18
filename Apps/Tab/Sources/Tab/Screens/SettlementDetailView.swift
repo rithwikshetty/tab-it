@@ -61,7 +61,7 @@ struct SettlementDetailView: View {
             Button("Delete", role: .destructive) { performDelete() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("It will be removed from balances. You can recover it for 30 days.")
+            Text("It will be removed from balances.")
         }
     }
 
