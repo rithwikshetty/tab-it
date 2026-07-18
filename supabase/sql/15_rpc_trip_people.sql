@@ -54,7 +54,10 @@ begin
     null
   )
   on conflict on constraint trip_people_email_unique do update
-    set display_name = excluded.display_name,
+    set display_name = case
+          when public.trip_people.user_id is null then excluded.display_name
+          else public.trip_people.display_name
+        end,
         -- Re-adding a removed person restores them, keeping their ledger
         -- identity (and claim state) instead of minting a duplicate row.
         removed_at = null

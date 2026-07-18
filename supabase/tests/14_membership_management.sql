@@ -6,7 +6,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(30);
+select plan(32);
 create temp table _r (line text);
 grant insert, select on _r to authenticated;
 
@@ -42,6 +42,25 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-000000000062","role":"authenticated"}';
 select count(*) from public.claim_trip_people_for_current_email();
+reset role;
+
+-- A member may refresh a pending person's label, but must never rename a
+-- claimed member through the email-unique upsert.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-000000000061","role":"authenticated"}';
+select public.add_trip_person_by_email(
+  '61111111-1111-1111-1111-111111111111', 'rita14@test.tab', 'Rita Updated');
+insert into _r select is(
+  (select display_name from public.trip_people where id = '60000000-0000-0000-0000-000000000004'),
+  'Rita Updated',
+  're-adding an unclaimed person updates their display name');
+
+select public.add_trip_person_by_email(
+  '61111111-1111-1111-1111-111111111111', 'bravo14@test.tab', 'Not Bravo');
+insert into _r select is(
+  (select display_name from public.trip_people where id = '60000000-0000-0000-0000-000000000002'),
+  'Bravo',
+  're-adding an active claimed member does not change their display name');
 reset role;
 
 -- ── update_trip_person_email ────────────────────────────────────────────────
@@ -186,13 +205,14 @@ insert into _r select throws_ok(
 -- Restore: re-adding the same email clears removed_at and keeps the claim.
 insert into _r select lives_ok(
   $$select public.add_trip_person_by_email(
-      '61111111-1111-1111-1111-111111111111', 'bravo14@test.tab', 'Bravo')$$,
+      '61111111-1111-1111-1111-111111111111', 'bravo14@test.tab', 'Not Bravo')$$,
   're-adding a removed member''s email restores them');
 
 insert into _r select ok(
   (select removed_at is null and user_id = '00000000-0000-0000-0000-000000000062'
+          and display_name = 'Bravo'
    from public.trip_people where id = '60000000-0000-0000-0000-000000000002'),
-  'restore clears removed_at and keeps the claimed account');
+  'restore clears removed_at and keeps the claimed account and display name');
 
 -- One member_joined from the original pending insert, one from the restore.
 insert into _r select is(

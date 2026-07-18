@@ -7,8 +7,8 @@ Sends APNs push notifications for trip activity. Invoked by the
 Flow: `activity_log` INSERT → `pg_net` POST (with `x-webhook-secret`) → this
 function → `push_targets_for_activity(activity_id)` (members − actor − muters,
 each with their unread badge) → direct APNs over HTTP/2 (token auth, ES256 `.p8`).
-Dead tokens (`410` / `BadDeviceToken` / `Unregistered`) are pruned from
-`push_devices`.
+Dead tokens (`410` / `Unregistered`) are pruned from `push_devices`.
+`BadDeviceToken` is retained and logged as a likely `APNS_ENV` mismatch.
 
 The in-app Activity feed does **not** depend on this function — it reads
 `activity_log` through the normal sync. Push is an additive channel.
