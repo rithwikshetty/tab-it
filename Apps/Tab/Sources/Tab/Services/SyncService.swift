@@ -448,11 +448,15 @@ final class SyncService {
     }
 
     private func pullProfiles() async throws -> Set<UUID> {
-        let rows: [ProfileDTO] = try await client
-            .from("visible_profiles")
-            .select()
-            .execute()
-            .value
+        let rows: [ProfileDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("visible_profiles")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -476,11 +480,15 @@ final class SyncService {
     }
 
     private func pullTrips() async throws -> Set<UUID> {
-        let rows: [TripDTO] = try await client
-            .from("trips")
-            .select()
-            .execute()
-            .value
+        let rows: [TripDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trips")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -491,11 +499,15 @@ final class SyncService {
     }
 
     private func pullTripPeople() async throws -> Set<UUID> {
-        let rows: [TripPersonDTO] = try await client
-            .from("trip_people")
-            .select()
-            .execute()
-            .value
+        let rows: [TripPersonDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trip_people")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -506,11 +518,15 @@ final class SyncService {
     }
 
     private func pullCategories() async throws -> Set<UUID> {
-        let rows: [CategoryDTO] = try await client
-            .from("categories")
-            .select()
-            .execute()
-            .value
+        let rows: [CategoryDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("categories")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -521,11 +537,15 @@ final class SyncService {
     }
 
     private func pullExpenses() async throws -> Set<UUID> {
-        let rows: [ExpenseDTO] = try await client
-            .from("expenses")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpenseDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expenses")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -536,11 +556,16 @@ final class SyncService {
     }
 
     private func pullExpensePayments() async throws -> Set<ExpensePaymentRemoteKey> {
-        let rows: [ExpensePaymentDTO] = try await client
-            .from("expense_payments")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpensePaymentDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expense_payments")
+                .select()
+                .order("expense_id")
+                .order("trip_person_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -551,11 +576,16 @@ final class SyncService {
     }
 
     private func pullExpenseSplits() async throws -> Set<ExpenseSplitRemoteKey> {
-        let rows: [ExpenseSplitDTO] = try await client
-            .from("expense_splits")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpenseSplitDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expense_splits")
+                .select()
+                .order("expense_id")
+                .order("trip_person_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -566,11 +596,15 @@ final class SyncService {
     }
 
     private func pullSettlements() async throws -> Set<UUID> {
-        let rows: [SettlementDTO] = try await client
-            .from("settlements")
-            .select()
-            .execute()
-            .value
+        let rows: [SettlementDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("settlements")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -586,14 +620,16 @@ final class SyncService {
     private func pullActivity() async throws -> Set<UUID> {
         let cutoffDate = Date().addingTimeInterval(-Self.activityWindowSeconds)
         let cutoff = ISO8601DateFormatter().string(from: cutoffDate)
-        let rows: [ActivityDTO] = try await client
-            .from("activity_log")
-            .select()
-            .gte("timestamp", value: cutoff)
-            .order("timestamp", ascending: false)
-            .limit(300)
-            .execute()
-            .value
+        let rows: [ActivityDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("activity_log")
+                .select()
+                .gte("timestamp", value: cutoff)
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         // One batched ID fetch instead of an existence query per pulled row.
@@ -624,11 +660,16 @@ final class SyncService {
     }
 
     private func pullMutes() async throws -> Set<UUID> {
-        let rows: [TripMuteDTO] = try await client
-            .from("trip_mute_prefs")
-            .select()
-            .execute()
-            .value
+        let rows: [TripMuteDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trip_mute_prefs")
+                .select()
+                .order("trip_id")
+                .order("user_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -809,13 +850,16 @@ final class SyncService {
     }
 
     private func ensureCurrentProfile(_ profile: ProfileEntity) async throws {
+        // Snapshot the local write represented by these params before suspension.
+        // A profile edit during execute() must remain dirty for the next push.
+        let ackWriteID = profile.writeID
         try await client
             .rpc("ensure_current_profile", params: [
                 "p_display_name": AnyJSON.string(profile.displayName),
                 "p_avatar_url": profile.avatarURL.map { AnyJSON.string($0) } ?? .null,
             ])
             .execute()
-        profile.pushedWriteID = profile.writeID
+        profile.pushedWriteID = ackWriteID
     }
 
     /// A trip created and soft-deleted before its first successful push never
@@ -851,6 +895,9 @@ final class SyncService {
     }
 
     private func pushTrip(_ trip: TripEntity) async throws {
+        // Capture the exact local version represented by the request. Main-actor
+        // reentrancy can change writeID while the network call is suspended.
+        let tripAckWriteID = trip.writeID
         if trip.pushedWriteID == nil {
             guard let user = auth?.currentUser else { throw SyncError.signInRequired }
             let creatorPerson = trip.people.first { $0.userID == user.id }
@@ -865,6 +912,7 @@ final class SyncService {
             if creatorPerson == nil {
                 container.mainContext.insert(person)
             }
+            let personAckWriteID = person.writeID
             try await client
                 .rpc("create_trip_with_self", params: [
                     "p_trip_id": AnyJSON.string(trip.id.uuidString),
@@ -872,13 +920,13 @@ final class SyncService {
                     "p_name": AnyJSON.string(trip.name),
                 ])
                 .execute()
-            person.pushedWriteID = person.writeID
+            person.pushedWriteID = personAckWriteID
         } else {
             let update = TripUpdateDTO(
                 name: trip.name,
                 deletedAt: trip.deletedAt,
                 updatedAt: trip.updatedAt,
-                writeID: trip.writeID
+                writeID: tripAckWriteID
             )
             try await client
                 .from("trips")
@@ -886,7 +934,7 @@ final class SyncService {
                 .eq("id", value: trip.id.uuidString)
                 .execute()
         }
-        trip.pushedWriteID = trip.writeID
+        trip.pushedWriteID = tripAckWriteID
     }
 
     private func pushSettlements() async throws {
@@ -898,17 +946,18 @@ final class SyncService {
                 if settlement.pushedWriteID == nil {
                     ctx.delete(settlement)
                 } else {
+                    let ackWriteID = settlement.writeID
                     do {
                         try await client
                             .from("settlements")
                             .update(SettlementDeleteUpdateDTO(
                                 deletedAt: settlement.deletedAt,
                                 updatedAt: settlement.updatedAt,
-                                writeID: settlement.writeID
+                                writeID: ackWriteID
                             ))
                             .eq("id", value: settlement.id.uuidString)
                             .execute()
-                        settlement.pushedWriteID = settlement.writeID
+                        settlement.pushedWriteID = ackWriteID
                     } catch {
                         pushFailures += 1
                         syncLog.error("settlement delete push failed: \(error.localizedDescription, privacy: .public)")
@@ -921,6 +970,7 @@ final class SyncService {
             // Don't push settlements under a soft-deleted trip — the server
             // validates the parent trip is active and would reject.
             if trip.deletedAt != nil { continue }
+            let ackWriteID = settlement.writeID
             let insert = SettlementInsertDTO(
                 id: settlement.id,
                 tripID: tripID,
@@ -932,11 +982,11 @@ final class SyncService {
                 settledAt: settlement.settledAt,
                 createdBy: settlement.createdByID,
                 updatedAt: settlement.updatedAt,
-                writeID: settlement.writeID
+                writeID: ackWriteID
             )
             do {
                 try await client.from("settlements").upsert(insert, onConflict: "id").execute()
-                settlement.pushedWriteID = settlement.writeID
+                settlement.pushedWriteID = ackWriteID
             } catch {
                 pushFailures += 1
                 syncLog.error("settlement push failed: \(error.localizedDescription, privacy: .public)")
@@ -990,17 +1040,18 @@ final class SyncService {
                     // this expense write resolved and let the trip delete carry.
                     expense.pushedWriteID = expense.writeID
                 } else {
+                    let ackWriteID = expense.writeID
                     do {
                         try await client
                             .from("expenses")
                             .update(ExpenseDeleteUpdateDTO(
                                 deletedAt: expense.deletedAt,
                                 updatedAt: expense.updatedAt,
-                                writeID: expense.writeID
+                                writeID: ackWriteID
                             ))
                             .eq("id", value: expense.id.uuidString)
                             .execute()
-                        expense.pushedWriteID = expense.writeID
+                        expense.pushedWriteID = ackWriteID
                     } catch {
                         pushFailures += 1
                         syncLog.error("expense delete push failed: \(error.localizedDescription, privacy: .public)")
@@ -1012,6 +1063,12 @@ final class SyncService {
             // Don't push new/edited expenses under a soft-deleted trip — the
             // server's RPC validates the parent trip is active and would reject.
             if trip.deletedAt != nil { continue }
+
+            // Snapshot every entity/version included in this transactional request.
+            // Relationships and write IDs can all change while execute() awaits.
+            let expenseAckWriteID = expense.writeID
+            let paymentAcks = expense.payments.map { (entity: $0, writeID: $0.writeID) }
+            let splitAcks = expense.splits.map { (entity: $0, writeID: $0.writeID) }
 
             let expensePayload: [String: AnyJSON] = [
                 "id": .string(expense.id.uuidString),
@@ -1026,28 +1083,30 @@ final class SyncService {
                 "created_by": .string(expense.createdByID.uuidString),
                 "last_edited_by": expense.lastEditedByID.map { .string($0.uuidString) } ?? .null,
                 "updated_at": .string(Self.timestampFormatter.string(from: expense.updatedAt)),
-                "write_id": .string(expense.writeID.uuidString),
+                "write_id": .string(expenseAckWriteID.uuidString),
             ]
 
-            let paymentsPayload: [AnyJSON] = expense.payments.map { payment in
-                AnyJSON.object([
+            let paymentsPayload: [AnyJSON] = paymentAcks.map { ack in
+                let payment = ack.entity
+                return AnyJSON.object([
                     "trip_person_id": .string(payment.tripPersonID.uuidString),
                     "amount_paid": .string(Self.decimalString(payment.amountPaid)),
                     "payment_mode": .string(payment.paymentModeRaw),
                     "updated_at": .string(Self.timestampFormatter.string(from: payment.updatedAt)),
-                    "write_id": .string(payment.writeID.uuidString),
+                    "write_id": .string(ack.writeID.uuidString),
                 ])
             }
 
-            let splitsPayload: [AnyJSON] = expense.splits.map { split in
-                AnyJSON.object([
+            let splitsPayload: [AnyJSON] = splitAcks.map { ack in
+                let split = ack.entity
+                return AnyJSON.object([
                     "trip_person_id": .string(split.tripPersonID.uuidString),
                     "amount_owed": .string(Self.decimalString(split.amountOwed)),
                     "split_type": .string(split.splitTypeRaw),
                     "share_units": split.shareUnits.map { AnyJSON.string(Self.decimalString($0)) } ?? .null,
                     "percentage": split.percentage.map { AnyJSON.string(Self.decimalString($0)) } ?? .null,
                     "updated_at": .string(Self.timestampFormatter.string(from: split.updatedAt)),
-                    "write_id": .string(split.writeID.uuidString),
+                    "write_id": .string(ack.writeID.uuidString),
                 ])
             }
 
@@ -1057,9 +1116,9 @@ final class SyncService {
                     "p_payments": AnyJSON.array(paymentsPayload),
                     "p_splits":   AnyJSON.array(splitsPayload),
                 ]).execute()
-                expense.pushedWriteID = expense.writeID
-                for payment in expense.payments { payment.pushedWriteID = payment.writeID }
-                for split in expense.splits { split.pushedWriteID = split.writeID }
+                expense.pushedWriteID = expenseAckWriteID
+                for ack in paymentAcks { ack.entity.pushedWriteID = ack.writeID }
+                for ack in splitAcks { ack.entity.pushedWriteID = ack.writeID }
             } catch {
                 pushFailures += 1
                 syncLog.error("expense push failed: \(error.localizedDescription, privacy: .public)")
@@ -1077,20 +1136,20 @@ final class SyncService {
             // Snapshot the write we are pushing. If the user re-toggles during the
             // network call, writeID changes and we leave the row dirty so the next
             // pushMutes resolves the newer state (LWW convergence).
-            let target = mute.writeID
+            let ackWriteID = mute.writeID
             do {
                 if mute.isMuted {
                     try await client.from("trip_mute_prefs")
                         .upsert(TripMuteInsertDTO(tripID: mute.tripID, userID: userID), onConflict: "trip_id,user_id")
                         .execute()
-                    if mute.writeID == target { mute.pushedWriteID = target }
+                    mute.pushedWriteID = ackWriteID
                 } else {
                     try await client.from("trip_mute_prefs")
                         .delete()
                         .eq("trip_id", value: mute.tripID.uuidString)
                         .eq("user_id", value: userID.uuidString)
                         .execute()
-                    if mute.writeID == target { ctx.delete(mute) }  // unmute tombstone resolved
+                    if mute.writeID == ackWriteID { ctx.delete(mute) }  // unmute tombstone resolved
                 }
             } catch {
                 pushFailures += 1

@@ -6,7 +6,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(19);
+select plan(20);
 create temp table _r (line text);
 grant insert, select on _r to authenticated;
 
@@ -106,11 +106,17 @@ insert into _r select is(
   (select description from public.expenses where id = '52000000-0000-0000-0000-000000000001'),
   'tie higher', 'timestamp tie: lower write_id loses');
 
--- ── Delete-wins: a tombstone is never resurrected.
+-- ── Delete-wins: an incoming tombstone beats a newer live edit.
 update public.expenses
-set deleted_at = '2027-02-01T10:00:00Z', updated_at = '2027-02-01T10:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000001'
+set deleted_at = '2027-02-01T10:00:00Z', updated_at = '2027-01-01T08:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000001'
 where id = '52000000-0000-0000-0000-000000000001';
 
+insert into _r select is(
+  (select deleted_at from public.expenses where id = '52000000-0000-0000-0000-000000000001'),
+  '2027-02-01T10:00:00Z'::timestamptz,
+  'older incoming delete applies against a newer live row (delete-wins)');
+
+-- A tombstone is never resurrected, even by a newer live update.
 insert into _r select lives_ok(
   $$update public.expenses
     set deleted_at = null, description = 'resurrected', updated_at = '2027-02-02T10:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000002'
