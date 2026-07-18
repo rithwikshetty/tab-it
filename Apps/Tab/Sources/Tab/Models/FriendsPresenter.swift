@@ -337,9 +337,11 @@ enum FriendsPresenter {
         let me = ClaimIdentity.user(currentUserID)
         let calendar = Calendar.current
         let labelFormatter = DateFormatter()
+        labelFormatter.calendar = calendar
+        labelFormatter.timeZone = calendar.timeZone
         labelFormatter.dateFormat = "MMM d"
 
-        struct Dated { let date: Date; let created: Date; let entry: FriendTimelineEntry }
+        struct Dated { let day: Date; let created: Date; let entry: FriendTimelineEntry }
         var all: [Dated] = []
 
         for trip in ctx.trips {
@@ -373,8 +375,12 @@ enum FriendsPresenter {
                     balanceSemantic: net > 0 ? .lent : (net < 0 ? .borrowed : .neutral),
                     sourceName: source
                 )
-                all.append(Dated(date: e.expenseDate, created: e.createdAt,
-                                 entry: FriendTimelineEntry(id: e.id, sourceName: source, item: .expense(row))))
+                let localExpenseDate = ExpenseDates.localDateForPicker(e.expenseDate, calendar: calendar)
+                all.append(Dated(
+                    day: calendar.startOfDay(for: localExpenseDate),
+                    created: e.createdAt,
+                    entry: FriendTimelineEntry(id: e.id, sourceName: source, item: .expense(row))
+                ))
             }
 
             for s in trip.settlements where s.deletedAt == nil {
@@ -388,12 +394,15 @@ enum FriendsPresenter {
                     text: "\(fromName) settled with \(toName)",
                     sourceName: source
                 )
-                all.append(Dated(date: s.settledAt, created: s.createdAt,
-                                 entry: FriendTimelineEntry(id: s.id, sourceName: source, item: .settlement(row))))
+                all.append(Dated(
+                    day: calendar.startOfDay(for: s.settledAt),
+                    created: s.createdAt,
+                    entry: FriendTimelineEntry(id: s.id, sourceName: source, item: .settlement(row))
+                ))
             }
         }
 
-        let grouped = Dictionary(grouping: all) { calendar.startOfDay(for: $0.date) }
+        let grouped = Dictionary(grouping: all, by: \.day)
         return grouped.keys.sorted(by: >).map { day in
             let entries = (grouped[day] ?? []).sorted { $0.created > $1.created }.map(\.entry)
             return FriendTimelineDay(

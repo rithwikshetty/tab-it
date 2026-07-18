@@ -22,6 +22,41 @@ enum ExpenseDates {
         serializer.string(from: anchored)
     }
 
+    /// Formats an anchored expense date in UTC so the stored calendar day is
+    /// stable even when the device's local zone is ahead of UTC noon.
+    static func displayString(
+        _ anchored: Date,
+        dateFormat: String,
+        locale: Locale = .current
+    ) -> String {
+        let formatter = utcDisplayFormatter(locale: locale)
+        formatter.dateFormat = dateFormat
+        return formatter.string(from: anchored)
+    }
+
+    static func displayString(
+        _ anchored: Date,
+        dateStyle: DateFormatter.Style,
+        locale: Locale = .current
+    ) -> String {
+        let formatter = utcDisplayFormatter(locale: locale)
+        formatter.dateStyle = dateStyle
+        formatter.timeStyle = .none
+        return formatter.string(from: anchored)
+    }
+
+    /// Converts the UTC anchor into a local instant on the same named calendar
+    /// day so a date picker opens on the stored day in every device timezone.
+    static func localDateForPicker(_ anchored: Date, calendar: Calendar = .current) -> Date {
+        let day = utcCalendar.dateComponents([.year, .month, .day], from: anchored)
+        var components = DateComponents()
+        components.year = day.year
+        components.month = day.month
+        components.day = day.day
+        components.hour = 12
+        return calendar.date(from: components) ?? anchored
+    }
+
     private static let utcCalendar: Calendar = {
         var calendar = Calendar(identifier: .iso8601)
         calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -35,4 +70,12 @@ enum ExpenseDates {
         formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter
     }()
+
+    private static func utcDisplayFormatter(locale: Locale) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = utcCalendar
+        formatter.locale = locale
+        formatter.timeZone = utcCalendar.timeZone
+        return formatter
+    }
 }

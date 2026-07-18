@@ -333,27 +333,25 @@ enum SettleUpPresenter {
 enum TimelinePresenter {
     private static let dayIDFormatter = ISO8601DateFormatter()
 
-    private static let dayLabelFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        return f
-    }()
-
     static func days(
         expenses: [ExpenseEntity],
         settlements: [SettlementEntity],
         currentPersonID: UUID,
         personFor: (UUID) -> TripPersonEntity?,
-        categoryFor: (UUID?) -> CategoryEntity?
+        categoryFor: (UUID?) -> CategoryEntity?,
+        calendar: Calendar = .current
     ) -> [TimelineDay] {
-        let calendar = Calendar.current
+        let dayLabelFormatter = DateFormatter()
+        dayLabelFormatter.calendar = calendar
+        dayLabelFormatter.timeZone = calendar.timeZone
+        dayLabelFormatter.dateFormat = "MMM d"
 
         let activeExpenses = expenses.filter { $0.deletedAt == nil }
         let activeSettlements = settlements.filter { $0.deletedAt == nil }
 
         struct Dated: Identifiable {
             let id: UUID
-            let date: Date
+            let day: Date
             let created: Date
             let item: TimelineItem
         }
@@ -406,9 +404,15 @@ enum TimelinePresenter {
                 netAmount: netAmount,
                 balanceSemantic: balanceSemantic
             )
-            all.append(Dated(id: e.id, date: e.expenseDate, created: e.createdAt, item: .expense(rowItem)))
+            let localExpenseDate = ExpenseDates.localDateForPicker(e.expenseDate, calendar: calendar)
+            let day = calendar.startOfDay(for: localExpenseDate)
+            all.append(Dated(
+                id: e.id,
+                day: day,
+                created: e.createdAt,
+                item: .expense(rowItem)
+            ))
 
-            let day = calendar.startOfDay(for: e.expenseDate)
             var currencyTotals = totalsByDay[day] ?? [:]
             var amounts = currencyTotals[e.currency] ?? DayAmounts()
             amounts.totalSpend += e.amount
@@ -432,10 +436,15 @@ enum TimelinePresenter {
                 formattedAmount: MoneyFormatter.format(s.amount, currency: s.currency),
                 text: text
             )
-            all.append(Dated(id: s.id, date: s.settledAt, created: s.createdAt, item: .settlement(rowItem)))
+            all.append(Dated(
+                id: s.id,
+                day: calendar.startOfDay(for: s.settledAt),
+                created: s.createdAt,
+                item: .settlement(rowItem)
+            ))
         }
 
-        let grouped = Dictionary(grouping: all) { calendar.startOfDay(for: $0.date) }
+        let grouped = Dictionary(grouping: all, by: \.day)
 
         return grouped.keys.sorted(by: >).map { day -> TimelineDay in
             let dayItems = (grouped[day] ?? [])
