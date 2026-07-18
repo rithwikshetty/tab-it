@@ -52,6 +52,7 @@ final class SyncService {
     private weak var auth: AuthService?
     private let pathMonitor = NWPathMonitor()
     private var wasNetworkSatisfied: Bool?
+    private let syncGate = AsyncSerialGate()
 
     init(container: ModelContainer, auth: AuthService) {
         self.container = container
@@ -385,11 +386,13 @@ final class SyncService {
             return
         }
         pullInFlight = true
-        defer { pullInFlight = false }
-        repeat {
-            pullQueued = false
-            await performPullAll()
-        } while pullQueued
+        await syncGate.run { [self] in
+            defer { pullInFlight = false }
+            repeat {
+                pullQueued = false
+                await performPullAll()
+            } while pullQueued
+        }
     }
 
     private func performPullAll() async {
@@ -799,6 +802,12 @@ final class SyncService {
 
     func pushPending() async {
         guard await resolveRealSession() != nil else { return }
+        await syncGate.run { [self] in
+            await performPushPending()
+        }
+    }
+
+    private func performPushPending() async {
         phase = .pushing
         pushFailures = 0
         do {
@@ -1006,6 +1015,7 @@ final class SyncService {
                 do {
                     try await ReceiptStorage.uploadPendingReceipt(path: path)
                 } catch {
+                    pushFailures += 1
                     syncLog.error("receipt upload failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
@@ -1159,7 +1169,13 @@ final class SyncService {
 
     // MARK: - Notifications
 
-    private static let pendingActivitySeenKey = "sync.pendingActivitySeenAt"
+    nonisolated static func pendingActivitySeenKey(for userID: UUID) -> String {
+        "sync.pendingActivitySeenAt.\(userID.uuidString.lowercased())"
+    }
+
+    nonisolated static func clearPendingActivitySeen(for userID: UUID) {
+        UserDefaults.standard.removeObject(forKey: pendingActivitySeenKey(for: userID))
+    }
 
     /// Advances the local read cursor immediately (clears the badge), then persists
     /// it server-side. The optimistic local write also covers mock auth (no session).
@@ -1180,7 +1196,7 @@ final class SyncService {
         profile?.activityLastSeenAt = maxDate(profile?.activityLastSeenAt, now)
         try? ctx.save()
 
-        UserDefaults.standard.set(now, forKey: Self.pendingActivitySeenKey)
+        UserDefaults.standard.set(now, forKey: Self.pendingActivitySeenKey(for: userID))
         await pushActivitySeen()
     }
 
@@ -1189,12 +1205,13 @@ final class SyncService {
     /// events read that the user hasn't actually seen.
     func pushActivitySeen() async {
         guard await resolveRealSession() != nil, let userID = auth?.currentUser?.id else { return }
-        guard let pending = UserDefaults.standard.object(forKey: Self.pendingActivitySeenKey) as? Date else { return }
+        let pendingKey = Self.pendingActivitySeenKey(for: userID)
+        guard let pending = UserDefaults.standard.object(forKey: pendingKey) as? Date else { return }
         do {
             let serverSeenAt: Date = try await client.rpc("mark_activity_seen", params: [
                 "p_seen_at": AnyJSON.string(Self.timestampFormatter.string(from: pending)),
             ]).execute().value
-            UserDefaults.standard.removeObject(forKey: Self.pendingActivitySeenKey)
+            UserDefaults.standard.removeObject(forKey: pendingKey)
             let ctx = container.mainContext
             let profile = (try? ctx.fetch(FetchDescriptor<ProfileEntity>(
                 predicate: #Predicate { $0.id == userID }
