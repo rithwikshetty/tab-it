@@ -356,12 +356,15 @@ struct RootView: View {
             }
             selectedTab = .trips
             return result.tripID
-        } catch let error as PostgrestError
-            where error.code == "P0002" || error.code == "42501" || error.code == "22023" {
-            if invites.pendingJoinToken == token {
-                _ = invites.consumePendingToken()
+        } catch let error as PostgrestError {
+            if let message = InviteJoinErrorMessage.message(forPostgresCode: error.code) {
+                if invites.pendingJoinToken == token {
+                    _ = invites.consumePendingToken()
+                }
+                showInviteJoinAlert(message)
+            } else {
+                showInviteJoinAlert("You're offline. The invite will open when you're back online.")
             }
-            showInviteJoinAlert("This invite link is invalid or was turned off.")
             return nil
         } catch {
             showInviteJoinAlert("You're offline. The invite will open when you're back online.")

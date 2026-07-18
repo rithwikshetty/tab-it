@@ -91,10 +91,14 @@ Answer "No" to everything in the questionnaire. Result: **4+**.
 2026 Rithwik Shetty
 ```
 
-## What's New (version 1.0)
+## What's New (version 1.3.0)
 
 ```
-First release.
+• Join a trip by opening an invite link.
+• Open the app, add expenses, and view saved receipts while you're offline. Changes sync when you're back online.
+• See how much you lent or borrowed on each expense.
+• Amounts now use currency symbols, and you can settle up with fewer payments.
+• Trip activity notifications arrive more reliably.
 ```
 
 ## App Privacy section
