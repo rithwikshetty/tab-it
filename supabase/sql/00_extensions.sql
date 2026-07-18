@@ -57,9 +57,11 @@ begin
        or (v_new_deleted = v_old_deleted and new.write_id::text < old.write_id::text) then
       return null;
     end if;
-  elsif new.updated_at < old.updated_at
-     or (new.updated_at = old.updated_at and new.write_id::text < old.write_id::text) then
-    return null;
+  elsif v_old_deleted is null and v_new_deleted is null then
+    if new.updated_at < old.updated_at
+       or (new.updated_at = old.updated_at and new.write_id::text < old.write_id::text) then
+      return null;
+    end if;
   end if;
 
   return new;
@@ -67,7 +69,7 @@ end;
 $$;
 
 comment on function public.set_sync_fields() is
-  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id; on update enforces last-write-wins with delete-wins + write_id tiebreaker against client-supplied metadata, silently skipping stale writes. Metadata-less updates get fresh server stamps.';
+  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id. On update, delete-wins is unconditional across live/deleted state (live-to-deleted writes apply; resurrection is blocked); live-live writes use updated_at LWW and both-deleted writes use deleted_at LWW, with write_id tiebreakers. Metadata-less updates get fresh server stamps.';
 
 
 -- ============================================================================
