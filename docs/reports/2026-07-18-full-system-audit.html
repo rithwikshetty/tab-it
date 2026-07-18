@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tab — Full System Audit &amp; Fixes, 18 July 2026</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --card: #ffffff;
+    --ink: #1f2823;
+    --muted: #5c6b62;
+    --line: #e3e7e2;
+    --accent: #4f7a5e;
+    --high: #b3402a;
+    --high-bg: #fbeeea;
+    --med: #a06a12;
+    --med-bg: #fdf4e3;
+    --low: #3f6c8c;
+    --low-bg: #ecf3f8;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --code-bg: #f0f2ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171b18;
+      --card: #1f2521;
+      --ink: #e6e9e5;
+      --muted: #9fada4;
+      --line: #333b35;
+      --accent: #8ab99a;
+      --high: #e58a74;
+      --high-bg: #3a2620;
+      --med: #ddad5f;
+      --med-bg: #362d1a;
+      --low: #8fb8d4;
+      --low-bg: #1f2c36;
+      --ok: #8cc79c;
+      --ok-bg: #1e3024;
+      --code-bg: #2a312c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 1.35rem; margin: 48px 0 8px; padding-top: 24px; border-top: 1px solid var(--line); }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  p, li { max-width: 72ch; }
+  .lede { font-size: 1.05rem; }
+  code {
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-wrap: anywhere;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .sum {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .sum .n { font-size: 1.7rem; font-weight: 700; display: block; }
+  .sum .l { color: var(--muted); font-size: 0.85rem; }
+  .sum.high .n { color: var(--high); }
+  .sum.med .n { color: var(--med); }
+  .sum.low .n { color: var(--low); }
+  .sum.ok .n { color: var(--ok); }
+  .finding {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin: 16px 0;
+  }
+  .finding h3 { margin: 0 0 10px; font-size: 1.08rem; line-height: 1.4; }
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-right: 8px;
+    vertical-align: 2px;
+    white-space: nowrap;
+  }
+  .badge.high { background: var(--high-bg); color: var(--high); }
+  .badge.med  { background: var(--med-bg);  color: var(--med); }
+  .badge.low  { background: var(--low-bg);  color: var(--low); }
+  .badge.ok   { background: var(--ok-bg);   color: var(--ok); }
+  .finding p { margin: 8px 0; }
+  .lbl { font-weight: 700; }
+  .fixnote {
+    border-left: 3px solid var(--ok);
+    background: var(--ok-bg);
+    border-radius: 0 8px 8px 0;
+    padding: 8px 14px;
+    margin-top: 12px;
+  }
+  .fixnote p { margin: 4px 0; font-size: 0.95rem; }
+  .where { color: var(--muted); font-size: 0.88rem; margin-top: 10px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 0.95rem;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-size: 0.85rem; }
+  tr:last-child td { border-bottom: none; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  .callout {
+    background: var(--ok-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 20px 0;
+  }
+  .callout.warn { background: var(--med-bg); }
+  dl.gloss dt { font-weight: 700; margin-top: 14px; }
+  dl.gloss dd { margin: 2px 0 0; color: var(--muted); max-width: 72ch; }
+  .toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 22px; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>tab — full system audit and fixes</h1>
+<p class="sub">18 July 2026 · audited and repaired in the same day · iOS app, TabCore logic package, Supabase database, edge functions, and the tab-it.app site</p>
+
+<p class="lede">This report started the day as a list of 20 confirmed problems. It now records what was done about every one of them: <strong>all 20 are fixed in the codebase, every fix is test-covered, and the full test suite grew from 250 to 271 tests — all passing.</strong> Three fixes still need one deployment step against the live database or servers, which deliberately waits for your explicit go-ahead (details at the <a href="#gated">end</a>).</p>
+
+<div class="summary-grid">
+  <div class="sum ok"><span class="n">20 / 20</span><span class="l">Findings fixed in code</span></div>
+  <div class="sum ok"><span class="n">17</span><span class="l">GitHub issues closed</span></div>
+  <div class="sum med"><span class="n">3</span><span class="l">Awaiting your deploy OK</span></div>
+  <div class="sum ok"><span class="n">271</span><span class="l">Tests — all passing (was 250)</span></div>
+</div>
+
+<div class="toc">
+  <strong>Contents</strong><br>
+  <a href="#how">How the fixes were done</a> ·
+  <a href="#words">Five words to know</a> ·
+  <a href="#high">High severity</a> ·
+  <a href="#medium">Medium severity</a> ·
+  <a href="#low">Low severity</a> ·
+  <a href="#notbugs">Things that looked like bugs but aren't</a> ·
+  <a href="#gated">What still needs your go-ahead</a>
+</div>
+
+<h2 id="how">How the fixes were done</h2>
+<p>The 20 findings were grouped into five workstreams so related fixes travelled together and unrelated ones couldn't collide. Each workstream ran in its own isolated copy of the repository (a git worktree) with <strong>Codex (GPT-5.6 Sol) writing all the code, test-first</strong>. Claude acted as architect only: wrote the specifications, reviewed every diff line-by-line, ran the test suites independently, and merged the branches into <code>main</code> one at a time.</p>
+<p>Every finding was tracked as a GitHub issue (<a href="https://github.com/rithwikshetty/tab-it/issues?q=label%3Aaudit-2026-07-18">#13–#32, label <code>audit-2026-07-18</code></a>) with comments recording when work started, what changed, and the commit that fixed it. 17 issues are closed; #18, #19, and #28 stay open until the gated deployment steps below run.</p>
+<p><strong>Verification on the final merged code:</strong> 155 TabCore logic tests, 116 app tests (21 of the 271 are new, covering each fix), and the SQL assembly check — all green. The live production database was never touched at any point; every database change exists only as repository files until you approve applying them.</p>
+
+<h2 id="words">Five words to know</h2>
+<dl class="gloss">
+  <dt>Sync</dt>
+  <dd>The app stores everything on the phone first, then exchanges changes with the server. <em>Push</em> means sending your changes up; <em>pull</em> means downloading everyone else's changes.</dd>
+  <dt>Reconcile</dt>
+  <dd>After a pull, the app compares what the server sent with what the phone has, and deletes local copies of anything the server no longer has. Safe only when the server's answer is complete — the root of bug #1.</dd>
+  <dt>Last-write-wins (LWW)</dt>
+  <dd>When two people edit the same thing, the edit with the later timestamp is kept. Deletions are meant to beat edits ("delete-wins").</dd>
+  <dt>writeID</dt>
+  <dd>A unique stamp on every save. The app compares stamps to know whether a row still has unsent changes.</dd>
+  <dt>Tombstone</dt>
+  <dd>A deleted record is not erased immediately — it is marked deleted and kept for 30 days. That marker is called a tombstone.</dd>
+</dl>
+
+<h2 id="high">High severity — could silently lose or corrupt data</h2>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge high">Was: High</span>1. Big trips corrupted themselves past the server's 1,000-row response cap</h3>
+  <p><span class="lbl">The bug:</span> pulls asked for everything in one request; the server silently stops at 1,000 rows; the app then deleted any local record missing from the truncated answer. A 6-person trip with ~170 shared expenses crossed the line.</p>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> every pull now fetches in stable-ordered pages until the set is provably complete, and the delete-reconcile step only ever runs against a complete set. If any page fails, reconciliation is skipped for that table — exactly the pre-existing failure behavior. The activity feed keeps its intentional newest-300 cap, since its results are display-only and never reconciled.</p>
+    <p class="where">Commit <code>cb77c90</code> (+ <code>9c2ff6d</code>) · new <code>PaginatedFetch.swift</code> with 4 unit tests · issue #13 closed</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge high">Was: High</span>2. Edits made while a save was in flight were marked "sent" but never sent</h3>
+  <p><span class="lbl">The bug:</span> after a request finished, the app acknowledged the record's <em>current</em> write stamp — which, if you edited or deleted mid-request, belonged to a newer change the server never received. That change silently stayed on your phone only.</p>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> every push path now snapshots the write stamp <em>before</em> sending and acknowledges only that captured value. A change landing mid-request keeps the record marked "dirty", so it is pushed on the next cycle. Applied across all 22 acknowledgment points (profile, trips, people, settlements, expenses with their payments and splits).</p>
+    <p class="where">Commit <code>d3f4cfa</code> · issue #14 closed</p>
+  </div>
+</div>
+
+<h2 id="medium">Medium severity</h2>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge med">Was: Medium</span>3. A pull and a push at the same time could make an expense vanish briefly</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> pushes and pulls now run through a strict first-in-first-out gate — they can never interleave, and queued work is never dropped. The gate's ordering guarantees have their own unit tests.</p>
+    <p class="where">Commit <code>cb23746</code> · new <code>ServiceConcurrency.swift</code> · issue #15 closed</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge med">Was: Medium</span>4. Switching trips quickly leaked a live server connection</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> each subscription attempt carries a generation number and re-checks it after every wait point; a superseded attempt tears down everything it created. Any sequence of rapid switches now ends with exactly one live connection, for the trip you're actually viewing.</p>
+    <p class="where">Commit <code>d0b68d6</code> · issue #16 closed</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge med">Was: Medium</span>5. Changing currency mid-entry could save impossible amounts</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> switching currency now converts the exact per-payer amounts through the same value-preserving normalization as the splits, and saving requires every individual payment — not just the total — to be valid for the chosen currency.</p>
+    <p class="where">Commit <code>1f1c565</code> · new pure <code>ExpensePaymentLedger</code> helper, unit tested · issue #17 closed</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed in repo</span><span class="badge med">Was: Medium</span>6. The database only half-enforced "deletion beats edit"</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> the database trigger now applies an incoming deletion unconditionally when the row is live (matching the app's rule exactly); reviving a deleted record stays blocked. Covered by new database tests.</p>
+    <p class="where">Commit <code>b5ab7dd</code> · issue #18 open — <strong>needs the production schema apply</strong> (<a href="#gated">gated</a>)</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed in repo</span><span class="badge med">Was: Medium</span>7. One wrong push-notification setting would permanently unregister every device</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> only genuinely dead tokens (Apple's 410 / "Unregistered") are deleted now. "BadDeviceToken" — which also means a server environment mismatch — is kept and logged with a warning naming the misconfigured setting. The classification is a pure function with its own tests.</p>
+    <p class="where">Commit <code>5d5017d</code> · issue #19 open — <strong>needs the edge function redeploy</strong> (<a href="#gated">gated</a>)</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge med">Was: Medium</span>8. A stale database test was failing and masking regressions</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> suite 08 now asserts the current function signature and the current unread-count semantics, with deterministic timestamps proving the expected counts rather than fudging numbers.</p>
+    <p class="where">Commit <code>fc0e77e</code> · issue #20 closed</p>
+  </div>
+</div>
+
+<div class="finding">
+  <h3><span class="badge ok">Fixed</span><span class="badge med">Was: Medium</span>9. Sign-out pretended to succeed even when it didn't</h3>
+  <div class="fixnote">
+    <p><span class="lbl">The fix:</span> a failed server sign-out is now logged and followed by an explicit local-session wipe, so the old session can't resurface on the next launch. Signing out while offline still works.</p>
+    <p class="where">Commit <code>778363c</code> · issue #21 closed</p>
+  </div>
+</div>
+
+<h2 id="low">Low severity — all fixed</h2>
+<div class="table-scroll">
+<table>
+  <tr><th style="width:42%">Issue</th><th>What was done</th><th style="width:18%">Commit · Issue</th></tr>
+  <tr>
+    <td>Delete dialogs promised "recover for 30 days" with no recovery UI.</td>
+    <td>The false promise is gone; each dialog keeps its truthful sentence. No other recovery copy exists (swept).</td>
+    <td><code>49ae45c</code> · #27 closed</td>
+  </tr>
+  <tr>
+    <td>Any member could rename an already-joined member via add-by-email.</td>
+    <td>The database function now only updates names on unclaimed rows; re-adding a removed member still restores them. Allow + deny paths tested.</td>
+    <td><code>7dfc06f</code> · #28 open (<a href="#gated">gated</a>)</td>
+  </tr>
+  <tr>
+    <td>Activity "read" marker survived sign-out, could clear the next user's badge.</td>
+    <td>The marker is now scoped per user and cleared for the departing user at sign-out.</td>
+    <td><code>cb23746</code>, <code>778363c</code> · #23 closed</td>
+  </tr>
+  <tr>
+    <td>Receipt photo upload failures were invisible.</td>
+    <td>Upload failures now surface through the same sync-failure signal as everything else; retry behavior unchanged.</td>
+    <td><code>cb23746</code> · #24 closed</td>
+  </tr>
+  <tr>
+    <td>Invite links said "invalid" when the real problem was an unverified email.</td>
+    <td>That case now gets its own accurate message telling the user to verify their email and reopen the link. Mapping is a pure, tested helper.</td>
+    <td><code>3068ea2</code> · #31 closed</td>
+  </tr>
+  <tr>
+    <td>App Store docs said version 1.0; the build is 1.3.0 (16).</td>
+    <td>Metadata and checklist reconciled; a real 1.3.0 What's New written from actually shipped features.</td>
+    <td><code>3a43c57</code> · #30 closed</td>
+  </tr>
+  <tr>
+    <td>Privacy policy omitted Cloudflare Turnstile.</td>
+    <td>Turnstile disclosed in both the data list and the processor section; effective date bumped. Live on the next site deploy.</td>
+    <td><code>3269cd2</code> · #29 closed</td>
+  </tr>
+  <tr>
+    <td>Settle-up overwrote a typed partial amount on currency/pair change.</td>
+    <td>Prefill now only applies when you haven't edited the amount; typed values survive changes (converted, never replaced). Tested.</td>
+    <td><code>a35425f</code> · #26 closed</td>
+  </tr>
+  <tr>
+    <td>Expense dates showed a day late in UTC+13/+14 time zones.</td>
+    <td>Dates now render through UTC-anchored formatters everywhere (detail, rows, grouping, export, picker), so the shown day always equals the picked day. Tested at +14, +12:45, −11.</td>
+    <td><code>be5bbeb</code> · #25 closed</td>
+  </tr>
+  <tr>
+    <td>Leaving a trip didn't cancel a pending refresh timer.</td>
+    <td>Teardown now cancels the debounced pull; nothing fires after you leave.</td>
+    <td><code>d0b68d6</code> · #22 closed</td>
+  </tr>
+  <tr>
+    <td>Sub-cent amounts from the server would round to zero balance.</td>
+    <td>Every pulled amount is normalized to the currency's decimal scale on arrival (documented tie-away-from-zero rule), tested across EUR/JPY/BHD and negatives.</td>
+    <td><code>f17cb85</code> · #32 closed</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="notbugs">Things that looked like bugs but aren't</h2>
+<p>Unchanged from the audit: four claims were disproven during verification (including "production push is broken by a development entitlement" — it isn't), and two conflict-resolution behaviors are documented as deliberate (two-tombstone ordering by deletion time; clean local rows always accepting the server's version). No floating-point money exists anywhere — both independent audits checked.</p>
+
+<h2 id="gated">What still needs your go-ahead</h2>
+<p>Everything below is finished and tested in the repository but deliberately <strong>not deployed</strong>, because it touches live production infrastructure holding real user data. Say the word and each one is a single step:</p>
+<div class="table-scroll">
+<table>
+  <tr><th style="width:8%">#</th><th>Step</th><th>What it deploys</th></tr>
+  <tr><td>1</td><td>Apply the updated schema to the production database</td><td>The delete-wins trigger fix (#18) and the rename guard (#28). Both are small, targeted function replacements — not table rebuilds and not destructive to any data.</td></tr>
+  <tr><td>2</td><td>Redeploy the <code>send-push</code> edge function</td><td>The device-registration safeguard (#19).</td></tr>
+  <tr><td>3</td><td>Deploy the site / push to GitHub</td><td>The updated privacy policy goes live at tab-it.app.</td></tr>
+  <tr><td>4</td><td>Archive and upload a new build to App Store Connect</td><td>All the in-app fixes reach users. The 1.3.0 metadata is ready to paste.</td></tr>
+</table>
+</div>
+
+<p class="sub" style="margin-top:40px">Companion technical write-ups: <code>docs/working_log/2026-07-18-full-system-audit.md</code> (the audit) and the five per-workstream logs in <code>docs/working_log/</code>. Issues: <a href="https://github.com/rithwikshetty/tab-it/issues?q=label%3Aaudit-2026-07-18">github.com/rithwikshetty/tab-it</a>. Audited at <code>9e550c0</code>; fixes merged through <code>02226ca</code>, 18 July 2026. All implementation by Codex (GPT-5.6 Sol); orchestration, review, and merges by Claude.</p>
+
+</div>
+</body>
+</html>
