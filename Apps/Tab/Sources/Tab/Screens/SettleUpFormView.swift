@@ -15,7 +15,7 @@ struct SettleUpFormView: View {
     @Query private var trips: [TripEntity]
     @Query private var editingSettlements: [SettlementEntity]
 
-    @State private var amountText: String = ""
+    @State private var amountDraft = SettlementAmountDraft()
     @State private var isSaving = false
     @State private var fromPersonID: UUID?
     @State private var toPersonID: UUID?
@@ -45,7 +45,7 @@ struct SettleUpFormView: View {
     private var trip: TripEntity? { trips.first }
 
     private var totalAmount: Decimal {
-        MoneyFormatter.decimal(from: amountText) ?? 0
+        MoneyFormatter.decimal(from: amountDraft.text) ?? 0
     }
 
     private var currencySelection: Binding<String> {
@@ -54,6 +54,16 @@ struct SettleUpFormView: View {
             set: { newValue in
                 currency = newValue
                 CurrencyDefaults.remember(newValue)
+            }
+        )
+    }
+
+    private var amountTextBinding: Binding<String> {
+        Binding(
+            get: { amountDraft.text },
+            set: { newValue in
+                guard newValue != amountDraft.text else { return }
+                amountDraft.userChangedText(newValue, currency: currency)
             }
         )
     }
@@ -137,7 +147,7 @@ struct SettleUpFormView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear { prepopulate() }
         .onChange(of: currency) {
-            amountText = MoneyFormatter.convertAmountText(amountText, to: currency)
+            amountDraft.convert(to: currency)
             updateAmountForPair()
         }
     }
@@ -178,7 +188,7 @@ struct SettleUpFormView: View {
     private var amountBlock: some View {
         HStack(alignment: .lastTextBaseline, spacing: 14) {
             DecimalTextField(
-                text: $amountText,
+                text: amountTextBinding,
                 placeholder: MoneyFormatter.amountPlaceholder(currency: currency),
                 font: .systemFont(ofSize: 52, weight: .light),
                 textColor: UIColor(Sage.text),
@@ -190,10 +200,6 @@ struct SettleUpFormView: View {
             )
             .frame(height: 62)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: amountText) { _, new in
-                let sanitized = sanitizeAmount(new)
-                if sanitized != new { amountText = sanitized }
-            }
 
             CurrencyPill(code: currency, symbol: MoneyFormatter.currencySymbol(currency)) {
                 isCurrencyPickerPresented = true
@@ -421,7 +427,7 @@ struct SettleUpFormView: View {
 
         if let settlement = editingSettlement {
             currency = settlement.currency
-            amountText = plainAmountString(settlement.amount)
+            amountDraft.setProgrammaticText(plainAmountString(settlement.amount))
             fromPersonID = settlement.fromPersonID
             toPersonID = settlement.toPersonID
             settledAt = settlement.settledAt
@@ -438,10 +444,10 @@ struct SettleUpFormView: View {
             fromPersonID = suggestedPayment.fromPersonID
             toPersonID = suggestedPayment.toPersonID
             currency = suggestedPayment.currency
-            amountText = MoneyFormatter.plainAmountString(
+            amountDraft.setProgrammaticText(MoneyFormatter.plainAmountString(
                 suggestedPayment.amount,
                 currency: suggestedPayment.currency
-            )
+            ))
             return
         }
 
@@ -452,18 +458,21 @@ struct SettleUpFormView: View {
             fromPersonID = suggestion.fromPersonID
             toPersonID = suggestion.toPersonID
             currency = suggestion.currency
-            amountText = plainAmountString(suggestion.amount)
+            amountDraft.setProgrammaticText(plainAmountString(suggestion.amount))
         } else if let firstOther = trip.activePeople.first(where: { $0.id != cpID }) {
             toPersonID = firstOther.id
         }
     }
 
     private func updateAmountForPair() {
-        guard !isEditing, let from = fromPersonID, let to = toPersonID else { return }
+        guard !isEditing,
+              amountDraft.shouldPrefill,
+              let from = fromPersonID,
+              let to = toPersonID else { return }
         if let debt = simplifiedDebts.first(where: {
             $0.fromUser == from && $0.toUser == to && $0.currency == currency
         }) {
-            amountText = plainAmountString(debt.amount)
+            amountDraft.setProgrammaticText(plainAmountString(debt.amount))
         }
     }
 
@@ -538,10 +547,6 @@ struct SettleUpFormView: View {
     }
 
     // MARK: - Helpers
-
-    private func sanitizeAmount(_ input: String) -> String {
-        MoneyFormatter.sanitizeAmountInput(input, currency: currency)
-    }
 
     private func plainAmountString(_ amount: Decimal) -> String {
         MoneyFormatter.plainAmountString(amount, currency: currency)
