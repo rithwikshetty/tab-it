@@ -1,6 +1,9 @@
 import AuthenticationServices
 import Foundation
 import Supabase
+import os
+
+private let authLog = Logger(subsystem: "com.example.tab", category: "auth")
 
 struct CurrentUser: Equatable, Sendable {
     static let privateRelayPlaceholder = "Email hidden by Apple"
@@ -59,7 +62,7 @@ final class AuthService {
 
     /// Invoked just before the phase flips to `.signedOut`, so the owner can
     /// clear local state (SwiftData) before the previous user's session ends.
-    var onSignedOut: (@MainActor () async -> Void)?
+    var onSignedOut: (@MainActor (_ signedOutUserID: UUID?) async -> Void)?
 
     /// Invoked at the start of an explicit sign-out, while the session is still
     /// valid — server-side cleanup (push device deregistration) needs auth.
@@ -70,8 +73,9 @@ final class AuthService {
 
     /// Clears local user state, runs the sign-out hook, then publishes signedOut.
     private func enterSignedOut() async {
+        let signedOutUserID = currentUser?.id
         currentUser = nil
-        await onSignedOut?()
+        await onSignedOut?(signedOutUserID)
         phase = .signedOut
     }
 
@@ -225,7 +229,19 @@ final class AuthService {
 
     func signOut() async {
         await onWillSignOut?()
-        try? await client.auth.signOut()
+        do {
+            try await client.auth.signOut()
+        } catch {
+            authLog.error("remote sign-out failed: \(error.localizedDescription, privacy: .public)")
+            // Signing out must still work offline. The local-scope fallback
+            // clears the SDK's persisted session before attempting its request,
+            // so a failed server revocation cannot restore it on next launch.
+            do {
+                try await client.auth.signOut(scope: .local)
+            } catch {
+                authLog.error("local session cleanup failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         // Mock auth has no real session, so authStateChanges never fires the
         // signedOut transition — drive it (and the local wipe) directly. For
         // real sessions this is idempotent with the observer.

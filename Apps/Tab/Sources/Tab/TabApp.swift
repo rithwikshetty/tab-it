@@ -23,8 +23,11 @@ struct TabApp: App {
         let realtime = RealtimeService(sync: sync)
         // On sign-out, clear all locally-cached data so the next account on this
         // device never sees the previous user's trips or pending writes.
-        auth.onSignedOut = { [container] in
+        auth.onSignedOut = { [container] signedOutUserID in
             try? LocalStore.wipe(container.mainContext)
+            if let signedOutUserID {
+                SyncService.clearPendingActivitySeen(for: signedOutUserID)
+            }
             // The badge belongs to the account that just left; don't let it
             // linger for the next sign-in.
             await PushService.shared.setBadgeCount(0)
