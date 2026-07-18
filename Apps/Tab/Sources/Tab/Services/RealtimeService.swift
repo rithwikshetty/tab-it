@@ -15,6 +15,7 @@ final class RealtimeService {
     private var channel: RealtimeChannelV2?
     private var streamTasks: [Task<Void, Never>] = []
     private var pullDebounce: Task<Void, Never>?
+    private var subscriptionGeneration = OperationGeneration()
 
     init(sync: SyncService) {
         self.sync = sync
@@ -23,11 +24,18 @@ final class RealtimeService {
     /// Subscribe to live changes on the given trip's expenses/splits/settlements/people.
     /// Any change triggers a sync pull so local SwiftData stays in sync.
     func subscribe(to tripID: UUID) async {
-        guard client.auth.currentSession != nil else { return }
+        let generation = subscriptionGeneration.next()
+        guard client.auth.currentSession != nil else {
+            await tearDownCurrentSubscription()
+            return
+        }
         if subscribedTripID == tripID { return }
-        await unsubscribe()
+        await tearDownCurrentSubscription()
+        guard subscriptionGeneration.isCurrent(generation) else { return }
 
-        let channel = client.channel("trip-\(tripID.uuidString)")
+        // Each attempt gets its own topic so a stale attempt can unsubscribe
+        // itself without tearing down a newer attempt for the same trip.
+        let channel = client.channel("trip-\(tripID.uuidString)-\(generation)")
         let filter: RealtimePostgresFilter = .eq("trip_id", value: tripID.uuidString)
 
         let expenseStream = channel.postgresChange(
@@ -44,7 +52,14 @@ final class RealtimeService {
         do {
             try await channel.subscribeWithError()
         } catch {
-            realtimeLog.error("subscribe failed: \(error.localizedDescription, privacy: .public)")
+            await removeChannel(channel)
+            if subscriptionGeneration.isCurrent(generation) {
+                realtimeLog.error("subscribe failed: \(error.localizedDescription, privacy: .public)")
+            }
+            return
+        }
+        guard subscriptionGeneration.isCurrent(generation) else {
+            await removeChannel(channel)
             return
         }
         self.channel = channel
@@ -64,12 +79,29 @@ final class RealtimeService {
     }
 
     func unsubscribe() async {
-        guard let channel else { return }
+        _ = subscriptionGeneration.next()
+        await tearDownCurrentSubscription()
+    }
+
+    private func tearDownCurrentSubscription() async {
+        pullDebounce?.cancel()
+        pullDebounce = nil
         streamTasks.forEach { $0.cancel() }
         streamTasks.removeAll()
-        await channel.unsubscribe()
+        let channel = self.channel
         self.channel = nil
         self.subscribedTripID = nil
+        if let channel {
+            await removeChannel(channel)
+        }
+    }
+
+    private func removeChannel(_ channel: RealtimeChannelV2) async {
+        // `removeChannel` only unsubscribes channels already marked subscribed;
+        // explicitly unsubscribe first so cancellation also tears down an
+        // attempt whose subscribe task is still unwinding.
+        await channel.unsubscribe()
+        await client.realtimeV2.removeChannel(channel)
     }
 
     /// Scoped unsubscribe: only tears down if we are still subscribed to
