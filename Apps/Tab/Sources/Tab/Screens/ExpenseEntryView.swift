@@ -122,11 +122,9 @@ struct ExpenseEntryView: View {
     }
 
     /// Empty ledger = OK (defaults to single-payer at save time).
-    /// Non-empty ledger = sum must equal totalAmount.
+    /// Non-empty ledger = every entry must fit the currency and sum to totalAmount.
     private var paymentLedgerValid: Bool {
-        if paymentEntries.isEmpty { return true }
-        let sum = paymentEntries.reduce(Decimal(0)) { $0 + $1.amountPaid }
-        return sum == totalAmount
+        ExpensePaymentLedger.isValid(paymentEntries, totalAmount: totalAmount, currency: currency)
     }
 
     private var computedSplits: [ExpenseSplit]? {
@@ -416,7 +414,7 @@ struct ExpenseEntryView: View {
                 amountText = plainAmountString(expense.amount)
                 description = expense.descriptionText
                 selectedCategoryID = expense.categoryID ?? DefaultCategories.food.id
-                expenseDate = expense.expenseDate
+                expenseDate = ExpenseDates.localDateForPicker(expense.expenseDate)
 
                 let splitType = expense.splits.first?.splitType ?? .equal
                 switch splitType {
@@ -480,6 +478,7 @@ struct ExpenseEntryView: View {
         exactAmountTextByPersonID = exactAmountTextByPersonID.mapValues {
             MoneyFormatter.convertAmountText($0, to: currency)
         }
+        paymentEntries = ExpensePaymentLedger.normalizedExactPayments(paymentEntries, currency: currency)
         refreshEqualPaymentsForCurrentTotal()
     }
 
@@ -620,7 +619,10 @@ struct ExpenseEntryView: View {
                     .tracking(-0.07)
                     .foregroundStyle(Sage.text)
                 Spacer()
-                Text(Self.expenseDateFormatter.string(from: expenseDate))
+                Text(ExpenseDates.displayString(
+                    ExpenseDates.utcNoonAnchor(forLocalDay: expenseDate),
+                    dateStyle: .medium
+                ))
                     .font(.system(size: 15, weight: .semibold))
                     .tracking(-0.07)
                     .foregroundStyle(Sage.text)
@@ -1289,12 +1291,6 @@ struct ExpenseEntryView: View {
         }
     }
 
-    private static let expenseDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
 }
 
 struct InlineDatePicker: UIViewRepresentable {
