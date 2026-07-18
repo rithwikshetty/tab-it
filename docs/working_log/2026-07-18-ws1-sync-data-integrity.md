@@ -33,3 +33,11 @@ Used compiler-level fallbacks to distinguish infrastructure failures from source
 ## 2026-07-18 19:22 BST — Final repository state limitation
 
 `git diff --check` passes and all intended source changes are present. Repeated logical commit attempts remain blocked because Git cannot write the external worktree index lock. Consequently this sandbox cannot satisfy the requested committed/clean repository state; the only remaining changes reported by `git status --short` are the intended implementation, tests, generated baseline, and this working log.
+
+## 2026-07-18 20:30 BST — Validation and commits completed outside the Codex sandbox
+
+The two sandbox-blocked steps (iPhone 17 Pro `xcodebuild test` and `git commit`) were completed from an unsandboxed shell. Re-ran all three validations against the tree: `bash supabase/tests/00_sql_assembly.sh` passes with the baseline up to date; `swift test` in `Packages/TabCore` passes all 154 tests; `xcodebuild test -scheme Tab -only-testing:TabTests` on an iPhone 17 Pro simulator reports TEST SUCCEEDED with 100 tests in 20 suites (the prior 96 plus the 4 new pagination tests).
+
+## 2026-07-18 20:32 BST — Reverted pullActivity to its original bounded fetch
+
+Per review, restored `pullActivity` to its pre-change behavior (newest-first `order("timestamp", ascending: false)` with `.limit(300)`, inside the existing 90-day window). Rationale: the activity feed's pull result is discarded and never passed to `reconcileLocalRows`, so it was never exposed to the Bug #13 truncate-then-hard-delete hazard; the 300-row cap is an intentional bound on a display-only mirror and unbounded pagination there only increases pull volume with no correctness gain. All other pulls remain paginated through `fetchAllPages`.
