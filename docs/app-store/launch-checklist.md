@@ -1,7 +1,6 @@
-# tab-it 1.0 launch checklist
+# tab-it 1.3.0 (16) App Store checklist
 
-State of the App Store launch as of 12 June 2026. The decision: ship 1.0 first,
-add features in 1.1+. Update this file as items complete.
+State of the App Store release as of 18 July 2026. Update this file as items complete.
 
 ## Done (engineering — nothing left here)
 
@@ -24,9 +23,8 @@ add features in 1.1+. Update this file as items complete.
 
 ## Remaining (Rithwik, in App Store Connect and on device)
 
-- [ ] Fresh archive + upload (Product → Archive, as usual). First build that
-      carries the icon fix, the CAPTCHA, and the tab-it name.
-- [ ] App Store (Distribution) tab → 1.0 listing: paste every field from
+- [ ] Archive and upload version 1.3.0 (16) from Product → Archive.
+- [ ] App Store (Distribution) tab → 1.3.0 listing: paste every field from
       `docs/app-store/metadata.md` (name, subtitle, promo text, description,
       keywords, URLs, categories, copyright, age rating)
 - [ ] App Privacy section: answer from `docs/legal/app-store-privacy-labels.md`,
@@ -35,7 +33,7 @@ add features in 1.1+. Update this file as items complete.
       1320×2868 on an iPhone 16 Pro Max class simulator)
 - [ ] Real-device account-deletion test (Settings → Delete account, then sign
       back in)
-- [ ] Select the build on the 1.0 page and Submit for Review
+- [ ] Select build 16 on the 1.3.0 page and Submit for Review
 - [ ] Hygiene, non-blocking: delete the temporary full-access Resend API key
       (keep the sending-access one — Supabase SMTP uses it)
 
@@ -46,10 +44,4 @@ add features in 1.1+. Update this file as items complete.
   no-password sign-in.
 - Once live: the pre-launch "destructive DB, no migrations" convention in
   CLAUDE.md flips to compatibility-preserving migrations. Big schema changes
-  get harder; plan accordingly when scoping 1.1 features.
-
-## Post-launch backlog (not for 1.0)
-
-- Invite-link / QR trip joining (also the real fix for Apple Hide My Email
-  duplicate identities)
-- Brandable ideas live in working logs; new feature list TBD with Rithwik
+  get harder; plan accordingly when scoping later releases.
