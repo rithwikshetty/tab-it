@@ -448,11 +448,15 @@ final class SyncService {
     }
 
     private func pullProfiles() async throws -> Set<UUID> {
-        let rows: [ProfileDTO] = try await client
-            .from("visible_profiles")
-            .select()
-            .execute()
-            .value
+        let rows: [ProfileDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("visible_profiles")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -476,11 +480,15 @@ final class SyncService {
     }
 
     private func pullTrips() async throws -> Set<UUID> {
-        let rows: [TripDTO] = try await client
-            .from("trips")
-            .select()
-            .execute()
-            .value
+        let rows: [TripDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trips")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -491,11 +499,15 @@ final class SyncService {
     }
 
     private func pullTripPeople() async throws -> Set<UUID> {
-        let rows: [TripPersonDTO] = try await client
-            .from("trip_people")
-            .select()
-            .execute()
-            .value
+        let rows: [TripPersonDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trip_people")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -506,11 +518,15 @@ final class SyncService {
     }
 
     private func pullCategories() async throws -> Set<UUID> {
-        let rows: [CategoryDTO] = try await client
-            .from("categories")
-            .select()
-            .execute()
-            .value
+        let rows: [CategoryDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("categories")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -521,11 +537,15 @@ final class SyncService {
     }
 
     private func pullExpenses() async throws -> Set<UUID> {
-        let rows: [ExpenseDTO] = try await client
-            .from("expenses")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpenseDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expenses")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -536,11 +556,16 @@ final class SyncService {
     }
 
     private func pullExpensePayments() async throws -> Set<ExpensePaymentRemoteKey> {
-        let rows: [ExpensePaymentDTO] = try await client
-            .from("expense_payments")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpensePaymentDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expense_payments")
+                .select()
+                .order("expense_id")
+                .order("trip_person_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -551,11 +576,16 @@ final class SyncService {
     }
 
     private func pullExpenseSplits() async throws -> Set<ExpenseSplitRemoteKey> {
-        let rows: [ExpenseSplitDTO] = try await client
-            .from("expense_splits")
-            .select()
-            .execute()
-            .value
+        let rows: [ExpenseSplitDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("expense_splits")
+                .select()
+                .order("expense_id")
+                .order("trip_person_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -566,11 +596,15 @@ final class SyncService {
     }
 
     private func pullSettlements() async throws -> Set<UUID> {
-        let rows: [SettlementDTO] = try await client
-            .from("settlements")
-            .select()
-            .execute()
-            .value
+        let rows: [SettlementDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("settlements")
+                .select()
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
@@ -586,14 +620,16 @@ final class SyncService {
     private func pullActivity() async throws -> Set<UUID> {
         let cutoffDate = Date().addingTimeInterval(-Self.activityWindowSeconds)
         let cutoff = ISO8601DateFormatter().string(from: cutoffDate)
-        let rows: [ActivityDTO] = try await client
-            .from("activity_log")
-            .select()
-            .gte("timestamp", value: cutoff)
-            .order("timestamp", ascending: false)
-            .limit(300)
-            .execute()
-            .value
+        let rows: [ActivityDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("activity_log")
+                .select()
+                .gte("timestamp", value: cutoff)
+                .order("id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         // One batched ID fetch instead of an existence query per pulled row.
@@ -624,11 +660,16 @@ final class SyncService {
     }
 
     private func pullMutes() async throws -> Set<UUID> {
-        let rows: [TripMuteDTO] = try await client
-            .from("trip_mute_prefs")
-            .select()
-            .execute()
-            .value
+        let rows: [TripMuteDTO] = try await fetchAllPages { [client] range in
+            try await client
+                .from("trip_mute_prefs")
+                .select()
+                .order("trip_id")
+                .order("user_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let ctx = container.mainContext
         for dto in rows {
