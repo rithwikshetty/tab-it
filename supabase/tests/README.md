@@ -14,15 +14,18 @@ First verify the local SQL source split:
 bash supabase/tests/00_sql_assembly.sh
 ```
 
-Then run pgTAP files via Supabase MCP or Supabase CLI against a disposable DB. Read the returned rows; any line starting with `not ok` is a failure.
+Start and verify the disposable local stack, then run every pgTAP suite:
 
 ```bash
-npx --yes supabase db query --workdir "$PWD" -f supabase/tests/01_schema.sql --linked
+bash supabase/scripts/start_local.sh
+bash supabase/scripts/run_db_tests.sh
 ```
 
-```sql
--- SQL tests return one row per assertion plus a final "1..N" / "# Looks like ..." line.
-```
+The runner verifies the exact `tab-local` stack, then executes each
+multi-statement pgTAP file through its project-scoped Postgres container. It
+refuses hosted-project link state and remote Supabase environment variables and
+never loads `.env` files. SQL tests return one row per assertion plus a final
+`1..N` / `# Looks like ...` line.
 
 ## Test fixture
 

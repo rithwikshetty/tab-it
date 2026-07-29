@@ -41,3 +41,31 @@ Direct inserts into `trip_people` are not a public client API. RLS intentionally
 ## Test workflow
 
 Run `bash supabase/tests/00_sql_assembly.sh` locally first; it verifies the split SQL sources generate the checked-in baseline. Run pgTAP files only against an isolated non-production database. The test runner defaults to the local Supabase stack and never uses a linked remote project.
+
+## Local development
+
+Docker and Supabase CLI run a complete disposable backend for development:
+
+```bash
+bash supabase/scripts/start_local.sh
+bash supabase/scripts/run_db_tests.sh
+bash supabase/scripts/reset_local.sh
+```
+
+The committed configuration uses the unique `tab-local` project id. Supabase
+creates project-scoped Docker containers and a project-scoped network; the
+verification script requires local API, Postgres, Studio, and test-email
+endpoints backed by `tab-local` containers. Supabase's development stack uses
+default local credentials and publishes its ports on all host interfaces, so
+it must be run only on a trusted development machine and network. Reset always
+passes `--local`, reapplies the immutable baseline, and then loads
+`supabase/seed.sql`, which contains fictional development data only. The local
+configuration temporarily enables Supabase's legacy API-role auto-exposure so
+a clean database matches the existing client contract. Supabase is deprecating
+that compatibility switch, so explicit grants must be handled later through
+the separate production approval process.
+
+Do not run raw remote-management commands from this repository. Hosted-project
+link state, a Supabase access token, project ref, or database URL causes the
+local guard to fail closed. Production work remains a separate, explicitly
+approved release procedure.

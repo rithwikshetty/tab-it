@@ -8,9 +8,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-# Deliberately do not source .env.local and do not use --linked. Database tests
-# must never fall back to the production project.
-SUPABASE_CMD=(npx --yes supabase db query --workdir "$ROOT_DIR" --local)
+# Deliberately do not source any environment file. The guard also refuses to
+# run while hosted-project link metadata or remote environment variables exist.
+"$ROOT_DIR/supabase/scripts/assert_local_only.sh"
+"$ROOT_DIR/supabase/scripts/verify_local.sh"
+DB_CONTAINER="supabase_db_tab-local"
 
 files=("$@")
 if [[ ${#files[@]} -eq 0 ]]; then
@@ -22,8 +24,16 @@ bash supabase/tests/00_sql_assembly.sh
 failures=0
 for f in "${files[@]}"; do
   echo "── $f"
-  out="$("${SUPABASE_CMD[@]}" -f "$f" 2>&1)" || { echo "$out"; echo "FAIL (query error) - $f"; failures=$((failures+1)); continue; }
-  echo "$out" | grep -o '"line":"[^"]*"' | sed 's/"line":"//; s/"$//' | sed 's/\\"/"/g' || true
+  out="$(docker exec -i "$DB_CONTAINER" psql \
+    --username postgres \
+    --dbname postgres \
+    --set ON_ERROR_STOP=1 < "$f" 2>&1)" || {
+      echo "$out"
+      echo "FAIL (query error) - $f"
+      failures=$((failures+1))
+      continue
+    }
+  echo "$out"
   if echo "$out" | grep -q 'not ok'; then
     echo "FAIL - $f"
     failures=$((failures+1))

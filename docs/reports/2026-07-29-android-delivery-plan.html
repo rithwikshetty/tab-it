@@ -245,9 +245,18 @@
       border-color: color-mix(in srgb, var(--accent) 34%, transparent);
     }
 
+    .roadmap li.done {
+      border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+    }
+
     .roadmap li.current::before {
       background: var(--accent);
       color: #fff;
+    }
+
+    .roadmap li.done::before {
+      content: "✓";
+      color: var(--accent-strong);
     }
 
     .phase-name {
@@ -342,9 +351,9 @@
 <body>
   <div class="page">
     <header>
-      <p class="eyebrow">Android initiative · review draft · 29 July 2026</p>
-      <h1>Grow carefully. Keep production quiet.</h1>
-      <p class="lede">The plan is one repository with two independent native apps. We begin with safety and shared understanding—not a Kotlin rewrite, database migration, or production connection.</p>
+      <p class="eyebrow">Android initiative · living report · 29 July 2026</p>
+      <h1>Android delivery status</h1>
+      <p class="lede">tab will keep one repository with independent native iOS and Android apps. Development and testing use the disposable local Supabase stack; production remains outside the implementation workflow.</p>
 
       <div class="status-row" role="group" aria-label="Initiative status">
         <div class="status">
@@ -353,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Foundation and production guardrails</strong>
+          <strong>Android toolchain and application skeleton</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -364,9 +373,9 @@
 
     <main>
       <section aria-labelledby="now">
-        <p class="eyebrow">What changed now</p>
-        <h2 id="now">The repository now assumes real users</h2>
-        <p class="section-intro">The old pre-launch reset workflow has been retired before any Android implementation begins.</p>
+        <p class="eyebrow">Completed foundation</p>
+        <h2 id="now">Local development is isolated from production</h2>
+        <p class="section-intro">The old pre-launch reset workflow is gone. A guarded local stack now supplies fictional data for Android development.</p>
         <div class="decision">
           <article class="card">
             <span class="label">Removed</span>
@@ -374,9 +383,9 @@
             <p>The recreate command and destructive teardown SQL are gone.</p>
           </article>
           <article class="card">
-            <span class="label">Protected</span>
-            <h3>Tests and storage helpers</h3>
-            <p>Database tests default to local-only; storage cleanup requires explicit non-production confirmation.</p>
+            <span class="label">Verified</span>
+            <h3>Disposable local backend</h3>
+            <p>A clean reset and fictional seed passed all 15 pgTAP suites. Remote environment variables make the runner refuse execution.</p>
           </article>
           <article class="card">
             <span class="label">Standardised</span>
@@ -389,7 +398,7 @@
       <section aria-labelledby="shape">
         <p class="eyebrow">Target shape</p>
         <h2 id="shape">Together in Git, independent in code</h2>
-        <p class="section-intro">The iOS app stays where it is. Android gets its own Gradle build only after this foundation is reviewed.</p>
+        <p class="section-intro">The iOS app stays where it is. Android gets its own Gradle build and shares contracts, not platform code.</p>
         <div class="architecture" role="group" aria-label="Repository architecture">
           <article class="card">
             <span class="label">Existing</span>
@@ -419,15 +428,15 @@
 
       <section aria-labelledby="roadmap">
         <p class="eyebrow">Phased delivery</p>
-        <h2 id="roadmap">One review gate at a time</h2>
+        <h2 id="roadmap">Implementation sequence</h2>
         <ol class="roadmap">
-          <li class="current">
+          <li class="done">
             <span><strong class="phase-name">Safety and plan</strong><span class="phase-detail">Rules, issue tracker, report and production isolation.</span></span>
-            <span class="pill">In progress</span>
+            <span class="pill">Complete</span>
           </li>
-          <li>
+          <li class="current">
             <span><strong class="phase-name">Minimal Android skeleton</strong><span class="phase-detail">A compiling blank app and pure Kotlin test. No backend credentials.</span></span>
-            <span class="pill">Review first</span>
+            <span class="pill">Current</span>
           </li>
           <li>
             <span><strong class="phase-name">Behaviour parity</strong><span class="phase-detail">Shared fixtures prove Swift and Kotlin calculate the same answers.</span></span>
@@ -460,18 +469,18 @@
       </section>
 
       <section class="next" aria-labelledby="next">
-        <p class="eyebrow">Your next review</p>
-        <h2 id="next">Approve the foundation before scaffolding</h2>
+        <p class="eyebrow">Next action</p>
+        <h2 id="next">Create and verify the Android build</h2>
         <ul>
-          <li>Confirm the repository shape: existing iOS tree plus future <code>Apps/TabAndroid</code>.</li>
-          <li>Confirm the phase order and the production firewall above.</li>
-          <li>Then open one bounded Phase 1 issue for the empty Android skeleton—still with no Supabase connection.</li>
+          <li>Install a pinned Java and Android SDK toolchain plus an emulator.</li>
+          <li>Create <code>Apps/TabAndroid</code> with an app module and a pure Kotlin domain module.</li>
+          <li>Build, run unit tests, and boot the app on an emulator before starting behaviour parity.</li>
         </ul>
       </section>
     </main>
 
     <footer>
-      <span>Tracked in <a href="https://github.com/rithwikshetty/tab-it/issues/33">GitHub issue #33</a></span>
+      <span>Foundation: <a href="https://github.com/rithwikshetty/tab-it/issues/33">issue #33</a> · Fresh-install grants: <a href="https://github.com/rithwikshetty/tab-it/issues/34">issue #34</a></span>
       <span>Supporting research: <a href="../research/2026-07-29-android-repository-architecture.md">repository architecture note</a></span>
     </footer>
   </div>

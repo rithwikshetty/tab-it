@@ -33,6 +33,55 @@ vertical slice. Then create only the directories needed by the first compiling
 Android code and its tests. Empty future-facing module trees tend to encode
 guesses before the real dependency boundaries are known.
 
+## 2026-07-29 verification: is this the standard Android stack?
+
+Yes. A fresh check of Google's current first-party Android guidance supports
+the proposed Kotlin, Jetpack Compose, and Gradle stack:
+
+- **Kotlin is the recommended starting language for a new Android app.**
+  Android describes its tooling, libraries, samples, documentation, and
+  training as Kotlin-first and explicitly recommends starting a new app with
+  Kotlin. Java remains supported, so Kotlin-first does not mean Java is
+  obsolete
+  ([Android's Kotlin-first approach](https://developer.android.com/kotlin/first),
+  [Kotlin and Android](https://developer.android.com/kotlin/)).
+- **Jetpack Compose is the standard modern choice for a new native Android
+  interface.** Android calls Compose its recommended modern toolkit for native
+  UI and strongly recommends it for new apps across phones, tablets, foldables,
+  and Wear OS. Compose project templates use Kotlin because Compose is
+  Kotlin-based
+  ([Jetpack Compose](https://developer.android.com/compose),
+  [Android architecture recommendations](https://developer.android.com/topic/architecture/recommendations),
+  [Compose quick start](https://developer.android.com/develop/ui/compose/setup)).
+- **Gradle with the Android Gradle Plugin is the normal first-party build
+  path.** Android's build documentation says Android applications are typically
+  built with Gradle; the Android Gradle Plugin supplies the Android-specific
+  tasks, while the checked-in Gradle Wrapper makes builds repeatable
+  ([Gradle build overview](https://developer.android.com/build/gradle-build-overview),
+  [configure an Android build](https://developer.android.com/build)).
+- **Android Studio is the official, fully supported development environment.**
+  Android recommends it for the best Compose experience, including project
+  templates, previews, debugging, and Gradle integration
+  ([Compose quick start](https://developer.android.com/develop/ui/compose/setup),
+  [Android Studio templates](https://developer.android.com/studio/projects/templates)).
+
+The phrase **native Android app** needs one qualification. Compose is Google's
+native Android UI toolkit, so Kotlin plus Compose is unequivocally a mainstream
+native stack. Google does not require every company to choose native over
+Flutter, React Native, or Kotlin Multiplatform; that remains a product and team
+decision. For tab, a separate native Android client is the conservative choice
+because the existing iOS app is already native, the goal is full platform
+functionality, and it avoids rewriting a working production app merely to
+introduce shared runtime code.
+
+Therefore the recommendation is confirmed, not experimental:
+**Kotlin + Jetpack Compose + Gradle/Android Gradle Plugin in
+`Apps/TabAndroid`**. Room, WorkManager, repositories, and coroutines remain the
+appropriate Jetpack architecture building blocks described later in this note.
+Exact library and plugin versions should be selected when Phase 1 starts, so
+the skeleton uses mutually compatible current stable releases rather than
+version numbers frozen in this planning document.
+
 ## What “same repository” does and does not mean
 
 A Git repository boundary and a build-system boundary are different decisions.
