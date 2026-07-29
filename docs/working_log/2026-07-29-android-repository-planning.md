@@ -93,3 +93,19 @@ Opened GitHub issue #35 and created `Apps/TabAndroid` as an independent Gradle b
 ## 2026-07-29 14:24 BST — Phase 1 clean verification
 
 A clean build passed domain and app unit tests, Android lint, debug assembly, R8-minified release assembly, and the Compose instrumentation test on `Tab_API_36`. Installed and cold-launched the debug APK; ADB confirmed `MainActivity` resumed and the process stayed healthy. Visual inspection confirmed the foundation screen renders correctly with the sage palette. APK inspection found the expected `10.0.2.2:54321` URL only in debug and no local or hosted backend URL in release.
+
+## 2026-07-29 14:29 BST — Complete domain surface mapped
+
+Opened GitHub issue #36 for cross-platform behaviour parity. Mapped every public pure-logic area in Swift `TabCore`: exact money and currency precision, equal/exact/share/percentage splits, payer allocation, multi-payer balances, settlements, debt simplification, conflict resolution, trip state, trip analytics, cross-container friend balances, and Splitwise CSV import. The Android port stays in the pure JVM `:core:domain` module and has no Android, database, network, or production dependency.
+
+## 2026-07-29 14:39 BST — Kotlin domain port and shared contract
+
+Implemented the complete mapped rule set using `BigDecimal`, `BigInteger`, deterministic UUID ordering, currency minor units, soft-delete filtering, delete-wins conflict handling, and integer-minor-unit Splitwise reconstruction. Added `contracts/domain/parity-v1.json` as a platform-neutral contract and test adapters on both Swift and Kotlin. The fixture covers currency-specific equal-split remainders, multi-payer balance distribution, and trip-state boundaries.
+
+## 2026-07-29 14:43 BST — Parity harness corrections
+
+The first combined run exposed two harness details rather than product-rule differences: test working directories differed between SwiftPM and Gradle, and Kotlin `BigDecimal.equals` includes display scale while Swift `Decimal` numerical equality does not. The fixture lookup now discovers the repository root safely and balance assertions normalize decimal scale only for comparison. Direct Kotlin tests were added for all ported rule families, malformed import rows, deleted records, settlement direction, typed validation errors, multi-currency partitioning, and identity collapse.
+
+## 2026-07-29 14:46 BST — Phase 2 clean verification
+
+Swift `TabCore` passed all 158 tests across 12 suites, including the shared parity fixture. Android passed 22 pure-domain tests plus application unit tests, lint, debug assembly, and the minified release assembly in a clean 106-task run. The release build remains backend-unconfigured. No database, Supabase API, hosted service, or production credential was accessed during this phase.

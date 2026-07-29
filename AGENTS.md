@@ -24,7 +24,7 @@ tab/
 ├── Packages/TabCore/          ← Swift Package — pure-logic modules.
 │   ├── Sources/TabCore/       ← Money, SplitType, Models, SplitCalculator, BalanceEngine,
 │   │                              DebtSimplifier, TripStateDeriver, ConflictResolver.
-│   └── Tests/TabCoreTests/    ← Swift Testing (@Test/#expect), 44 tests.
+│   └── Tests/TabCoreTests/    ← Swift Testing (@Test/#expect), including shared Android parity fixtures.
 └── supabase/                   ← Postgres schema + RLS + DB tests.
     ├── migrations/
     └── tests/

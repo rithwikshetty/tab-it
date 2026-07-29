@@ -29,6 +29,12 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 ./gradlew connectedDebugAndroidTest
 ```
 
+The pure Kotlin `:core:domain` module contains the same accounting and sync
+rules as Swift `TabCore`: currency precision, split/payment calculation,
+multi-payer balances, debt simplification, conflict resolution, trip state and
+analytics, cross-container balances, and Splitwise import. Both platforms run
+the shared cases in `contracts/domain/parity-v1.json`.
+
 The checked-in debug backend is `http://10.0.2.2:54321`, Android Emulator's
 alias for the host machine's local Supabase API. Release builds contain no
 backend URL. Runtime validation refuses hosted Supabase URLs; there is no

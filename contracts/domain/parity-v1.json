@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "splitCases": [
+    {
+      "name": "GBP equal remainder follows UUID order",
+      "total": "10.00",
+      "currency": "GBP",
+      "participants": [
+        "00000000-0000-0000-0000-000000000003",
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002"
+      ],
+      "expected": ["3.33", "3.34", "3.33"]
+    },
+    {
+      "name": "JPY stays in whole units",
+      "total": "100",
+      "currency": "JPY",
+      "participants": [
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000003"
+      ],
+      "expected": ["33", "34", "33"]
+    },
+    {
+      "name": "KWD keeps three minor digits",
+      "total": "1.000",
+      "currency": "KWD",
+      "participants": [
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000003"
+      ],
+      "expected": ["0.334", "0.333", "0.333"]
+    }
+  ],
+  "balanceCases": [
+    {
+      "name": "two payers distribute one debtor exactly",
+      "currency": "GBP",
+      "total": "12.00",
+      "payments": [
+        {"person": "00000000-0000-0000-0000-000000000001", "amount": "8.00"},
+        {"person": "00000000-0000-0000-0000-000000000002", "amount": "4.00"}
+      ],
+      "splits": [
+        {"person": "00000000-0000-0000-0000-000000000003", "amount": "12.00"}
+      ],
+      "expected": [
+        {
+          "for": "00000000-0000-0000-0000-000000000001",
+          "with": "00000000-0000-0000-0000-000000000003",
+          "amount": "8.00"
+        },
+        {
+          "for": "00000000-0000-0000-0000-000000000002",
+          "with": "00000000-0000-0000-0000-000000000003",
+          "amount": "4.00"
+        }
+      ]
+    }
+  ],
+  "tripStateCases": [
+    {
+      "name": "settled recent trip remains active",
+      "lastActivity": "2026-06-15T12:00:00Z",
+      "now": "2026-07-14T12:00:00Z",
+      "hasBalance": false,
+      "expected": "active"
+    },
+    {
+      "name": "settled at thirty day boundary completes",
+      "lastActivity": "2026-06-14T12:00:00Z",
+      "now": "2026-07-14T12:00:00Z",
+      "hasBalance": false,
+      "expected": "completed"
+    },
+    {
+      "name": "outstanding balance dominates inactivity",
+      "lastActivity": "2025-01-01T12:00:00Z",
+      "now": "2026-07-14T12:00:00Z",
+      "hasBalance": true,
+      "expected": "active"
+    }
+  ]
+}

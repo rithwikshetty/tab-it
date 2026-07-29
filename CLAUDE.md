@@ -31,7 +31,7 @@ tab/
 │       │   ├── DebtSimplifier.swift      ← Pure: derived trip-wide repayments.
 │       │   ├── TripStateDeriver.swift    ← Pure: active vs completed derivation.
 │       │   └── ConflictResolver.swift    ← Pure: LWW with delete-wins + writeID tiebreaker.
-│       └── Tests/TabCoreTests/
+│       └── Tests/TabCoreTests/    ← Includes shared Android parity fixtures.
 └── supabase/                   ← Postgres schema + RLS + DB tests.
     ├── migrations/
     └── tests/

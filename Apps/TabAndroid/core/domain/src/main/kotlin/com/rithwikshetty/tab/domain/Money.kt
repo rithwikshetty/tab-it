@@ -16,13 +16,15 @@ public data class Money private constructor(
     }
 
     public companion object {
-        private val CurrencyPattern: Regex = Regex("[A-Z]{3}")
-
         public fun parse(amount: String, currency: String): Money {
-            require(CurrencyPattern.matches(currency)) {
+            val normalizedCurrency = CurrencyCatalog.normalizedCode(currency)
+            require(CurrencyCatalog.isCurrencyCode(normalizedCurrency)) {
                 "Currency must be a three-letter uppercase code."
             }
-            return Money(BigDecimal(amount), currency)
+            return Money(BigDecimal(amount), normalizedCurrency)
         }
+
+        public fun of(amount: BigDecimal, currency: String): Money =
+            parse(amount.toPlainString(), currency)
     }
 }
