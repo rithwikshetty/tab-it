@@ -1,5 +1,9 @@
 package com.rithwikshetty.tab.ui.expenses
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -75,7 +81,7 @@ fun ExpenseEditorScreen(
     existing: Expense?,
     isWorking: Boolean,
     onBack: () -> Unit,
-    onSave: (Expense) -> Unit,
+    onSave: (Expense, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var initialized by remember(existing?.id) { mutableStateOf(false) }
@@ -107,6 +113,12 @@ fun ExpenseEditorScreen(
     val exactAmounts = remember(existing?.id) { mutableStateMapOf<UUID, String>() }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var receiptUri by remember(existing?.id) { mutableStateOf<String?>(null) }
+    val receiptPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        receiptUri = uri?.toString()
+    }
 
     val currentPersonId = people.firstOrNull { it.userId == currentUserId }?.id
     val defaultPayerId = currentPersonId ?: people.firstOrNull()?.id
@@ -171,7 +183,7 @@ fun ExpenseEditorScreen(
                                     existing = existing,
                                 )
                             }.onSuccess {
-                                onSave(it)
+                                onSave(it, receiptUri)
                                 onBack()
                             }.onFailure {
                                 errorMessage = it.message ?: "Check the expense details."
@@ -268,6 +280,31 @@ fun ExpenseEditorScreen(
                         Text(
                             expenseDate.atZone(ZoneId.systemDefault())
                                 .format(expenseDateFormatter),
+                        )
+                    }
+                }
+            }
+
+            item {
+                FormSection(title = "Receipt") {
+                    Text(
+                        text = when {
+                            receiptUri != null -> "New receipt selected"
+                            existing?.receiptStoragePath != null -> "Receipt attached"
+                            else -> "No receipt"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(
+                        onClick = { receiptPicker.launch("image/*") },
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text(
+                            if (receiptUri != null || existing?.receiptStoragePath != null) {
+                                "Replace receipt"
+                            } else {
+                                "Add receipt"
+                            },
                         )
                     }
                 }
@@ -386,12 +423,19 @@ fun ExpenseDetailScreen(
     expense: Expense?,
     people: List<LocalPerson>,
     category: LocalCategory?,
+    onLoadReceipt: (String, (ByteArray) -> Unit) -> Unit,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var receiptBytes by remember(expense?.id) { mutableStateOf<ByteArray?>(null) }
+    LaunchedEffect(expense?.receiptStoragePath) {
+        expense?.receiptStoragePath?.let { path ->
+            onLoadReceipt(path) { receiptBytes = it }
+        }
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -466,6 +510,38 @@ fun ExpenseDetailScreen(
                                 text = expense.paymentMethod.displayName(),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                    }
+                }
+                if (expense.receiptStoragePath != null) {
+                    item {
+                        FormSection("Receipt") {
+                            val bytes = receiptBytes
+                            if (bytes == null) {
+                                Text(
+                                    "Loading receipt",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                val bitmap = remember(bytes) {
+                                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                }
+                                if (bitmap == null) {
+                                    Text(
+                                        "Couldn't display receipt",
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                } else {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Receipt image",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(260.dp),
+                                        contentScale = ContentScale.Fit,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

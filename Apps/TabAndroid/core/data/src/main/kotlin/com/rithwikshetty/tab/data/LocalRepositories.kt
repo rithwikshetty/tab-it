@@ -249,6 +249,9 @@ public class LocalExpenseRepository(
     public suspend fun find(id: UUID): Expense? =
         database.expenses().findAggregate(id.toString())?.toDomain()
 
+    public suspend fun findReceiptLocalUri(id: UUID): String? =
+        database.expenses().findReceiptDraft(id.toString())?.localUri
+
     public suspend fun save(
         expense: Expense,
         writeId: UUID = UUID.randomUUID(),
@@ -305,6 +308,17 @@ public class LocalExpenseRepository(
                     createdAt = expense.updatedAt.toString(),
                 ),
             )
+            if (receiptLocalUri != null) {
+                database.outbox().enqueue(
+                    OutboxEntity(
+                        entityType = "receipt",
+                        entityId = entity.id,
+                        operation = "upload",
+                        writeId = stamp.writeId,
+                        createdAt = expense.updatedAt.toString(),
+                    ),
+                )
+            }
         }
     }
 

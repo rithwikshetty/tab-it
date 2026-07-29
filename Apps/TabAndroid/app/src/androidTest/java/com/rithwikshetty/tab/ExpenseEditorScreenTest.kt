@@ -49,7 +49,7 @@ class ExpenseEditorScreenTest {
                     existing = null,
                     isWorking = false,
                     onBack = { backCount += 1 },
-                    onSave = { saved = it },
+                    onSave = { expense, _ -> saved = expense },
                 )
             }
         }
@@ -58,6 +58,7 @@ class ExpenseEditorScreenTest {
         composeRule.onNodeWithText("Description is required.").assertIsDisplayed()
 
         composeRule.onNodeWithTag("expenseDescription").performTextInput("Dinner")
+        composeRule.onNodeWithText("Add receipt").assertExists()
         composeRule.onNodeWithTag("expenseAmount").performTextReplacement("10.25")
         composeRule.onNodeWithTag("payerAmount-$PERSON_ID").performTextReplacement("10.25")
         composeRule.onNodeWithTag("saveExpense").performClick()

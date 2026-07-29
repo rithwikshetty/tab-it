@@ -1,5 +1,7 @@
 package com.rithwikshetty.tab.sync
 
+import android.graphics.Bitmap
+import android.graphics.Color
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,6 +18,8 @@ import com.rithwikshetty.tab.domain.PaymentMethod
 import com.rithwikshetty.tab.domain.Settlement
 import com.rithwikshetty.tab.domain.SplitType
 import java.math.BigDecimal
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.async
@@ -331,6 +335,43 @@ class LocalSupabaseIntegrationTest {
         val unmuted = SyncEngine(database, gateway).syncOnce()
         assertEquals(1, unmuted.pushed)
         assertTrue(gateway.pullSnapshot().mutePreferences.none { it.tripId == TRIP_ID.toString() })
+    }
+
+    @Test
+    fun receiptUploadsBeforeExpenseAndDownloadsFromPrivateLocalStorage() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val expenseId = UUID.randomUUID()
+        val path = "$TRIP_ID/$expenseId.jpg"
+        val bytes = ByteArrayOutputStream().use { output ->
+            Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888).run {
+                eraseColor(Color.WHITE)
+                compress(Bitmap.CompressFormat.JPEG, 85, output)
+                recycle()
+            }
+            output.toByteArray()
+        }
+        val file = File.createTempFile(
+            "receipt-",
+            ".jpg",
+            ApplicationProvider.getApplicationContext<android.content.Context>().cacheDir,
+        ).apply { writeBytes(bytes) }
+        val now = Instant.now()
+        LocalExpenseRepository(database).save(
+            testExpense(expenseId, now).copy(receiptStoragePath = path),
+            receiptLocalUri = file.toURI().toString(),
+        )
+
+        val report = SyncEngine(database, gateway).syncOnce()
+
+        assertEquals(2, report.pushed)
+        assertEquals(path, gateway.pullSnapshot().expenses.single {
+            it.expense.id == expenseId.toString()
+        }.expense.receiptStoragePath)
+        val downloaded = gateway.downloadReceipt(path)
+        assertTrue(downloaded.size > 2)
+        assertEquals(-1, downloaded[0].toInt())
+        assertEquals(-40, downloaded[1].toInt())
     }
 
     private fun testExpense(id: UUID, now: Instant): Expense = Expense(

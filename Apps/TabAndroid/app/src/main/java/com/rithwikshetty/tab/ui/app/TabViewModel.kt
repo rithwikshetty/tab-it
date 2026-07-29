@@ -1,5 +1,6 @@
 package com.rithwikshetty.tab.ui.app
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -229,10 +230,32 @@ class TabViewModel(
             .start(viewModelScope, id.toString())
     }
 
-    fun saveExpense(expense: Expense) {
+    fun saveExpense(expense: Expense, receiptUri: String?) {
         launchWorking {
-            container.expenseRepository.save(expense)
+            val prepared = receiptUri?.let {
+                container.receiptStore.prepare(
+                    Uri.parse(it),
+                    expense.tripId,
+                    expense.id,
+                )
+            }
+            val storedExpense = prepared?.let {
+                expense.copy(receiptStoragePath = it.remotePath)
+            } ?: expense
+            container.expenseRepository.save(storedExpense, receiptLocalUri = prepared?.localUri)
             sync()
+        }
+    }
+
+    fun loadReceipt(expenseId: UUID, remotePath: String, onLoaded: (ByteArray) -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                val local = container.expenseRepository
+                    .findReceiptLocalUri(expenseId)
+                    ?.let { container.receiptStore.readLocal(it) }
+                local ?: checkNotNull(container.remoteGateway).downloadReceipt(remotePath)
+            }.onSuccess(onLoaded)
+                .onFailure { message.value = "Couldn't load receipt." }
         }
     }
 

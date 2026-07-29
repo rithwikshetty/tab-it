@@ -5,6 +5,8 @@ import com.rithwikshetty.tab.data.local.TabDatabase
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.io.File
+import java.net.URI
 import kotlin.math.min
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -129,6 +131,25 @@ public class SyncEngine(
                         database.preferences().deleteMute(mute.tripId, mute.userId)
                     }
                 }
+                database.outbox().acknowledge(item.sequence)
+            }
+            "receipt" -> {
+                val draft = database.expenses().findReceiptDraft(item.entityId)
+                if (draft == null) {
+                    database.outbox().acknowledge(item.sequence)
+                    return
+                }
+                val path = checkNotNull(draft.remotePath) {
+                    "A receipt upload requires a remote path."
+                }
+                val file = File(URI(draft.localUri))
+                check(file.isFile) { "The local receipt file is unavailable." }
+                remote.uploadReceipt(path, file.readBytes())
+                database.expenses().updateReceiptState(
+                    item.entityId,
+                    "uploaded",
+                    clock.instant().toString(),
+                )
                 database.outbox().acknowledge(item.sequence)
             }
             else -> error("Unsupported outbox entity type: ${item.entityType}")

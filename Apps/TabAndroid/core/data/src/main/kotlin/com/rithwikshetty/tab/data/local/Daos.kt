@@ -168,6 +168,22 @@ public interface ExpenseDao {
     @Upsert
     public suspend fun upsertReceiptDraft(receipt: ReceiptDraftEntity)
 
+    @Query("SELECT * FROM receipt_drafts WHERE expense_id = :expenseId")
+    public suspend fun findReceiptDraft(expenseId: String): ReceiptDraftEntity?
+
+    @Query(
+        """
+        UPDATE receipt_drafts
+        SET upload_state = :state, updated_at = :updatedAt
+        WHERE expense_id = :expenseId
+        """,
+    )
+    public suspend fun updateReceiptState(
+        expenseId: String,
+        state: String,
+        updatedAt: String,
+    ): Int
+
     @Query("DELETE FROM expense_payments WHERE expense_id = :expenseId")
     public suspend fun deletePayments(expenseId: String)
 

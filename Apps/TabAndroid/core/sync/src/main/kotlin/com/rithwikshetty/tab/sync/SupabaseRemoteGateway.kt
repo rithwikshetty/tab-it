@@ -18,6 +18,8 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.storage
 import java.util.UUID
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
@@ -304,6 +306,23 @@ public class SupabaseRemoteGateway private constructor(
         return JoinedTrip(row.tripId, row.personId, row.tripName)
     }
 
+    override suspend fun uploadReceipt(path: String, bytes: ByteArray) {
+        checkNotNull(currentUser()) { "Authentication is required before uploading a receipt." }
+        require(path.matches(RECEIPT_PATH_PATTERN)) { "Invalid receipt storage path." }
+        require(bytes.isNotEmpty() && bytes.size <= MAX_RECEIPT_BYTES) {
+            "Receipt must be a JPEG no larger than 10 MB."
+        }
+        client.storage["receipts"].upload(path, bytes) {
+            upsert = true
+        }
+    }
+
+    override suspend fun downloadReceipt(path: String): ByteArray {
+        checkNotNull(currentUser()) { "Authentication is required before loading a receipt." }
+        require(path.matches(RECEIPT_PATH_PATTERN)) { "Invalid receipt storage path." }
+        return client.storage["receipts"].downloadAuthenticated(path)
+    }
+
     override suspend fun addTripPerson(
         tripId: String,
         email: String,
@@ -419,6 +438,11 @@ public class SupabaseRemoteGateway private constructor(
     }
 
     public companion object {
+        private const val MAX_RECEIPT_BYTES: Int = 10 * 1024 * 1024
+        private val RECEIPT_PATH_PATTERN: Regex = Regex(
+            "[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}\\.jpg",
+        )
+
         public fun create(configuration: LocalBackendConfiguration): SupabaseRemoteGateway {
             val client = createSupabaseClient(
                 supabaseUrl = configuration.baseUrl,
@@ -427,6 +451,7 @@ public class SupabaseRemoteGateway private constructor(
                 install(Auth)
                 install(Postgrest)
                 install(Realtime)
+                install(Storage)
             }
             return SupabaseRemoteGateway(client)
         }

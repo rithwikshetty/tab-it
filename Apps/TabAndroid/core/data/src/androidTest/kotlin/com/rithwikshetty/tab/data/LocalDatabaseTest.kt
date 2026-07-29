@@ -73,9 +73,10 @@ class LocalDatabaseTest {
         assertNotNull(database.expenses().findAggregate(expense.id.toString())?.receiptDraft)
 
         val outbox = database.outbox().observeAll().first()
-        assertEquals(1, outbox.size)
-        assertEquals("upsert", outbox.single().operation)
-        assertEquals(expense.id.toString(), outbox.single().entityId)
+        assertEquals(2, outbox.size)
+        assertEquals(listOf("expense", "receipt"), outbox.map(OutboxEntity::entityType))
+        assertEquals(listOf("upsert", "upload"), outbox.map(OutboxEntity::operation))
+        assertTrue(outbox.all { it.entityId == expense.id.toString() })
     }
 
     @Test

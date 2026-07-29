@@ -100,6 +100,7 @@ fun TabApp(
             onArchiveTrip = viewModel::archiveTrip,
             onTripVisible = viewModel::setVisibleTrip,
             onSaveExpense = viewModel::saveExpense,
+            onLoadReceipt = viewModel::loadReceipt,
             onDeleteExpense = viewModel::deleteExpense,
             onSaveSettlement = viewModel::saveSettlement,
             onDeleteSettlement = viewModel::deleteSettlement,
@@ -126,7 +127,8 @@ private fun SignedInApp(
     onRenameTrip: (UUID, String) -> Unit,
     onArchiveTrip: (UUID, () -> Unit) -> Unit,
     onTripVisible: (UUID?) -> Unit,
-    onSaveExpense: (com.rithwikshetty.tab.domain.Expense) -> Unit,
+    onSaveExpense: (com.rithwikshetty.tab.domain.Expense, String?) -> Unit,
+    onLoadReceipt: (UUID, String, (ByteArray) -> Unit) -> Unit,
     onDeleteExpense: (UUID) -> Unit,
     onSaveSettlement: (
         UUID,
@@ -348,6 +350,9 @@ private fun SignedInApp(
                     people = tripContent.people,
                     category = tripContent.categories
                         .firstOrNull { it.id == expense?.categoryId },
+                    onLoadReceipt = { path, onLoaded ->
+                        onLoadReceipt(expenseId, path, onLoaded)
+                    },
                     onBack = navController::popBackStack,
                     onEdit = {
                         navController.navigate(

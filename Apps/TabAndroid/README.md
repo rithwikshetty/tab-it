@@ -49,8 +49,9 @@ builds seed only fictional local rows; release builds start empty.
 
 The Android-only `:core:sync` module owns local authentication, typed Supabase
 transport, snapshot-to-Room conflict handling, ordered outbox delivery, retry
-backoff, and current-trip realtime refresh. The community-maintained Supabase
-Kotlin dependency stays behind the `RemoteGateway` interface.
+backoff, current-trip realtime refresh, invitation RPCs, and private receipt
+Storage. The community-maintained Supabase Kotlin dependency stays behind the
+`RemoteGateway` interface.
 
 The app is a single-activity Compose client with manual dependency injection,
 screen-level state held by `TabViewModel`, and Room-backed flows collected with
@@ -65,7 +66,9 @@ active or invited people, pair balances, simplified repayment suggestions, and
 settlement history. Expense create and edit support exact decimal amounts,
 currency, category, date, payment method, multiple payers, and equal or exact
 splits; save and delete are local-first outbox operations. Settlement create,
-edit, and delete use the same Room-first outbox boundary.
+edit, and delete use the same Room-first outbox boundary. Receipt images are
+downsampled and converted to JPEG in app-private storage, then the expense is
+created before the authenticated private-bucket upload required by Storage RLS.
 
 Friends aggregates each signed-in user's position across trip and non-group
 containers without converting currencies. Friend detail breaks a balance down
@@ -74,6 +77,11 @@ form. The people-first friend expense flow resolves the existing server-managed
 non-group container through the local RPC, then uses the same expense editor as
 a trip. Member add and remove also use the existing Supabase RPCs, so these
 operations require the disposable local service to be running.
+
+Activity is pulled into Room and presented with per-user unread and mute rules.
+Read state is acknowledged through `mark_activity_seen`. Trip members can share
+or revoke an invite link, and signed-in users can join with the same web-link
+token contract used by iOS.
 
 The generated and ignored `local.properties` points debug builds at
 `http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse

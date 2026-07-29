@@ -19,6 +19,7 @@ class TabContainer(context: Context) {
     val settlementRepository: LocalSettlementRepository = LocalSettlementRepository(database)
     val balanceRepository: LocalBalanceRepository = LocalBalanceRepository(database)
     val activityRepository: LocalActivityRepository = LocalActivityRepository(database)
+    val receiptStore: ReceiptLocalStore = ReceiptLocalStore(context.applicationContext)
 
     private val backendConfiguration: LocalBackendConfiguration? =
         LocalBackendConfiguration.debugOrNull()

@@ -84,6 +84,12 @@ public interface RemoteGateway {
     public suspend fun joinTripWithInvite(token: String): JoinedTrip =
         error("Trip invitations are not implemented.")
 
+    public suspend fun uploadReceipt(path: String, bytes: ByteArray): Unit =
+        error("Receipt storage is not implemented.")
+
+    public suspend fun downloadReceipt(path: String): ByteArray =
+        error("Receipt storage is not implemented.")
+
     public suspend fun addTripPerson(
         tripId: String,
         email: String,
