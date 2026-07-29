@@ -30,8 +30,9 @@ The editable Supabase contract lives here. Files are numbered because order matt
 
 1. Add or edit the narrowest numbered file.
 2. Add/update a pgTAP test in `supabase/tests/` for behavior changes.
-3. Run `./supabase/scripts/build_schema.sh --write`.
-4. Run `bash supabase/tests/00_sql_assembly.sh`.
-5. Recreate a disposable DB with `./supabase/scripts/recreate_db.sh` and run the pgTAP files.
+3. Design a new forward-only migration; never rewrite the deployed baseline.
+4. Test the proposed change in an explicitly isolated non-production environment.
+5. Run `bash supabase/tests/00_sql_assembly.sh` for the local static source check.
+6. Obtain explicit approval before any production deployment.
 
 `supabase/schema.sql` is intentionally only a pointer. Do not put DDL there.

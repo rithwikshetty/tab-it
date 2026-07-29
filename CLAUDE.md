@@ -4,7 +4,7 @@ Project guidance for Claude Code. Read this before changing anything.
 
 ## What tab is
 
-A Splitwise replacement for tracking expenses on group trips. Headed for a public App Store release; no monetisation, no ads. iOS-first (iOS 18+). App Store name: tab-it; domain: tab-it.app. The "pre-launch, no real users" database conventions below hold until launch, then flip to compatibility-preserving migrations.
+A Splitwise replacement for tracking expenses on group trips. No monetisation or ads. The iOS app is live, the domain is tab-it.app, and Supabase production contains real user data. Android is planned as a phased native client; production compatibility and data preservation are mandatory.
 
 Pain points being solved: Splitwise's paywall, ads, and aggressive upsells.
 
@@ -12,6 +12,8 @@ Pain points being solved: Splitwise's paywall, ads, and aggressive upsells.
 
 ```
 tab/
+├── Apps/
+│   └── Tab/                    ← Existing iOS app.
 ├── design/
 │   ├── mockups/                ← Main app screen mockups (v1, v2, …). Sage palette source of truth.
 │   ├── expense-entry/          ← Expense entry flow mockups.
@@ -34,7 +36,7 @@ tab/
     └── tests/
 ```
 
-The iOS app target will be added later under `Apps/` (or root) and depends on `TabCore` via local SwiftPM. Supabase hosts auth + realtime + storage + edge functions; the app is offline-first with sync.
+The iOS app depends on `TabCore` via local SwiftPM. A future native Android Gradle build will live at `Apps/TabAndroid` without moving the iOS tree. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
 
 ## Tech stack — locked
 
@@ -59,27 +61,23 @@ The iOS app target will be added later under `Apps/` (or root) and depends on `T
 - **Tests live in `Tests/<TargetName>Tests/`** — canonical SPM layout.
 - **`.build/` and `.swiftpm/` are gitignored** — never commit them.
 - **Keep a live working log in `docs/working_log/`** while executing actual repo work. Name files `YYYY-MM-DD-descriptive-slug.md`. The log is **chronological and append-only**: start with the goal, then append each meaningful update (findings, direction changes, blockers, pivots, decisions, validations) as a new timestamped entry. Never rewrite or remove earlier entries — the point is a full narrative of how the work unfolded, including dead ends and changes in direction.
+- **Use GitHub Issues as the main work tracker.** Create or identify one bounded issue before implementing a phase or substantial deliverable. Add concise comments at meaningful milestones: start, material decision or blocker, validation, and completion. Link the relevant report, pull request, or commit; do not paste raw logs or secrets into issues.
+- **Explain plans and phase outcomes with concise HTML reports in `docs/reports/`.** Name reports `YYYY-MM-DD-descriptive-slug.html`. Prefer one living report per initiative, updated as phases progress. Reports must be self-contained, readable on mobile and desktop, visually use the established sage palette, and state the outcome, scope, decisions, risks, current phase, evidence, and next action without repeating the same information in multiple sections.
 
 ## Database
 
-- Pre-launch default: there are no real users. Prefer destructive schema evolution and full DB recreation/reset over compatibility-preserving migration chains.
-- Unless the user explicitly asks to preserve existing data, agents may drop and recreate tables, policies, functions, triggers, and related DB objects.
-- Dummy/seed data is disposable. Recreate and reseed freely when validating features.
-- Editable database SQL lives in numbered files under `supabase/sql/`. `supabase/schema.sql` is only a small source map.
-- After editing `supabase/sql/*.sql`, run `./supabase/scripts/build_schema.sh --write` and `bash supabase/tests/00_sql_assembly.sh` so the generated baseline stays in sync.
-- Migration strategy is baseline-first: rewrite/squash `supabase/migrations/20260518000000_baseline.sql` via the build script; do not create incremental migration chains unless the user explicitly asks.
-- For agents with Supabase MCP access, use MCP for remote destructive DB work. Prefer `apply_migration` with the current baseline/destructive SQL; use `reset_branch` for disposable Supabase development branches.
-- CLI fallback/human reset command: `./supabase/scripts/recreate_db.sh` (builds the schema from `supabase/sql/*.sql`, then applies `destructive_teardown.sql` + the generated schema via `supabase db query` against the linked DB or `SUPABASE_DB_URL`).
-- Run the pgTAP suites with `./supabase/scripts/run_db_tests.sh` (every `supabase/tests/[0-9]*.sql` against the linked DB; each is transactional and rolls back).
-- Receipt storage objects/buckets cannot be deleted with raw SQL. Use `./supabase/scripts/clear_receipts_storage.sh`; pass `SUPABASE_SERVICE_ROLE_KEY` and `--delete-bucket` to delete the bucket itself.
-- Remote DB resets do not clear local SwiftData. If stale trips still appear in the app, uninstall the app from the simulator/device or reset simulator content.
-- DB tests live in `supabase/tests/` as pgTAP `.sql` files.
+- **Production contains real users and must be preserved.** Treat production Supabase, Auth, Storage, Realtime, Edge Functions, and user data as read-only by default.
+- Never reset, recreate, drop, truncate, reseed, or bulk-delete production data or schema objects. The repository intentionally provides no database-recreation command.
+- Do not run Supabase CLI, MCP, SQL, migrations, Storage cleanup, Auth changes, or remote tests against production unless the user explicitly authorizes that exact operation in the current task and the exact project target has been verified first.
+- Development and automated tests must use mocks, a local Supabase stack, or an explicitly isolated non-production project/branch. Debug builds must never silently fall back to production configuration.
+- The deployed baseline migration is immutable. Do not rewrite or squash an applied migration. Any future database change requires a forward-only, compatibility-preserving migration designed for existing users, tested locally and in an isolated environment, with backup, rollback, and production approval documented before deployment.
+- Editable database SQL currently lives in numbered files under `supabase/sql/`, with `supabase/schema.sql` as a source map. Do not edit SQL, migrations, RLS, functions, Auth, Realtime, or Storage configuration until a production-safe migration plan for the specific change is approved.
+- `bash supabase/tests/00_sql_assembly.sh` is a local static source-consistency check and does not connect to a database. pgTAP tests in `supabase/tests/` may run only against an isolated non-production target.
 - **RLS is mandatory** on every public table. Every test must verify both the allow and deny path.
 - Mutable synced row-tables use `updated_at` + `write_id` (UUID), plus `deleted_at` where the row is soft-deleted.
 - Direct `trip_people` insert is forbidden for clients. Trip creation goes through `create_trip_with_self`; adding people goes through `add_trip_person_by_email`; sign-in claims go through `claim_trip_people_for_current_email`.
 - Expense + split writes must be transactional; the DB enforces split totals and trip-person references for payers, participants, settlements, categories, and mute prefs.
 - Trip access derives from joined `trip_people` rows — RLS policies all read from it.
-- Default remote apply path for agents is Supabase MCP. Use `./supabase/scripts/recreate_db.sh` when MCP is unavailable or when a human wants a terminal command.
 
 ## Design mockups
 
@@ -101,11 +99,11 @@ Mockups live in `design/` organised by feature area, one subfolder per area:
 
 ## What NOT to do
 
-- **No Android.** iOS-only.
+- Android work must follow the approved phased plan and its GitHub issue; do not start unplanned platform work.
 - **No Double for money.** Decimal only. If you see a `Double` near money, fix it.
 - **No `XCTest` migrations.** Stay on Swift Testing.
-- **No mocking SwiftData or Supabase in unit tests.** TabCore is pure — it doesn't need mocks. Integration tests use real Supabase (separate test schema or branch).
-- **No backwards-compat shims, no feature flags for in-flight work, no deprecated/legacy aliases.** Change the code; we have no prod users yet.
+- **No mocking SwiftData or Supabase in unit tests.** TabCore is pure — it doesn't need mocks. Integration tests use an isolated non-production environment.
+- Do not break persisted data, deployed contracts, authentication identities, or older installed clients. Production changes require an explicit compatibility and rollout plan.
 - **No emojis in code or commits** unless the user explicitly asked for them. (Emojis in mockup HTMLs are intentional — categories.)
 
 ## Running things
@@ -117,9 +115,8 @@ cd Packages/TabCore && swift test
 # Open mockups (main app screens)
 open design/mockups/v1.html
 
-# Supabase — verify split SQL, then destructive reset/recreate
+# Static SQL source assembly check only; does not connect to a database
 bash supabase/tests/00_sql_assembly.sh
-./supabase/scripts/recreate_db.sh
 ```
 
 ### Developer mode (mock auth)
@@ -139,5 +136,7 @@ session_set_defaults with env: {"TAB_MOCK_AUTH": "1"}
 ## Where to find things
 
 - **Design tokens (Sage palette)** → `design/mockups/v1.html` — Sage hex values are the locked source of truth; port them to the Asset Catalog when scaffolding the app.
+- **Plans and phase reports** → `docs/reports/`
+- **Work tracking** → GitHub Issues in `rithwikshetty/tab-it`
 - **Supabase project ref** → set locally with `SUPABASE_PROJECT_REF`; no public default is checked in.
 - **MCP servers** → `.mcp.json` (Supabase MCP is HTTP-typed).

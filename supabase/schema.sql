@@ -9,9 +9,9 @@
 --
 -- Common commands:
 --   ./supabase/scripts/build_schema.sh --check   # verify generated baseline
---   ./supabase/scripts/build_schema.sh --write   # refresh generated baseline
---   ./supabase/scripts/recreate_db.sh            # destructive reset + apply
+--   bash supabase/tests/00_sql_assembly.sh       # local static check only
 --
--- This file is intentionally small. Do not put schema DDL here; add or edit the
--- narrowest numbered file in supabase/sql/ instead.
+-- Production contains real user data. Never rewrite the deployed baseline or
+-- apply changes without an approved forward-only migration and rollout plan.
+-- This file is intentionally small; do not put schema DDL here.
 -- ============================================================================

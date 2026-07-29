@@ -4,6 +4,10 @@
 
 Accepted — 2026-05-18
 
+Historical note — 2026-07-29: this ADR records the pre-production conditions
+under which the decision was made. Production now contains real users; its
+destructive database assumptions and commands are no longer valid.
+
 ## Context
 
 `PRD.md` line 198 lists *"Multiple payers per expense"* as explicitly out-of-scope, deferred to a later phase. The original schema modelled the payer as a single column on the expense row:
@@ -15,9 +19,15 @@ expenses.payer_id : UUID
 During the design grill for the expense-entry flow, the user's actual mental model surfaced: a real trip expense routinely has **multiple payers** (e.g., A and B split a €250 dinner check 100/100/50). Treating that as V2 would force one of two bad outcomes:
 
 1. **Log as multiple distinct expenses, one per payer.** Breaks the "one bill, one expense" mental model — each fragment has its own receipt-attachment, category, description. Doubles or triples the entry effort. Pollutes the activity log.
-2. **Defer and rewrite later.** Pre-launch this is cheap; post-launch it requires destructive schema change across all live data + clients.
+2. **Defer and rewrite later.** Before production this was cheap; after release
+   it would require a carefully migrated change across live data and installed
+   clients.
 
-Tab has **zero real users** today. CLAUDE.md explicitly blesses destructive schema evolution at this stage: *"Pre-launch default: there are no real users. Prefer destructive schema evolution and full DB recreation/reset…"*. The cost of adopting multi-payer now is mechanical schema work plus a balance-engine refactor; the cost of deferring is permanent data-model debt the moment we have real users.
+At the time of this decision, tab had not entered production, so wholesale
+schema replacement was still possible. That condition no longer applies. The
+cost of adopting multi-payer then was mechanical schema work plus a
+balance-engine refactor; the cost of deferring would have become permanent
+data-model debt once real users existed.
 
 ## Decision
 
@@ -67,7 +77,8 @@ Adopt multi-payer from the start.
 
 ## Consequences
 
-- Schema needs a destructive recreate (see CLAUDE.md → `supabase/scripts/recreate_db.sh` or Supabase MCP `apply_migration`).
+- At the time of this decision, the pre-production schema was recreated. That
+  historical workflow must not be used against the current production system.
 - `PRD.md` line 198 must be removed from out-of-scope; the user-stories section gains a story for multi-payer entry.
 - New TabCore tests:
   - Payment-ledger Equal/Exact parity with split-ledger tests.
@@ -80,4 +91,5 @@ Adopt multi-payer from the start.
 - **Keep `payer_id`, add `expense_payments` only when N > 1.** Two sources of truth — `null` payer_id meaning "see table". Reads branch. Rejected.
 - **Store payments as JSON column on `expenses`.** Cheap migration, but loses DB-enforced sum invariant, RLS granularity, and queryability for future "expenses where I paid" views. Rejected.
 - **Model each payment as a separate expense row grouped by `parent_id`.** Most general (could absorb sub-receipts). Rewires balance engine and UI completely for an edge case. Rejected as overkill.
-- **Defer to a later phase.** See Context — would force destructive change post-launch. Rejected.
+- **Defer to a later phase.** See Context — would force a complex live-data and
+  client migration after release. Rejected.

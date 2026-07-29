@@ -42,6 +42,6 @@ State of the App Store release as of 18 July 2026. Update this file as items com
 - Review typically takes 1–2 days for a first app; expect at least one round of
   questions. The review notes suggestion in metadata.md explains the
   no-password sign-in.
-- Once live: the pre-launch "destructive DB, no migrations" convention in
-  CLAUDE.md flips to compatibility-preserving migrations. Big schema changes
-  get harder; plan accordingly when scoping later releases.
+- [x] Production-safe database conventions are active: no reset/recreate
+      command, applied migrations are immutable, and future changes require
+      forward-only compatibility-preserving migrations.

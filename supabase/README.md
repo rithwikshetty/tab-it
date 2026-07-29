@@ -1,24 +1,22 @@
 # tab Supabase contract
 
-The editable database contract is split across numbered files in `sql/`. `schema.sql` is only a small source map; do not put DDL there. This repo is pre-launch with no real users, so schema iteration is intentionally destructive by default.
+The editable database contract is split across numbered files in `sql/`. `schema.sql` is only a small source map; do not put DDL there.
 
-Default workflow:
+## Production safety
 
-1. Edit the narrowest file in `sql/`.
-2. Add/update pgTAP coverage in `tests/` for behavior changes.
-3. Run `./scripts/build_schema.sh --write` to refresh the generated baseline migration.
-4. Run `bash tests/00_sql_assembly.sh` to verify the baseline matches `sql/*.sql`.
-5. Agents with Supabase MCP access should apply destructive remote changes through MCP.
-6. Humans or sessions without MCP can recreate the target DB with `./scripts/recreate_db.sh`.
+- Production contains real user data. It is read-only by default.
+- This repository provides no database-recreation or destructive-teardown command.
+- Never run SQL, migrations, tests, Auth changes, Storage cleanup, Realtime changes, or Edge Function changes against production without explicit approval for the exact operation and verified project target.
+- Development and tests use mocks, a local stack, or an explicitly isolated non-production project/branch.
+- The deployed baseline migration is immutable. Future changes require new forward-only, compatibility-preserving migrations and a reviewed backup, rollback, and deployment plan.
 
-Remote DB resets do not clear the app's local SwiftData store. Delete the app
-from the simulator/device, or reset simulator content, when validating a truly
-empty app state.
+`bash tests/00_sql_assembly.sh` is safe to run locally because it only checks
+checked-in source assembly and does not connect to any database. Do not edit the
+split SQL or migration files until the specific production-safe migration plan
+has been approved.
 
-Receipt files live in Supabase Storage and are not deleted by SQL teardown.
-Use `./scripts/clear_receipts_storage.sh` to empty the `receipts` bucket. To
-delete the bucket itself, run it with `SUPABASE_PROJECT_REF`,
-`SUPABASE_SERVICE_ROLE_KEY`, and `--delete-bucket`.
+The receipt cleanup helper is restricted to explicitly confirmed,
+non-production environments. It must never be used with production credentials.
 
 ## Client write paths
 
@@ -42,4 +40,4 @@ Direct inserts into `trip_people` are not a public client API. RLS intentionally
 
 ## Test workflow
 
-Run `bash supabase/tests/00_sql_assembly.sh` locally first; it verifies the split SQL sources generate the checked-in baseline. Then run pgTAP files in `supabase/tests/` against a disposable database or branch. Each SQL test wraps itself in `BEGIN ... ROLLBACK`.
+Run `bash supabase/tests/00_sql_assembly.sh` locally first; it verifies the split SQL sources generate the checked-in baseline. Run pgTAP files only against an isolated non-production database. The test runner defaults to the local Supabase stack and never uses a linked remote project.

@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Runs every pgTAP suite in supabase/tests against the linked database.
+# Runs every pgTAP suite in supabase/tests against the local Supabase stack.
 # Each suite is transactional (begin … rollback) so the DB is left untouched.
 # Usage: ./supabase/scripts/run_db_tests.sh [test-file …]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-if [[ -f "$ROOT_DIR/.env.local" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "$ROOT_DIR/.env.local"
-  set +a
-fi
-
-SUPABASE_CMD=(npx --yes supabase db query --workdir "$ROOT_DIR" --linked)
+# Deliberately do not source .env.local and do not use --linked. Database tests
+# must never fall back to the production project.
+SUPABASE_CMD=(npx --yes supabase db query --workdir "$ROOT_DIR" --local)
 
 files=("$@")
 if [[ ${#files[@]} -eq 0 ]]; then
