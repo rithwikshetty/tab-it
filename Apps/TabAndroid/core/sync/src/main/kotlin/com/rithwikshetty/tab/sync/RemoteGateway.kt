@@ -39,6 +39,11 @@ public data class PushReceipt(
     public val acceptedWriteId: String,
 )
 
+public data class RemoteParticipant(
+    public val email: String,
+    public val displayName: String,
+)
+
 public interface RemoteGateway {
     public suspend fun restoreSession(): AuthenticatedUser?
 
@@ -56,6 +61,8 @@ public interface RemoteGateway {
 
     public suspend fun pushTrip(trip: TripEntity, creator: TripPersonEntity?): PushReceipt
 
+    public suspend fun pushSettlement(settlement: SettlementEntity): PushReceipt
+
     public suspend fun addTripPerson(
         tripId: String,
         email: String,
@@ -64,6 +71,10 @@ public interface RemoteGateway {
     )
 
     public suspend fun removeTripPerson(personId: String)
+
+    public suspend fun resolveNonGroupContainer(
+        participants: List<RemoteParticipant>,
+    ): String
 
     public fun observeCurrentTripChanges(tripId: String): Flow<Unit>
 }

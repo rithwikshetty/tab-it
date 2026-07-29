@@ -1,6 +1,7 @@
 package com.rithwikshetty.tab.sync
 
 import com.rithwikshetty.tab.data.local.ExpenseWithLedger
+import com.rithwikshetty.tab.data.local.SettlementEntity
 import com.rithwikshetty.tab.data.local.TripEntity
 import com.rithwikshetty.tab.data.local.TripPersonEntity
 import io.github.jan.supabase.SupabaseClient
@@ -198,6 +199,46 @@ public class SupabaseRemoteGateway private constructor(
         return PushReceipt(trip.sync.writeId)
     }
 
+    override suspend fun pushSettlement(settlement: SettlementEntity): PushReceipt {
+        checkNotNull(currentUser()) { "Authentication is required before synchronization." }
+        val deletedAt = settlement.sync.deletedAt
+        if (deletedAt == null) {
+            client.from("settlements").upsert(
+                SettlementUpsertPayload(
+                    id = settlement.id,
+                    tripId = settlement.tripId,
+                    fromPersonId = settlement.fromPersonId,
+                    toPersonId = settlement.toPersonId,
+                    amount = settlement.amountText,
+                    currency = settlement.currency,
+                    note = settlement.note,
+                    settledAt = settlement.settledAt,
+                    createdBy = settlement.createdBy,
+                    updatedAt = settlement.sync.updatedAt,
+                    writeId = settlement.sync.writeId,
+                ),
+            )
+        } else {
+            client.from("settlements").update(
+                SettlementDeletePayload(
+                    deletedAt,
+                    settlement.sync.updatedAt,
+                    settlement.sync.writeId,
+                ),
+            ) {
+                filter {
+                    eq("id", settlement.id)
+                }
+            }
+        }
+        val accepted = client.from("settlements").select {
+            filter {
+                eq("id", settlement.id)
+            }
+        }.decodeSingle<SettlementDto>()
+        return PushReceipt(accepted.writeId)
+    }
+
     override suspend fun addTripPerson(
         tripId: String,
         email: String,
@@ -229,6 +270,44 @@ public class SupabaseRemoteGateway private constructor(
             "remove_trip_person",
             Json.encodeToJsonElement(RemoveTripPersonParameters(personId)).jsonObject,
         )
+    }
+
+    override suspend fun resolveNonGroupContainer(
+        participants: List<RemoteParticipant>,
+    ): String {
+        checkNotNull(currentUser()) { "Authentication is required before adding an expense." }
+        val normalized = participants
+            .map {
+                RemoteParticipant(
+                    email = it.email.trim().lowercase(),
+                    displayName = it.displayName.trim(),
+                )
+            }
+            .distinctBy(RemoteParticipant::email)
+        require(normalized.isNotEmpty()) {
+            "Choose at least one other person."
+        }
+        normalized.forEach {
+            require(it.email.contains("@")) { "A valid participant email is required." }
+        }
+        val rows = client.postgrest.rpc(
+            "resolve_or_create_non_group_container",
+            Json.encodeToJsonElement(
+                ResolveNonGroupParameters(
+                    normalized.map {
+                        NonGroupParticipantPayload(
+                            email = it.email,
+                            displayName = it.displayName.ifEmpty {
+                                it.email.substringBefore("@")
+                            },
+                        )
+                    },
+                ),
+            ).jsonObject,
+        ).decodeList<TripPersonDto>()
+        return checkNotNull(rows.firstOrNull()?.tripId) {
+            "The local backend did not return a non-group container."
+        }
     }
 
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> {

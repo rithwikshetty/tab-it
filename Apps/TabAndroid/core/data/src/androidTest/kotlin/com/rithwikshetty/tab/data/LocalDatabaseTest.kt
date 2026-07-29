@@ -18,6 +18,7 @@ import com.rithwikshetty.tab.domain.Expense
 import com.rithwikshetty.tab.domain.ExpenseSplit
 import com.rithwikshetty.tab.domain.Money
 import com.rithwikshetty.tab.domain.Payment
+import com.rithwikshetty.tab.domain.Settlement
 import com.rithwikshetty.tab.domain.SplitType
 import java.math.BigDecimal
 import java.time.Instant
@@ -255,6 +256,39 @@ class LocalDatabaseTest {
 
         database.preferences().deleteMute(tripId.toString(), userId.toString())
         assertTrue(database.preferences().observeMutedTripIds(userId.toString()).first().isEmpty())
+    }
+
+    @Test
+    fun settlementRepositoryPersistsExactAmountAndQueuesSoftDelete() = runTest {
+        val repository = LocalSettlementRepository(database)
+        val settlement = Settlement(
+            id = UUID.randomUUID(),
+            tripId = tripId,
+            fromUserId = debtorId,
+            toUserId = payerId,
+            amount = Money.parse("6.00", "GBP"),
+            note = "Bank transfer",
+            settledAt = now,
+            createdBy = userId,
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        repository.save(settlement)
+
+        val stored = repository.observeSettlements(tripId).first().single()
+        assertEquals(0, stored.amount.amount.compareTo(BigDecimal("6.00")))
+        assertEquals("Bank transfer", stored.note)
+        assertEquals("settlement", database.outbox().observeAll().first().single().entityType)
+
+        repository.softDelete(settlement.id, now.plusSeconds(60))
+
+        assertTrue(repository.observeSettlements(tripId).first().isEmpty())
+        assertNotNull(repository.find(settlement.id)?.deletedAt)
+        assertEquals(
+            listOf("upsert", "delete"),
+            database.outbox().observeAll().first().map(OutboxEntity::operation),
+        )
     }
 
     private suspend fun seedLedgerParents() {

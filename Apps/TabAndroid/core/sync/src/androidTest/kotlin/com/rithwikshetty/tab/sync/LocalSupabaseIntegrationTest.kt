@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rithwikshetty.tab.data.LocalExpenseRepository
+import com.rithwikshetty.tab.data.LocalSettlementRepository
 import com.rithwikshetty.tab.data.LocalTripRepository
 import com.rithwikshetty.tab.data.local.TabDatabase
 import com.rithwikshetty.tab.domain.Expense
@@ -11,6 +12,7 @@ import com.rithwikshetty.tab.domain.ExpenseSplit
 import com.rithwikshetty.tab.domain.Money
 import com.rithwikshetty.tab.domain.Payment
 import com.rithwikshetty.tab.domain.PaymentMethod
+import com.rithwikshetty.tab.domain.Settlement
 import com.rithwikshetty.tab.domain.SplitType
 import java.math.BigDecimal
 import java.time.Instant
@@ -218,6 +220,90 @@ class LocalSupabaseIntegrationTest {
         assertTrue(repository.observePeople(TRIP_ID).first().none { it.id == personId })
     }
 
+    @Test
+    fun settlementCreateAndDeleteRoundTripThroughLocalSupabase() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val repository = LocalSettlementRepository(database)
+        val settlement = Settlement(
+            id = UUID.randomUUID(),
+            tripId = TRIP_ID,
+            fromUserId = SELF_PERSON_ID,
+            toUserId = ALEX_PERSON_ID,
+            amount = Money.parse("4.25", "GBP"),
+            note = "Android local settlement test",
+            settledAt = Instant.now(),
+            createdBy = USER_ID,
+            createdAt = Instant.now(),
+            updatedAt = Instant.now(),
+        )
+        repository.save(settlement)
+
+        val created = SyncEngine(database, gateway).syncOnce()
+
+        assertEquals(1, created.pushed)
+        assertNotNull(
+            gateway.pullSnapshot().settlements.singleOrNull {
+                it.id == settlement.id.toString() &&
+                    it.amountText.toBigDecimal().compareTo(BigDecimal("4.25")) == 0
+            },
+        )
+
+        repository.softDelete(settlement.id)
+        val deleted = SyncEngine(database, gateway).syncOnce()
+
+        assertEquals(1, deleted.pushed)
+        assertTrue(repository.observeSettlements(TRIP_ID).first().none { it.id == settlement.id })
+    }
+
+    @Test
+    fun resolvesServerManagedNonGroupContainerAndSyncsExpense() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        val suffix = UUID.randomUUID().toString().take(8)
+        val friendEmail = "android-friend-$suffix@tab.local"
+        val containerId = UUID.fromString(
+            gateway.resolveNonGroupContainer(
+                listOf(RemoteParticipant(friendEmail, "Android Friend")),
+            ),
+        )
+        val snapshot = gateway.pullSnapshot()
+        val container = snapshot.trips.single { it.id == containerId.toString() }
+        assertEquals("non_group", container.kind)
+        val people = snapshot.people.filter { it.tripId == containerId.toString() }
+        val self = people.single { it.userId == USER_ID.toString() }
+        val friend = people.single { it.email == friendEmail }
+        RemoteSnapshotApplier(database).apply(snapshot)
+        val now = Instant.now()
+        val expense = Expense(
+            id = UUID.randomUUID(),
+            tripId = containerId,
+            amount = Money.parse("8.40", "GBP"),
+            description = "Android friend expense",
+            paymentMethod = PaymentMethod.CARD,
+            expenseDate = now,
+            payments = listOf(
+                Payment(UUID.fromString(self.id), BigDecimal("8.40"), SplitType.EXACT),
+            ),
+            splits = listOf(
+                ExpenseSplit(UUID.fromString(self.id), BigDecimal("4.20"), SplitType.EXACT),
+                ExpenseSplit(UUID.fromString(friend.id), BigDecimal("4.20"), SplitType.EXACT),
+            ),
+            createdBy = USER_ID,
+            createdAt = now,
+            updatedAt = now,
+        )
+        LocalExpenseRepository(database).save(expense)
+
+        val report = SyncEngine(database, gateway).syncOnce()
+
+        assertEquals(1, report.pushed)
+        assertNotNull(
+            gateway.pullSnapshot().expenses.singleOrNull {
+                it.expense.id == expense.id.toString()
+            },
+        )
+    }
+
     private fun testExpense(id: UUID, now: Instant): Expense = Expense(
         id = id,
         tripId = TRIP_ID,
@@ -241,6 +327,7 @@ class LocalSupabaseIntegrationTest {
         val USER_ID: UUID = UUID.fromString("11111111-1111-1111-1111-111111111111")
         val TRIP_ID: UUID = UUID.fromString("44444444-4444-4444-4444-444444444444")
         val SELF_PERSON_ID: UUID = UUID.fromString("61111111-1111-1111-1111-111111111111")
+        val ALEX_PERSON_ID: UUID = UUID.fromString("62222222-2222-2222-2222-222222222222")
         val SEEDED_EXPENSE_IDS: Set<String> = setOf(
             "81111111-1111-1111-1111-111111111111",
             "82222222-2222-2222-2222-222222222222",

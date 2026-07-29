@@ -57,6 +57,15 @@ public interface TripDao {
     )
     public fun observeActiveTrips(): Flow<List<TripEntity>>
 
+    @Query(
+        """
+        SELECT * FROM trips
+        WHERE deleted_at IS NULL
+        ORDER BY kind ASC, last_activity_at DESC, id ASC
+        """,
+    )
+    public fun observeActiveContainers(): Flow<List<TripEntity>>
+
     @Query("SELECT * FROM trips WHERE id = :id")
     public suspend fun findTrip(id: String): TripEntity?
 
@@ -71,6 +80,15 @@ public interface TripDao {
         """,
     )
     public fun observeActivePeople(tripId: String): Flow<List<TripPersonEntity>>
+
+    @Query(
+        """
+        SELECT * FROM trip_people
+        WHERE removed_at IS NULL AND deleted_at IS NULL
+        ORDER BY trip_id, display_name COLLATE NOCASE, id
+        """,
+    )
+    public fun observeAllActivePeople(): Flow<List<TripPersonEntity>>
 
     @Query("SELECT * FROM trip_people WHERE id = :id")
     public suspend fun findPerson(id: String): TripPersonEntity?
@@ -158,6 +176,16 @@ public interface ExpenseDao {
     public fun observeActiveForTrip(tripId: String): Flow<List<ExpenseWithLedger>>
 
     @Transaction
+    @Query(
+        """
+        SELECT * FROM expenses
+        WHERE deleted_at IS NULL
+        ORDER BY trip_id, expense_date DESC, created_at DESC, id ASC
+        """,
+    )
+    public fun observeAllActive(): Flow<List<ExpenseWithLedger>>
+
+    @Transaction
     @Query("SELECT * FROM expenses WHERE id = :id")
     public suspend fun findAggregate(id: String): ExpenseWithLedger?
 
@@ -216,6 +244,33 @@ public interface SettlementDao {
         """,
     )
     public fun observeActiveForTrip(tripId: String): Flow<List<SettlementEntity>>
+
+    @Query(
+        """
+        SELECT * FROM settlements
+        WHERE deleted_at IS NULL
+        ORDER BY trip_id, settled_at DESC, id ASC
+        """,
+    )
+    public fun observeAllActive(): Flow<List<SettlementEntity>>
+
+    @Query(
+        """
+        UPDATE settlements
+        SET is_dirty = 0
+        WHERE id = :id AND write_id = :writeId
+        """,
+    )
+    public suspend fun markClean(id: String, writeId: String): Int
+
+    @Query(
+        """
+        UPDATE settlements
+        SET deleted_at = :deletedAt, updated_at = :deletedAt, write_id = :writeId, is_dirty = 1
+        WHERE id = :id AND deleted_at IS NULL
+        """,
+    )
+    public suspend fun softDelete(id: String, deletedAt: String, writeId: String): Int
 }
 
 @Dao

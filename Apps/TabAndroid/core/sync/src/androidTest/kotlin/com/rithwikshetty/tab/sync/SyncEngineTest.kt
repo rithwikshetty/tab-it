@@ -224,6 +224,10 @@ private class FakeGateway(
         creator: com.rithwikshetty.tab.data.local.TripPersonEntity?,
     ): PushReceipt = PushReceipt(trip.sync.writeId)
 
+    override suspend fun pushSettlement(
+        settlement: com.rithwikshetty.tab.data.local.SettlementEntity,
+    ): PushReceipt = PushReceipt(settlement.sync.writeId)
+
     override suspend fun addTripPerson(
         tripId: String,
         email: String,
@@ -232,6 +236,10 @@ private class FakeGateway(
     ) = Unit
 
     override suspend fun removeTripPerson(personId: String) = Unit
+
+    override suspend fun resolveNonGroupContainer(
+        participants: List<RemoteParticipant>,
+    ): String = "22222222-2222-2222-2222-222222222222"
 
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> = emptyFlow()
 }

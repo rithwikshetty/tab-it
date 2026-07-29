@@ -98,6 +98,18 @@ public class SyncEngine(
                 }
                 database.outbox().acknowledge(item.sequence)
             }
+            "settlement" -> {
+                val settlement = database.settlements().find(item.entityId)
+                if (settlement == null) {
+                    database.outbox().acknowledge(item.sequence)
+                    return
+                }
+                val receipt = remote.pushSettlement(settlement)
+                if (receipt.acceptedWriteId == item.writeId) {
+                    database.settlements().markClean(item.entityId, item.writeId)
+                }
+                database.outbox().acknowledge(item.sequence)
+            }
             else -> error("Unsupported outbox entity type: ${item.entityType}")
         }
     }

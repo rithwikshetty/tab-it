@@ -185,3 +185,21 @@ Room tests now cover repository-level member, category, and individual expense f
 ## 2026-07-29 16:35 BST — Phase 6 clean verification
 
 All Android JVM tests, debug lint, debug assembly, and the R8-minified release assembly passed in a 279-task run. Eleven Room tests, nine synchronization tests, and three Compose/application tests passed on the API 36 emulator. The release manifest has no Internet permission, and artifact inspection confirmed that neither a configured backend URL nor the local publishable key is present. The living HTML report passes semantic validation. The disposable local database was reset to its fictional seed after testing; production was not accessed.
+
+## 2026-07-29 16:41 BST — Balances, repayments and Friends implemented
+
+Opened GitHub issue #41 and added a Room-first settlement repository plus outbox delivery through the existing settlements table. Trip detail now derives mirrored per-currency balances with `BalanceEngine`, produces repayment suggestions with `DebtSimplifier`, and supports settlement create, detail, edit and soft delete. Friends aggregates the signed-in user's position across every active trip and hidden non-group container, retains pending and settled people, provides per-source detail, and routes each source into the same repayment form.
+
+The existing `resolve_or_create_non_group_container` contract was reusable without schema work. Added a people-first flow that selects known people or normalized email invitees, asks the local RPC to resolve the exact participant set, pulls the server-managed container into Room, and opens the standard expense editor. Android never creates or pushes hidden container rows directly.
+
+## 2026-07-29 16:48 BST — Phase 7 test failures corrected
+
+The first local settlement integration assertion compared Postgres numeric display text instead of numeric value; it now compares `BigDecimal` values and the round trip passes. The first application repayment test expected lazy settlement-history content to be composed off-screen, then assumed the trip detail would remember the Balances chip after returning from a nested editor. The product correctly returned to the default Expenses section, so the test now waits for the enabled save action, verifies the return, reopens Balances, and checks the derived content. These corrections preserve the intended UI rather than adding state solely for a test.
+
+A guarded local reset restored the fictional baseline. Its first emulator-forwarding attempt stopped safely because Android platform tools were not on that shell's path; rerunning with the documented SDK path established only the `localhost:54321` reverse mapping.
+
+## 2026-07-29 16:55 BST — Phase 7 clean verification
+
+All 15 pgTAP suites passed against `tab-local`. Android JVM tests, lint, debug assembly, and the R8-minified release assembly passed in a 277-task run. Twelve Room tests, eleven synchronization tests, and six Compose/application tests then passed together on the API 36 emulator. Coverage includes exact settlement persistence and deletion, settlement outbox round trips, server-managed non-group resolution plus expense sync, friend aggregation and source direction, repayment form behavior, application-level repayment navigation, and the Friends-to-expense flow.
+
+The release manifest still has no Internet permission. Artifact inspection confirmed that the local publishable key, local backend URL, and hosted Supabase URL are absent from the release DEX. Production was not accessed.

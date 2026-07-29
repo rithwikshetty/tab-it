@@ -61,11 +61,19 @@ Sign-out first requires a successful sync, then clears that account's local
 copy so a later account cannot see stale data.
 
 Trip detail is also Room-backed. It exposes expenses, per-currency trip totals,
-and active or invited people. Expense create and edit support exact decimal
-amounts, currency, category, date, payment method, multiple payers, and equal or
-exact splits; save and delete are local-first outbox operations. Member add and
-remove use the existing Supabase RPCs and therefore require the disposable local
-service to be running.
+active or invited people, pair balances, simplified repayment suggestions, and
+settlement history. Expense create and edit support exact decimal amounts,
+currency, category, date, payment method, multiple payers, and equal or exact
+splits; save and delete are local-first outbox operations. Settlement create,
+edit, and delete use the same Room-first outbox boundary.
+
+Friends aggregates each signed-in user's position across trip and non-group
+containers without converting currencies. Friend detail breaks a balance down
+by source and routes repayment suggestions back to the standard settlement
+form. The people-first friend expense flow resolves the existing server-managed
+non-group container through the local RPC, then uses the same expense editor as
+a trip. Member add and remove also use the existing Supabase RPCs, so these
+operations require the disposable local service to be running.
 
 The generated and ignored `local.properties` points debug builds at
 `http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse

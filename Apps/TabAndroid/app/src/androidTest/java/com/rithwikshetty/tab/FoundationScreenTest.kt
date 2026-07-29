@@ -1,6 +1,7 @@
 package com.rithwikshetty.tab
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -63,6 +64,52 @@ class AppShellTest {
         composeRule.onAllNodesWithText("14.75 GBP")[0].assertIsDisplayed()
         composeRule.onNodeWithText("Paid by").assertIsDisplayed()
         composeRule.onNodeWithText("Split between").assertIsDisplayed()
+    }
+
+    @Test
+    fun seededTripShowsBalancesAndRecordsSuggestedRepayment() {
+        ensureSignedIn()
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Lake District").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Lake District").performClick()
+        composeRule.onNodeWithText("Balances").performClick()
+        composeRule.onNodeWithText("Suggested repayments").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Settle").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("Settle")[0].performClick()
+        composeRule.onNodeWithTag("settlementAmount").assertIsDisplayed()
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            runCatching {
+                composeRule.onNodeWithTag("saveSettlement").assertIsEnabled()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("saveSettlement").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Expenses").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Balances").performClick()
+        composeRule.onNodeWithText("Suggested repayments").assertIsDisplayed()
+    }
+
+    @Test
+    fun friendsFlowResolvesExistingPersonIntoStandardExpenseEditor() {
+        ensureSignedIn()
+        composeRule.onNodeWithText("Friends").performClick()
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Alex").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("addFriendExpense").performClick()
+        composeRule.onNodeWithText("New friend expense").assertIsDisplayed()
+        composeRule.onNodeWithText("Alex").performClick()
+        composeRule.onNodeWithTag("resolveFriendExpense").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("New expense").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("expenseDescription").assertIsDisplayed()
     }
 
     private fun ensureSignedIn() {

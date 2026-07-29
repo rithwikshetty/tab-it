@@ -90,6 +90,17 @@ internal data class RemoveTripPersonParameters(
 )
 
 @Serializable
+internal data class NonGroupParticipantPayload(
+    val email: String,
+    @SerialName("display_name") val displayName: String,
+)
+
+@Serializable
+internal data class ResolveNonGroupParameters(
+    @SerialName("p_participants") val participants: List<NonGroupParticipantPayload>,
+)
+
+@Serializable
 internal data class TripPersonDto(
     val id: String,
     @SerialName("trip_id") val tripId: String,
@@ -249,6 +260,28 @@ internal data class SettlementDto(
         syncStamp(updatedAt, deletedAt, writeId),
     )
 }
+
+@Serializable
+internal data class SettlementUpsertPayload(
+    val id: String,
+    @SerialName("trip_id") val tripId: String,
+    @SerialName("from_person_id") val fromPersonId: String,
+    @SerialName("to_person_id") val toPersonId: String,
+    val amount: String,
+    val currency: String,
+    val note: String?,
+    @SerialName("settled_at") val settledAt: String,
+    @SerialName("created_by") val createdBy: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("write_id") val writeId: String,
+)
+
+@Serializable
+internal data class SettlementDeletePayload(
+    @SerialName("deleted_at") val deletedAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("write_id") val writeId: String,
+)
 
 @Serializable
 internal data class ActivityDto(

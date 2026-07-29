@@ -52,8 +52,15 @@ import com.rithwikshetty.tab.ui.auth.AuthScreen
 import com.rithwikshetty.tab.ui.auth.BackendUnavailableScreen
 import com.rithwikshetty.tab.ui.expenses.ExpenseDetailScreen
 import com.rithwikshetty.tab.ui.expenses.ExpenseEditorScreen
+import com.rithwikshetty.tab.ui.friends.FriendsScreen
+import com.rithwikshetty.tab.ui.friends.FriendDetailScreen
+import com.rithwikshetty.tab.ui.friends.NonGroupExpensePickerScreen
+import com.rithwikshetty.tab.ui.settlements.SettlementDetailScreen
+import com.rithwikshetty.tab.ui.settlements.SettlementEditorScreen
 import com.rithwikshetty.tab.ui.trips.TripDetailScreen
 import com.rithwikshetty.tab.ui.trips.TripsScreen
+import com.rithwikshetty.tab.domain.SimplifiedDebt
+import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
@@ -90,8 +97,11 @@ fun TabApp(
             onTripVisible = viewModel::setVisibleTrip,
             onSaveExpense = viewModel::saveExpense,
             onDeleteExpense = viewModel::deleteExpense,
+            onSaveSettlement = viewModel::saveSettlement,
+            onDeleteSettlement = viewModel::deleteSettlement,
             onAddTripPerson = viewModel::addTripPerson,
             onRemoveTripPerson = viewModel::removeTripPerson,
+            onResolveNonGroup = viewModel::resolveNonGroupContainer,
             onSignOut = viewModel::signOut,
             modifier = modifier,
         )
@@ -109,8 +119,22 @@ private fun SignedInApp(
     onTripVisible: (UUID?) -> Unit,
     onSaveExpense: (com.rithwikshetty.tab.domain.Expense) -> Unit,
     onDeleteExpense: (UUID) -> Unit,
+    onSaveSettlement: (
+        UUID,
+        UUID,
+        UUID,
+        String,
+        String,
+        String?,
+        com.rithwikshetty.tab.domain.Settlement?,
+    ) -> Unit,
+    onDeleteSettlement: (UUID) -> Unit,
     onAddTripPerson: (UUID, String, String?) -> Unit,
     onRemoveTripPerson: (UUID) -> Unit,
+    onResolveNonGroup: (
+        List<com.rithwikshetty.tab.sync.RemoteParticipant>,
+        (UUID) -> Unit,
+    ) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -149,9 +173,16 @@ private fun SignedInApp(
                 ) {
             composable<FriendsRoute> {
                 LaunchedEffect(Unit) { onTripVisible(null) }
-                PlaceholderScreen(
-                    title = "Friends",
-                    body = "Balances with people across your shared groups appear here.",
+                FriendsScreen(
+                    state = state.friends,
+                    isWorking = state.isWorking,
+                    onRefresh = onRefresh,
+                    onAddExpense = {
+                        navController.navigate(NonGroupExpensePickerRoute)
+                    },
+                    onOpenFriend = {
+                        navController.navigate(FriendRoute(it))
+                    },
                 )
             }
             composable<TripsRoute> {
@@ -217,6 +248,22 @@ private fun SignedInApp(
                         onAddTripPerson(id, email, displayName)
                     },
                     onRemovePerson = onRemoveTripPerson,
+                    onSettle = { debt ->
+                        navController.navigate(
+                            SettleRoute(
+                                tripId = id.toString(),
+                                fromId = debt?.fromUser?.toString(),
+                                toId = debt?.toUser?.toString(),
+                                currency = debt?.currency,
+                                amount = debt?.amount?.toPlainString(),
+                            ),
+                        )
+                    },
+                    onOpenSettlement = { settlementId ->
+                        navController.navigate(
+                            SettlementRoute(id.toString(), settlementId.toString()),
+                        )
+                    },
                 )
             }
             composable<NewExpenseRoute> { entry ->
@@ -290,6 +337,116 @@ private fun SignedInApp(
                     isWorking = state.isWorking,
                     onBack = navController::popBackStack,
                     onSave = onSaveExpense,
+                )
+            }
+            composable<SettleRoute> { entry ->
+                val route = entry.toRoute<SettleRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                LaunchedEffect(tripId) { onTripVisible(tripId) }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                SettlementEditorScreen(
+                    people = tripContent.people,
+                    existing = null,
+                    suggestion = route.toSuggestion(),
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onSave = { fromId, toId, amount, currency, note, existing ->
+                        onSaveSettlement(
+                            tripId,
+                            fromId,
+                            toId,
+                            amount,
+                            currency,
+                            note,
+                            existing,
+                        )
+                    },
+                )
+            }
+            composable<SettlementRoute> { entry ->
+                val route = entry.toRoute<SettlementRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                val settlementId = UUID.fromString(route.settlementId)
+                LaunchedEffect(tripId) { onTripVisible(tripId) }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                SettlementDetailScreen(
+                    settlement = tripContent.settlements.firstOrNull { it.id == settlementId },
+                    people = tripContent.people,
+                    onBack = navController::popBackStack,
+                    onEdit = {
+                        navController.navigate(
+                            EditSettlementRoute(route.tripId, route.settlementId),
+                        )
+                    },
+                    onDelete = {
+                        onDeleteSettlement(settlementId)
+                        navController.popBackStack()
+                    },
+                )
+            }
+            composable<EditSettlementRoute> { entry ->
+                val route = entry.toRoute<EditSettlementRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                val settlementId = UUID.fromString(route.settlementId)
+                LaunchedEffect(tripId) { onTripVisible(tripId) }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                SettlementEditorScreen(
+                    people = tripContent.people,
+                    existing = tripContent.settlements.firstOrNull { it.id == settlementId },
+                    suggestion = null,
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onSave = { fromId, toId, amount, currency, note, existing ->
+                        onSaveSettlement(
+                            tripId,
+                            fromId,
+                            toId,
+                            amount,
+                            currency,
+                            note,
+                            existing,
+                        )
+                    },
+                )
+            }
+            composable<NonGroupExpensePickerRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
+                NonGroupExpensePickerScreen(
+                    knownPeople = state.friends.knownPeople,
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onResolve = { participants ->
+                        onResolveNonGroup(participants) { tripId ->
+                            navController.navigate(NewExpenseRoute(tripId.toString())) {
+                                popUpTo<NonGroupExpensePickerRoute> { inclusive = true }
+                            }
+                        }
+                    },
+                )
+            }
+            composable<FriendRoute> { entry ->
+                val route = entry.toRoute<FriendRoute>()
+                LaunchedEffect(Unit) { onTripVisible(null) }
+                FriendDetailScreen(
+                    detail = state.friends.details[route.identityKey],
+                    onBack = navController::popBackStack,
+                    onSettle = { source ->
+                        navController.navigate(
+                            SettleRoute(
+                                tripId = source.containerId.toString(),
+                                fromId = source.suggestion.fromUser.toString(),
+                                toId = source.suggestion.toUser.toString(),
+                                currency = source.suggestion.currency,
+                                amount = source.suggestion.amount.toPlainString(),
+                            ),
+                        )
+                    },
                 )
             }
                 }
@@ -489,3 +646,32 @@ private data class ExpenseRoute(val tripId: String, val expenseId: String)
 
 @Serializable
 private data class EditExpenseRoute(val tripId: String, val expenseId: String)
+
+@Serializable
+private data class SettleRoute(
+    val tripId: String,
+    val fromId: String? = null,
+    val toId: String? = null,
+    val currency: String? = null,
+    val amount: String? = null,
+)
+
+private fun SettleRoute.toSuggestion(): SimplifiedDebt? {
+    val from = fromId?.let(UUID::fromString) ?: return null
+    val to = toId?.let(UUID::fromString) ?: return null
+    val code = currency ?: return null
+    val value = amount?.let(::BigDecimal) ?: return null
+    return SimplifiedDebt(from, to, code, value)
+}
+
+@Serializable
+private data class SettlementRoute(val tripId: String, val settlementId: String)
+
+@Serializable
+private data class EditSettlementRoute(val tripId: String, val settlementId: String)
+
+@Serializable
+private data object NonGroupExpensePickerRoute
+
+@Serializable
+private data class FriendRoute(val identityKey: String)

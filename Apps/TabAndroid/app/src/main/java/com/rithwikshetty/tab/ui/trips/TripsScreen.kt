@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import com.rithwikshetty.tab.data.LocalTripSummary
 import com.rithwikshetty.tab.data.LocalPerson
 import com.rithwikshetty.tab.domain.Expense
+import com.rithwikshetty.tab.domain.Settlement
+import com.rithwikshetty.tab.domain.SimplifiedDebt
 import com.rithwikshetty.tab.ui.app.TripContentUiState
 import java.math.BigDecimal
 import java.time.ZoneId
@@ -231,6 +233,8 @@ fun TripDetailScreen(
     onOpenExpense: (UUID) -> Unit,
     onAddPerson: (String, String) -> Unit,
     onRemovePerson: (UUID) -> Unit,
+    onSettle: (SimplifiedDebt?) -> Unit,
+    onOpenSettlement: (UUID) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -303,6 +307,11 @@ fun TripDetailScreen(
                     icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                     text = { Text("Add person") },
                 )
+                TripSection.BALANCES -> ExtendedFloatingActionButton(
+                    onClick = { onSettle(null) },
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Settle up") },
+                )
                 TripSection.OVERVIEW -> Unit
             }
         },
@@ -341,6 +350,14 @@ fun TripDetailScreen(
                     people = content.people,
                     currentUserId = currentUserId,
                     onRemove = { removePerson = it },
+                    modifier = Modifier.weight(1f),
+                )
+                TripSection.BALANCES -> BalancesContent(
+                    debts = content.simplifiedDebts,
+                    settlements = content.settlements,
+                    people = content.people,
+                    onSettle = onSettle,
+                    onOpenSettlement = onOpenSettlement,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -418,8 +435,131 @@ fun TripDetailScreen(
 
 private enum class TripSection(val label: String) {
     EXPENSES("Expenses"),
+    BALANCES("Balances"),
     OVERVIEW("Overview"),
     PEOPLE("People"),
+}
+
+private fun List<LocalPerson>.nameFor(personId: UUID): String =
+    firstOrNull { it.id == personId }?.displayName ?: "Member"
+
+@Composable
+private fun BalancesContent(
+    debts: List<SimplifiedDebt>,
+    settlements: List<Settlement>,
+    people: List<LocalPerson>,
+    onSettle: (SimplifiedDebt) -> Unit,
+    onOpenSettlement: (UUID) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text(
+                text = "Suggested repayments",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (debts.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text("All settled", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "No repayment is needed for any currency.",
+                            modifier = Modifier.padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        } else {
+            items(
+                items = debts,
+                key = { "${it.fromUser}-${it.toUser}-${it.currency}" },
+            ) { debt ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${people.nameFor(debt.fromUser)} pays ${people.nameFor(debt.toUser)}",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = "${debt.amount.toPlainString()} ${debt.currency}",
+                                modifier = Modifier.padding(top = 3.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(onClick = { onSettle(debt) }) {
+                            Text("Settle")
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Text(
+                text = "Settlement history",
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (settlements.isEmpty()) {
+            item {
+                Text(
+                    text = "Recorded repayments will appear here.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(settlements, key = { it.id }) { settlement ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenSettlement(settlement.id) },
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${people.nameFor(settlement.fromUserId)} paid ${people.nameFor(settlement.toUserId)}",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = settlement.settledAt.atZone(ZoneId.systemDefault())
+                                    .format(tripDateFormatter),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Text(
+                            text = "${settlement.amount.amount.toPlainString()} ${settlement.amount.currency}",
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+        item { Spacer(modifier = Modifier.height(88.dp)) }
+    }
 }
 
 @Composable

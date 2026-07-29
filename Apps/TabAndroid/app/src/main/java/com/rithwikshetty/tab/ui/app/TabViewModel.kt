@@ -8,8 +8,19 @@ import com.rithwikshetty.tab.data.LocalTripSummary
 import com.rithwikshetty.tab.data.LocalCategory
 import com.rithwikshetty.tab.data.LocalPerson
 import com.rithwikshetty.tab.domain.Expense
+import com.rithwikshetty.tab.domain.BalanceEngine
+import com.rithwikshetty.tab.domain.DebtSimplifier
+import com.rithwikshetty.tab.domain.Settlement
+import com.rithwikshetty.tab.domain.SimplifiedDebt
+import com.rithwikshetty.tab.domain.UserBalance
+import com.rithwikshetty.tab.domain.Money
+import com.rithwikshetty.tab.ui.friends.FriendsPresenter
+import com.rithwikshetty.tab.ui.friends.FriendsUiState
+import java.math.BigDecimal
+import java.time.Instant
 import com.rithwikshetty.tab.sync.AuthenticatedUser
 import com.rithwikshetty.tab.sync.RealtimeSyncCoordinator
+import com.rithwikshetty.tab.sync.RemoteParticipant
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -33,6 +44,7 @@ data class TabUiState(
     val session: SessionState = SessionState.Loading,
     val trips: List<LocalTripSummary> = emptyList(),
     val tripContent: TripContentUiState = TripContentUiState(),
+    val friends: FriendsUiState = FriendsUiState(),
     val isWorking: Boolean = false,
     val message: String? = null,
 )
@@ -42,6 +54,9 @@ data class TripContentUiState(
     val people: List<LocalPerson> = emptyList(),
     val categories: List<LocalCategory> = emptyList(),
     val expenses: List<Expense> = emptyList(),
+    val settlements: List<Settlement> = emptyList(),
+    val balances: List<UserBalance> = emptyList(),
+    val simplifiedDebts: List<SimplifiedDebt> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -65,18 +80,51 @@ class TabViewModel(
         visibleTripId.flatMapLatest { id ->
             id?.let(container.expenseRepository::observeExpenses) ?: flowOf(emptyList())
         },
-    ) { tripId, people, categories, expenses ->
-        TripContentUiState(tripId, people, categories, expenses)
+        visibleTripId.flatMapLatest { id ->
+            id?.let(container.settlementRepository::observeSettlements) ?: flowOf(emptyList())
+        },
+    ) { tripId, people, categories, expenses, settlements ->
+        val balances = BalanceEngine.compute(expenses, settlements)
+        TripContentUiState(
+            tripId = tripId,
+            people = people,
+            categories = categories,
+            expenses = expenses,
+            settlements = settlements,
+            balances = balances,
+            simplifiedDebts = DebtSimplifier.simplify(balances),
+        )
     }
+
+    private val friends = combine(
+        session,
+        container.balanceRepository.snapshot,
+    ) { currentSession, snapshot ->
+        val user = currentSession as? SessionState.SignedIn
+        if (user == null) {
+            FriendsUiState()
+        } else {
+            FriendsPresenter.present(snapshot, UUID.fromString(user.user.id))
+        }
+    }
+
+    private val ledgerContent = combine(tripContent, friends, ::Pair)
 
     val uiState: StateFlow<TabUiState> = combine(
         session,
         container.tripRepository.observeTrips(),
-        tripContent,
+        ledgerContent,
         isWorking,
         message,
-    ) { currentSession, trips, currentTripContent, working, currentMessage ->
-        TabUiState(currentSession, trips, currentTripContent, working, currentMessage)
+    ) { currentSession, trips, content, working, currentMessage ->
+        TabUiState(
+            session = currentSession,
+            trips = trips,
+            tripContent = content.first,
+            friends = content.second,
+            isWorking = working,
+            message = currentMessage,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -196,6 +244,58 @@ class TabViewModel(
         val remote = container.remoteGateway ?: return
         launchWorking {
             remote.removeTripPerson(personId.toString())
+            sync()
+        }
+    }
+
+    fun resolveNonGroupContainer(
+        participants: List<RemoteParticipant>,
+        onResolved: (UUID) -> Unit,
+    ) {
+        val remote = container.remoteGateway ?: return
+        launchWorking {
+            val id = UUID.fromString(remote.resolveNonGroupContainer(participants))
+            sync()
+            onResolved(id)
+        }
+    }
+
+    fun saveSettlement(
+        tripId: UUID,
+        fromPersonId: UUID,
+        toPersonId: UUID,
+        amountText: String,
+        currency: String,
+        note: String?,
+        existing: Settlement? = null,
+    ) {
+        val user = signedInUser() ?: return
+        launchWorking {
+            val now = Instant.now()
+            val amount = runCatching { Money.parse(amountText.trim(), currency) }
+                .getOrElse { throw IllegalArgumentException("Enter a valid amount.") }
+            require(amount.amount > BigDecimal.ZERO) { "Amount must be greater than zero." }
+            val settlement = Settlement(
+                id = existing?.id ?: UUID.randomUUID(),
+                tripId = tripId,
+                fromUserId = fromPersonId,
+                toUserId = toPersonId,
+                amount = amount,
+                note = note?.trim()?.ifEmpty { null },
+                settledAt = existing?.settledAt ?: now,
+                createdBy = existing?.createdBy ?: UUID.fromString(user.id),
+                createdAt = existing?.createdAt ?: now,
+                updatedAt = now,
+                deletedAt = null,
+            )
+            container.settlementRepository.save(settlement)
+            sync()
+        }
+    }
+
+    fun deleteSettlement(id: UUID) {
+        launchWorking {
+            container.settlementRepository.softDelete(id)
             sync()
         }
     }

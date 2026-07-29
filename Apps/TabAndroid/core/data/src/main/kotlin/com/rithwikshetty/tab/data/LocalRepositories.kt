@@ -8,6 +8,7 @@ import com.rithwikshetty.tab.data.local.ExpenseWithLedger
 import com.rithwikshetty.tab.data.local.OutboxEntity
 import com.rithwikshetty.tab.data.local.ProfileEntity
 import com.rithwikshetty.tab.data.local.ReceiptDraftEntity
+import com.rithwikshetty.tab.data.local.SettlementEntity
 import com.rithwikshetty.tab.data.local.SyncStamp
 import com.rithwikshetty.tab.data.local.TabDatabase
 import com.rithwikshetty.tab.data.local.TripEntity
@@ -19,6 +20,7 @@ import com.rithwikshetty.tab.domain.CurrencyCatalog
 import com.rithwikshetty.tab.domain.Money
 import com.rithwikshetty.tab.domain.Payment
 import com.rithwikshetty.tab.domain.PaymentMethod
+import com.rithwikshetty.tab.domain.Settlement
 import com.rithwikshetty.tab.domain.SplitType
 import java.time.Instant
 import java.time.LocalDate
@@ -26,6 +28,7 @@ import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,6 +45,7 @@ public data class LocalPerson(
     public val email: String,
     public val displayName: String,
     public val hasJoined: Boolean,
+    public val tripId: UUID? = null,
 )
 
 public data class LocalCategory(
@@ -49,6 +53,20 @@ public data class LocalCategory(
     public val name: String,
     public val icon: String,
     public val isDefault: Boolean,
+)
+
+public data class LocalContainer(
+    public val id: UUID,
+    public val name: String,
+    public val kind: String,
+    public val memberSignature: String?,
+)
+
+public data class LocalLedgerSnapshot(
+    public val containers: List<LocalContainer> = emptyList(),
+    public val people: List<LocalPerson> = emptyList(),
+    public val expenses: List<Expense> = emptyList(),
+    public val settlements: List<Settlement> = emptyList(),
 )
 
 public class LocalTripRepository(
@@ -288,6 +306,99 @@ public class LocalExpenseRepository(
     }
 }
 
+public class LocalSettlementRepository(
+    private val database: TabDatabase,
+) {
+    public fun observeSettlements(tripId: UUID): Flow<List<Settlement>> =
+        database.settlements().observeActiveForTrip(tripId.toString()).map { rows ->
+            rows.map(SettlementEntity::toDomain)
+        }
+
+    public suspend fun find(id: UUID): Settlement? =
+        database.settlements().find(id.toString())?.toDomain()
+
+    public suspend fun save(
+        settlement: Settlement,
+        writeId: UUID = UUID.randomUUID(),
+    ) {
+        require(settlement.fromUserId != settlement.toUserId) {
+            "A settlement needs two different people."
+        }
+        require(settlement.amount.amount > java.math.BigDecimal.ZERO) {
+            "Settlement amount must be positive."
+        }
+        require(
+            CurrencyCatalog.hasValidPrecision(
+                settlement.amount.amount,
+                settlement.amount.currency,
+            ),
+        ) { "Settlement amount exceeds the currency's minor-unit precision." }
+        val entity = settlement.toEntity(
+            SyncStamp(
+                updatedAt = settlement.updatedAt.toString(),
+                deletedAt = settlement.deletedAt?.toString(),
+                writeId = writeId.toString(),
+                isDirty = true,
+            ),
+        )
+        database.withTransaction {
+            database.settlements().upsert(entity)
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "settlement",
+                    entityId = entity.id,
+                    operation = if (entity.sync.deletedAt == null) "upsert" else "delete",
+                    writeId = entity.sync.writeId,
+                    createdAt = entity.sync.updatedAt,
+                ),
+            )
+        }
+    }
+
+    public suspend fun softDelete(
+        id: UUID,
+        at: Instant = Instant.now(),
+        writeId: UUID = UUID.randomUUID(),
+    ) {
+        database.withTransaction {
+            check(
+                database.settlements().softDelete(
+                    id.toString(),
+                    at.toString(),
+                    writeId.toString(),
+                ) == 1,
+            ) { "Settlement not found." }
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "settlement",
+                    entityId = id.toString(),
+                    operation = "delete",
+                    writeId = writeId.toString(),
+                    createdAt = at.toString(),
+                ),
+            )
+        }
+    }
+}
+
+public class LocalBalanceRepository(
+    database: TabDatabase,
+) {
+    public val snapshot: Flow<LocalLedgerSnapshot> = combine(
+        database.trips().observeActiveContainers(),
+        database.trips().observeAllActivePeople(),
+        database.expenses().observeAllActive(),
+        database.settlements().observeAllActive(),
+    ) { containers, people, expenses, settlements ->
+        LocalLedgerSnapshot(
+            containers = containers.map(TripEntity::toLocalContainer),
+            people = people.map(TripPersonEntity::toLocalPerson),
+            expenses = expenses.map(ExpenseWithLedger::toDomain),
+            settlements = settlements.map(SettlementEntity::toDomain),
+        )
+    }
+}
+
 private fun TripEntity.toSummary(): LocalTripSummary =
     LocalTripSummary(UUID.fromString(id), name, Instant.parse(lastActivityAt))
 
@@ -298,10 +409,44 @@ private fun TripPersonEntity.toLocalPerson(): LocalPerson =
         email = email,
         displayName = displayName,
         hasJoined = joinedAt != null,
+        tripId = UUID.fromString(tripId),
     )
 
 private fun CategoryEntity.toLocalCategory(): LocalCategory =
     LocalCategory(UUID.fromString(id), name, icon, isDefault)
+
+private fun TripEntity.toLocalContainer(): LocalContainer =
+    LocalContainer(UUID.fromString(id), name, kind, memberSignature)
+
+private fun Settlement.toEntity(stamp: SyncStamp): SettlementEntity =
+    SettlementEntity(
+        id = id.toString(),
+        tripId = tripId.toString(),
+        fromPersonId = fromUserId.toString(),
+        toPersonId = toUserId.toString(),
+        amountText = amount.amount.toPlainString(),
+        currency = amount.currency,
+        note = note,
+        settledAt = settledAt.toString(),
+        createdBy = createdBy.toString(),
+        createdAt = createdAt.toString(),
+        sync = stamp,
+    )
+
+private fun SettlementEntity.toDomain(): Settlement =
+    Settlement(
+        id = UUID.fromString(id),
+        tripId = UUID.fromString(tripId),
+        fromUserId = UUID.fromString(fromPersonId),
+        toUserId = UUID.fromString(toPersonId),
+        amount = Money.parse(amountText, currency),
+        note = note,
+        settledAt = Instant.parse(settledAt),
+        createdBy = UUID.fromString(createdBy),
+        createdAt = Instant.parse(createdAt),
+        updatedAt = Instant.parse(sync.updatedAt),
+        deletedAt = sync.deletedAt?.let(Instant::parse),
+    )
 
 private fun Expense.toEntity(stamp: SyncStamp): ExpenseEntity = ExpenseEntity(
     id = id.toString(),
