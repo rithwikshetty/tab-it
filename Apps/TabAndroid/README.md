@@ -83,6 +83,12 @@ Read state is acknowledged through `mark_activity_seen`. Trip members can share
 or revoke an invite link, and signed-in users can join with the same web-link
 token contract used by iOS.
 
+Trip detail exports a deterministic exact-decimal CSV through Android's share
+sheet. Settings imports Splitwise group CSVs up to 5 MB: parsing and preview are
+local, the user maps their identity, and apply uses the same Room-first trip,
+expense, settlement, and member boundaries as normal editing. Failed imports
+archive their partial trip instead of leaving an active half-import.
+
 The generated and ignored `local.properties` points debug builds at
 `http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse
 mapping to the guarded local Supabase API. It refuses physical devices and
@@ -91,3 +97,9 @@ key and explicitly remove the Internet permission. Runtime validation refuses
 hosted Supabase URLs and privileged keys; there is no production fallback.
 
 Use the `Tab_API_36` Android 16 emulator for local device tests.
+
+The local client is feature-complete for the agreed Android scope. Production
+enablement is deliberately separate: real release authentication, a
+non-production compatibility rehearsal, verified app links, notification
+delivery, signing/distribution, monitoring, account-deletion UX, physical-device
+coverage, and explicit production approval remain release-readiness work.

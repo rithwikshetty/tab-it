@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>tab-it — Android delivery plan</title>
+  <title>tab-it — Android local delivery report</title>
   <style>
     :root {
       --bg: #faf7f0;
@@ -352,8 +352,8 @@
   <div class="page">
     <header>
       <p class="eyebrow">Android initiative · living report · 29 July 2026</p>
-      <h1>Android delivery status</h1>
-      <p class="lede">tab will keep one repository with independent native iOS and Android apps. Development and testing use the disposable local Supabase stack; production remains outside the implementation workflow.</p>
+      <h1>Android local delivery</h1>
+      <p class="lede">The agreed native Android scope is complete in the same repository as iOS, with an independent Kotlin build and a disposable local Supabase backend. Production remained outside the implementation workflow.</p>
 
       <div class="status-row" role="group" aria-label="Initiative status">
         <div class="status">
@@ -362,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Data transfer and settings</strong>
+          <strong>Local implementation complete</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -373,9 +373,9 @@
 
     <main>
       <section aria-labelledby="now">
-        <p class="eyebrow">Completed foundation</p>
-        <h2 id="now">Local development is isolated from production</h2>
-        <p class="section-intro">The old pre-launch reset workflow is gone. A guarded local stack now supplies fictional data for Android development.</p>
+        <p class="eyebrow">Outcome</p>
+        <h2 id="now">A complete local Android client, isolated from production</h2>
+        <p class="section-intro">The native app covers the agreed expense-sharing scope against fictional local data. The old pre-launch reset workflow is gone.</p>
         <div class="decision">
           <article class="card">
             <span class="label">Removed</span>
@@ -384,8 +384,8 @@
           </article>
           <article class="card">
             <span class="label">Verified</span>
-            <h3>Core expense product works</h3>
-            <p>The ledger, Friends, activity, invitations and private receipt lifecycle pass against local Supabase on the API 36 emulator.</p>
+            <h3>All planned local surfaces work</h3>
+            <p>Trips, expenses, balances, settlements, Friends, activity, receipts, invitations, CSV transfer and settings pass on the API 36 emulator.</p>
           </article>
           <article class="card">
             <span class="label">Standardised</span>
@@ -450,15 +450,38 @@
             <span><strong class="phase-name">Local backend integration</strong><span class="phase-detail">Authenticate, pull, push and observe changes against local Supabase only.</span></span>
             <span class="pill">Complete</span>
           </li>
-          <li class="current">
-            <span><strong class="phase-name">Feature slices</strong><span class="phase-detail">The ledger, Friends, activity, invitations and private receipts are done. Data transfer and final settings are in progress.</span></span>
-            <span class="pill">Current</span>
+          <li class="done">
+            <span><strong class="phase-name">Feature slices</strong><span class="phase-detail">Ledger, Friends, activity, invitations, receipts, data transfer and settings.</span></span>
+            <span class="pill">Complete</span>
           </li>
           <li>
-            <span><strong class="phase-name">Release readiness</strong><span class="phase-detail">Compatibility, rollout, monitoring and separately approved production work.</span></span>
-            <span class="pill">Later</span>
+            <span><strong class="phase-name">Hosted release readiness</strong><span class="phase-detail">Real authentication, distribution, monitoring and separately approved production work.</span></span>
+            <span class="pill">Separate</span>
           </li>
         </ol>
+      </section>
+
+      <section aria-labelledby="evidence">
+        <p class="eyebrow">Final evidence</p>
+        <h2 id="evidence">The local build closes cleanly</h2>
+        <p class="section-intro">Verification ran after the final feature commit and the disposable database was reset to its fictional baseline afterward.</p>
+        <div class="decision">
+          <article class="card">
+            <span class="label">Android</span>
+            <h3>32 JVM and 34 device tests</h3>
+            <p>Thirteen Room, thirteen real local-Supabase, and eight app or Compose emulator tests passed. Lint, debug assembly and the R8 release build also passed.</p>
+          </article>
+          <article class="card">
+            <span class="label">Shared contracts</span>
+            <h3>158 Swift tests</h3>
+            <p>TabCore passed all twelve suites, including accounting, conflict, currency and Splitwise parity behavior.</p>
+          </article>
+          <article class="card">
+            <span class="label">Database and release</span>
+            <h3>15 pgTAP suites</h3>
+            <p>Local schema and RLS tests passed. The release is networkless and contains no configured local or hosted backend material.</p>
+          </article>
+        </div>
       </section>
 
       <section class="guardrail" aria-labelledby="firewall">
@@ -473,13 +496,13 @@
       </section>
 
       <section class="next" aria-labelledby="next">
-        <p class="eyebrow">Next action</p>
-        <h2 id="next">Complete data transfer and settings</h2>
+        <p class="eyebrow">Before a hosted release</p>
+        <h2 id="next">Production enablement remains a separate decision</h2>
         <ul>
-          <li>Add trip CSV export and Splitwise CSV import with preview.</li>
-          <li>Finish profile, environment and safe local-data settings.</li>
-          <li>Keep every write Room-first and rerun device, database and release-safety checks.</li>
-          <li>Finish with an end-to-end clean build, accessibility review and release-readiness evidence.</li>
+          <li>Choose and verify Android release authentication, app-link ownership and notification delivery.</li>
+          <li>Rehearse compatibility in an isolated non-production Supabase environment.</li>
+          <li>Add signing, store distribution, monitoring, account-deletion UX and physical-device coverage.</li>
+          <li>Review the rollout and authorize each production change explicitly; none is implied by this local completion.</li>
         </ul>
       </section>
     </main>

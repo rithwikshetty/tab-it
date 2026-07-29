@@ -227,3 +227,9 @@ Trip detail can now share a CSV through Android's standard share sheet. Settings
 The import integration passed alone but initially conflicted with the application sign-out test when both shared one Room file and the Supabase SDK's platform session lifecycle. Gave the integration test a separate database file, a different fictional account, and an in-memory non-persistent Auth session with lifecycle callbacks disabled. The production app keeps its persisted session behavior. All eight app tests now pass together, including the local-backend import and a dedicated import-preview Compose test.
 
 Thirteen Room tests and thirteen local Supabase synchronization tests also pass on the API 36 emulator. Every database reset in this work used the guarded `tab-local` script; production was not accessed.
+
+## 2026-07-29 17:55 BST — Local Android delivery closed and restored
+
+Ran the final matrix after commit `b9d4e17`: 32 Android JVM tests; Android lint, debug assembly and the R8-minified release build; 13 Room, 13 real local-Supabase synchronization, and 8 app or Compose emulator tests; all 15 pgTAP suites; and 158 Swift TabCore tests across 12 suites. The packaged release manifest has no Internet permission. Exact DEX inspection found neither the local URL and publishable key nor any hosted Supabase URL. Privileged-key words in the release are only the deliberate runtime rejection checks.
+
+Updated the Android README and the single living HTML report with the completed scope, evidence, production boundary, and remaining hosted-release decisions. Reset `tab-local` once more after verification so Docker contains only the fictional baseline. No hosted Supabase operation, deployment, push, migration, or production write occurred.
