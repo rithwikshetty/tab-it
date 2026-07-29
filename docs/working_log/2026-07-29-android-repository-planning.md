@@ -109,3 +109,19 @@ The first combined run exposed two harness details rather than product-rule diff
 ## 2026-07-29 14:46 BST — Phase 2 clean verification
 
 Swift `TabCore` passed all 158 tests across 12 suites, including the shared parity fixture. Android passed 22 pure-domain tests plus application unit tests, lint, debug assembly, and the minified release assembly in a clean 106-task run. The release build remains backend-unconfigured. No database, Supabase API, hosted service, or production credential was accessed during this phase.
+
+## 2026-07-29 14:49 BST — Room foundation selected
+
+Opened GitHub issue #37 for the local-first persistence phase. Current Android guidance still lists Room 2.8.4 as stable while Room 3 is a release candidate, so the Android-only `:core:data` module uses stable Room 2.8.4 with KSP 2.3.9. The module boundary keeps Android persistence out of the pure Kotlin domain and keeps future Supabase transport behind repositories.
+
+## 2026-07-29 14:56 BST — Local schema and transaction boundary implemented
+
+Added the versioned Room schema for profiles, trips, trip people, categories, expenses, payment and split ledgers, settlements, activity, mute preferences, receipt drafts, and the synchronization outbox. UUIDs and timestamps are stored as stable strings; exact decimal values are stored as plain decimal text. Mutable synced rows carry updated, deleted, write-ID, and dirty metadata. Expense, payment, split, receipt-draft, and outbox writes execute in one Room transaction.
+
+## 2026-07-29 15:02 BST — Offline repositories and debug seed
+
+Added Flow-based repositories that read active trips and expenses from Room, validate ledger totals before writes, preserve soft-deleted rows, and order eligible outbox work by its database sequence. Debug initialization idempotently creates one fictional user, trip, friend, category, and expense without queueing remote work; release initialization is deliberately empty.
+
+## 2026-07-29 15:08 BST — Phase 3 emulator verification
+
+Nine Room instrumentation tests passed on the API 36 emulator. They cover exported schema creation, exact decimal round-tripping, ledger/receipt/outbox atomicity, foreign-key rollback, soft deletion, retry scheduling, Flow observation, debug-seed idempotency, settlements, activity, and mute preferences. Android data lint and the R8-minified release build passed. A cold debug launch created `tab.db` in the application sandbox. Release declares no Internet permission and contains no local or hosted Supabase URL; production remained untouched.

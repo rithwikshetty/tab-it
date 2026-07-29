@@ -37,7 +37,7 @@ tab/
     └── tests/
 ```
 
-The iOS app depends on `TabCore` via local SwiftPM. The independent Android build lives at `Apps/TabAndroid` with `:app` and pure Kotlin `:core:domain` modules. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
+The iOS app depends on `TabCore` via local SwiftPM. The independent Android build lives at `Apps/TabAndroid` with `:app`, pure Kotlin `:core:domain`, and Android-only Room `:core:data` modules. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
 
 ## Tech stack — locked
 

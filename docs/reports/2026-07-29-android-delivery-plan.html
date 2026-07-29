@@ -362,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Local-first data and synchronization</strong>
+          <strong>Local authentication and synchronization</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -442,8 +442,12 @@
             <span><strong class="phase-name">Behaviour parity</strong><span class="phase-detail">Shared fixtures prove Swift and Kotlin calculate the same answers.</span></span>
             <span class="pill">Complete</span>
           </li>
-          <li class="current">
+          <li class="done">
             <span><strong class="phase-name">First offline slice</strong><span class="phase-detail">Trip list and offline expense using mocks, then an isolated environment.</span></span>
+            <span class="pill">Complete</span>
+          </li>
+          <li class="current">
+            <span><strong class="phase-name">Local backend integration</strong><span class="phase-detail">Authenticate, pull, push and observe changes against local Supabase only.</span></span>
             <span class="pill">Current</span>
           </li>
           <li>
@@ -470,11 +474,11 @@
 
       <section class="next" aria-labelledby="next">
         <p class="eyebrow">Next action</p>
-        <h2 id="next">Build the local-first data layer</h2>
+        <h2 id="next">Connect only to local Supabase</h2>
         <ul>
-          <li>Persist trips, people, expenses, payments, splits and settlements locally with Room.</li>
-          <li>Keep repositories offline-first and expose deterministic observable state to the interface.</li>
-          <li>Test migrations, transactions, soft deletes and the local synchronization queue without production access.</li>
+          <li>Add local debug authentication without embedding a production identity or service-role key.</li>
+          <li>Pull remote rows into Room and push the ordered outbox through a narrow adapter.</li>
+          <li>Test offline retries, conflicts and realtime updates against the disposable local stack.</li>
         </ul>
       </section>
     </main>

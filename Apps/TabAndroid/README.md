@@ -10,6 +10,7 @@ same repository as the existing iOS app.
 - Gradle Wrapper 9.5.0
 - Kotlin 2.4.10
 - Compose BOM 2026.06.00
+- Room 2.8.4 with KSP 2.3.9
 - compile SDK 37, target SDK 36, minimum SDK 26
 
 On the current Homebrew-based macOS setup:
@@ -34,6 +35,11 @@ rules as Swift `TabCore`: currency precision, split/payment calculation,
 multi-payer balances, debt simplification, conflict resolution, trip state and
 analytics, cross-container balances, and Splitwise import. Both platforms run
 the shared cases in `contracts/domain/parity-v1.json`.
+
+The Android-only `:core:data` module owns Room, observable local repositories,
+the exact-decimal ledger transaction, receipt drafts, and the ordered sync
+outbox. Its versioned schema is exported under `core/data/schemas/`. Debug
+builds seed only fictional local rows; release builds start empty.
 
 The checked-in debug backend is `http://10.0.2.2:54321`, Android Emulator's
 alias for the host machine's local Supabase API. Release builds contain no
