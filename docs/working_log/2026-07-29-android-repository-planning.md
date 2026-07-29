@@ -77,3 +77,19 @@ A second clean local reset successfully applied the baseline, local ACL overlay,
 ## 2026-07-29 13:54 BST — Local privilege setup simplified
 
 The generated Supabase configuration documents a supported legacy compatibility switch for automatically exposing newly created tables to API roles. Replaced the hand-written local ACL overlay with `api.auto_expose_new_tables = true`, which more accurately recreates the existing project behavior. The switch is deprecated, so issue #34 still tracks explicit grants through a future approved forward migration.
+
+## 2026-07-29 14:03 BST — Android toolchain selected and installed
+
+Reverified the current stable compatibility chain from first-party Android and Kotlin sources. Selected JDK 17.0.20, AGP 9.3.0, Gradle 9.5.0, Kotlin 2.4.10, Compose BOM 2026.06.00, compile SDK 37, and target SDK 36. Installed JDK 17 plus Google's command-line SDK tools, platform tools, emulator 36.6.11, build tools 36.0.0, API 36 and 37 platforms, and the API 36 Google APIs ARM64 image.
+
+## 2026-07-29 14:10 BST — Emulator verified
+
+Created the `Tab_API_36` Pixel 7 virtual device and booted it headlessly. ADB reported a healthy ARM64 emulator running Android 16 / API 36. This gives the project a repeatable phone test target without requiring a physical Android device.
+
+## 2026-07-29 14:18 BST — Android skeleton implemented
+
+Opened GitHub issue #35 and created `Apps/TabAndroid` as an independent Gradle build. The initial graph contains only the Compose application and pure JVM `:core:domain` module. Added a checksum-pinned Gradle 9.5 wrapper, dependency locking, strict Kotlin warnings, debug-only local backend configuration, a release build with no backend URL, locked sage theme tokens, JVM tests, and a Compose emulator test.
+
+## 2026-07-29 14:24 BST — Phase 1 clean verification
+
+A clean build passed domain and app unit tests, Android lint, debug assembly, R8-minified release assembly, and the Compose instrumentation test on `Tab_API_36`. Installed and cold-launched the debug APK; ADB confirmed `MainActivity` resumed and the process stayed healthy. Visual inspection confirmed the foundation screen renders correctly with the sage palette. APK inspection found the expected `10.0.2.2:54321` URL only in debug and no local or hosted backend URL in release.

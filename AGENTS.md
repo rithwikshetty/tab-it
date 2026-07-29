@@ -15,7 +15,8 @@ A Splitwise replacement for tracking expenses on group trips. Private friend-gro
 ```
 tab/
 ├── Apps/
-│   └── Tab/                    ← Existing iOS app.
+│   ├── Tab/                    ← Existing iOS app.
+│   └── TabAndroid/             ← Native Kotlin/Compose Android Gradle build.
 ├── design/
 │   ├── mockups/                ← Main app screen mockups (v1, v2, …). Sage palette source of truth.
 │   ├── expense-entry/          ← Expense entry flow mockups.
@@ -29,7 +30,7 @@ tab/
     └── tests/
 ```
 
-The iOS app depends on `TabCore` via local SwiftPM. A future native Android Gradle build will live at `Apps/TabAndroid` without moving the iOS tree. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
+The iOS app depends on `TabCore` via local SwiftPM. The independent Android build lives at `Apps/TabAndroid` with `:app` and pure Kotlin `:core:domain` modules. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
 
 ## Tech stack — locked
 
@@ -105,6 +106,7 @@ Mockups live in `design/` organised by feature area, one subfolder per area:
 
 ```bash
 cd Packages/TabCore && swift test     # Swift tests
+cd Apps/TabAndroid && ./gradlew test lint # Android JVM tests + lint
 open design/mockups/v1.html            # Mockups (main app screens)
 bash supabase/tests/00_sql_assembly.sh # Static SQL source assembly check only
 ```
@@ -128,5 +130,5 @@ session_set_defaults with env: {"TAB_MOCK_AUTH": "1"}
 - **Design tokens** → `design/mockups/v1.html` (Sage palette is locked)
 - **Plans and phase reports** → `docs/reports/`
 - **Work tracking** → GitHub Issues in `rithwikshetty/tab-it`
-- **Supabase project ref** → set locally with `SUPABASE_PROJECT_REF`; no public default is checked in
+- **Local Supabase** → `supabase/config.toml` uses project id `tab-local`; local scripts refuse `SUPABASE_PROJECT_REF`
 - **MCP config** → `.mcp.json` (Claude Code), `.codex/config.toml` (Codex), `.pi/mcp.json` (Pi)

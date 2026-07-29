@@ -13,7 +13,8 @@ Pain points being solved: Splitwise's paywall, ads, and aggressive upsells.
 ```
 tab/
 ├── Apps/
-│   └── Tab/                    ← Existing iOS app.
+│   ├── Tab/                    ← Existing iOS app.
+│   └── TabAndroid/             ← Native Kotlin/Compose Android Gradle build.
 ├── design/
 │   ├── mockups/                ← Main app screen mockups (v1, v2, …). Sage palette source of truth.
 │   ├── expense-entry/          ← Expense entry flow mockups.
@@ -36,7 +37,7 @@ tab/
     └── tests/
 ```
 
-The iOS app depends on `TabCore` via local SwiftPM. A future native Android Gradle build will live at `Apps/TabAndroid` without moving the iOS tree. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
+The iOS app depends on `TabCore` via local SwiftPM. The independent Android build lives at `Apps/TabAndroid` with `:app` and pure Kotlin `:core:domain` modules. Supabase hosts auth + realtime + storage + edge functions; clients are offline-first.
 
 ## Tech stack — locked
 
@@ -112,6 +113,9 @@ Mockups live in `design/` organised by feature area, one subfolder per area:
 # Swift tests
 cd Packages/TabCore && swift test
 
+# Android JVM tests and lint
+cd Apps/TabAndroid && ./gradlew test lint
+
 # Open mockups (main app screens)
 open design/mockups/v1.html
 
@@ -138,5 +142,5 @@ session_set_defaults with env: {"TAB_MOCK_AUTH": "1"}
 - **Design tokens (Sage palette)** → `design/mockups/v1.html` — Sage hex values are the locked source of truth; port them to the Asset Catalog when scaffolding the app.
 - **Plans and phase reports** → `docs/reports/`
 - **Work tracking** → GitHub Issues in `rithwikshetty/tab-it`
-- **Supabase project ref** → set locally with `SUPABASE_PROJECT_REF`; no public default is checked in.
+- **Local Supabase** → `supabase/config.toml` uses project id `tab-local`; local scripts refuse `SUPABASE_PROJECT_REF`.
 - **MCP servers** → `.mcp.json` (Supabase MCP is HTTP-typed).

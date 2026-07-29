@@ -82,6 +82,31 @@ Exact library and plugin versions should be selected when Phase 1 starts, so
 the skeleton uses mutually compatible current stable releases rather than
 version numbers frozen in this planning document.
 
+## 2026-07-29 Phase 1 toolchain
+
+Phase 1 selected the following mutually compatible versions from current
+first-party release documentation:
+
+| Component | Version | Reason |
+|---|---:|---|
+| JDK | 17.0.20 | AGP 9.3 requires and defaults to JDK 17. |
+| Android Gradle Plugin | 9.3.0 | Current stable release; supports API 37. |
+| Gradle Wrapper | 9.5.0 | Required and default Gradle version for AGP 9.3. |
+| Kotlin | 2.4.10 | Current supported Kotlin 2.4 bug-fix release; AGP 9.1+ supports Kotlin 2.4. |
+| Compose BOM | 2026.06.00 | Current stable Compose compatibility set. |
+| Compile SDK | 37 | Required by current Compose 1.12 libraries. |
+| Target SDK | 36 | Current stable Google Play target requirement without opting into Android 17 preview runtime behaviour. |
+| Emulator | Android 16 / API 36 ARM64 | Stable runtime matching the target SDK and Apple Silicon host. |
+
+AGP 9's built-in Kotlin support is used for Android modules; the pure JVM
+domain module uses the pinned Kotlin plugin directly. The Compose compiler
+plugin matches Kotlin 2.4.10. Sources:
+[AGP 9.3 release and compatibility](https://developer.android.com/build/releases/agp-9-3-0-release-notes),
+[Kotlin releases](https://kotlinlang.org/docs/releases.html),
+[Kotlin/AGP compatibility](https://developer.android.com/build/kotlin-support),
+[Compose setup](https://developer.android.com/develop/ui/compose/setup-compose-dependencies-and-compiler),
+[Google Play target requirement](https://developer.android.com/google/play/requirements/target-sdk).
+
 ## What “same repository” does and does not mean
 
 A Git repository boundary and a build-system boundary are different decisions.

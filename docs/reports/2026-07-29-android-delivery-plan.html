@@ -362,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Android toolchain and application skeleton</strong>
+          <strong>Cross-platform domain behaviour parity</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -434,13 +434,13 @@
             <span><strong class="phase-name">Safety and plan</strong><span class="phase-detail">Rules, issue tracker, report and production isolation.</span></span>
             <span class="pill">Complete</span>
           </li>
-          <li class="current">
+          <li class="done">
             <span><strong class="phase-name">Minimal Android skeleton</strong><span class="phase-detail">A compiling blank app and pure Kotlin test. No backend credentials.</span></span>
-            <span class="pill">Current</span>
+            <span class="pill">Complete</span>
           </li>
-          <li>
+          <li class="current">
             <span><strong class="phase-name">Behaviour parity</strong><span class="phase-detail">Shared fixtures prove Swift and Kotlin calculate the same answers.</span></span>
-            <span class="pill">Planned</span>
+            <span class="pill">Current</span>
           </li>
           <li>
             <span><strong class="phase-name">First offline slice</strong><span class="phase-detail">Trip list and offline expense using mocks, then an isolated environment.</span></span>
@@ -470,17 +470,17 @@
 
       <section class="next" aria-labelledby="next">
         <p class="eyebrow">Next action</p>
-        <h2 id="next">Create and verify the Android build</h2>
+        <h2 id="next">Port and prove the domain rules</h2>
         <ul>
-          <li>Install a pinned Java and Android SDK toolchain plus an emulator.</li>
-          <li>Create <code>Apps/TabAndroid</code> with an app module and a pure Kotlin domain module.</li>
-          <li>Build, run unit tests, and boot the app on an emulator before starting behaviour parity.</li>
+          <li>Define platform-neutral fixtures for money, splits, balances, debt simplification and conflict resolution.</li>
+          <li>Run the same cases through Swift TabCore and Kotlin <code>:core:domain</code>.</li>
+          <li>Keep exact decimal arithmetic and deterministic UUID ordering identical on both platforms.</li>
         </ul>
       </section>
     </main>
 
     <footer>
-      <span>Foundation: <a href="https://github.com/rithwikshetty/tab-it/issues/33">issue #33</a> · Fresh-install grants: <a href="https://github.com/rithwikshetty/tab-it/issues/34">issue #34</a></span>
+      <span>Foundation: <a href="https://github.com/rithwikshetty/tab-it/issues/33">#33</a> · DB grants: <a href="https://github.com/rithwikshetty/tab-it/issues/34">#34</a> · Android skeleton: <a href="https://github.com/rithwikshetty/tab-it/issues/35">#35</a></span>
       <span>Supporting research: <a href="../research/2026-07-29-android-repository-architecture.md">repository architecture note</a></span>
     </footer>
   </div>

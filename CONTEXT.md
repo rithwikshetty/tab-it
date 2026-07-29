@@ -2,7 +2,7 @@
 
 A multi-user, multi-currency group expense tracker for trips. iOS-first, offline-first, private friend-group use; no monetisation.
 
-The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, [[Simplified debt|simplified trip debts]], settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. A native Android client is planned in reviewed phases alongside the existing iOS app. Not in scope: itinerary, cross-trip *spend* analytics, payment-app links, currency conversion, or percentage/share split UI.
+The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, [[Simplified debt|simplified trip debts]], settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. The native Kotlin/Compose Android client is being implemented in phases at `Apps/TabAndroid` alongside the existing iOS app. Not in scope: itinerary, cross-trip *spend* analytics, payment-app links, currency conversion, or percentage/share split UI.
 
 This file is the project's domain glossary. Only terms meaningful to a domain expert (someone reasoning about expenses, balances, and trips) belong here — implementation specifics live in code.
 
