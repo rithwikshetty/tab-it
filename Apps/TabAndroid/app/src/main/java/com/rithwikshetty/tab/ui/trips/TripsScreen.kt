@@ -31,6 +31,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +58,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.rithwikshetty.tab.data.LocalTripSummary
+import com.rithwikshetty.tab.data.LocalPerson
+import com.rithwikshetty.tab.domain.Expense
+import com.rithwikshetty.tab.ui.app.TripContentUiState
+import java.math.BigDecimal
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -215,14 +222,23 @@ private fun TripRow(
 @Composable
 fun TripDetailScreen(
     trip: LocalTripSummary?,
+    content: TripContentUiState,
+    currentUserId: UUID,
     onBack: () -> Unit,
     onRename: (String) -> Unit,
     onArchive: () -> Unit,
+    onAddExpense: () -> Unit,
+    onOpenExpense: (UUID) -> Unit,
+    onAddPerson: (String, String) -> Unit,
+    onRemovePerson: (UUID) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
     var showArchive by remember { mutableStateOf(false) }
+    var showAddPerson by remember { mutableStateOf(false) }
+    var removePerson by remember { mutableStateOf<LocalPerson?>(null) }
+    var section by remember { mutableStateOf(TripSection.EXPENSES) }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -273,41 +289,60 @@ fun TripDetailScreen(
                 },
             )
         },
+        floatingActionButton = {
+            when (section) {
+                TripSection.EXPENSES -> ExtendedFloatingActionButton(
+                    onClick = onAddExpense,
+                    modifier = Modifier.testTag("addExpense"),
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Add expense") },
+                )
+                TripSection.PEOPLE -> ExtendedFloatingActionButton(
+                    onClick = { showAddPerson = true },
+                    modifier = Modifier.testTag("addPerson"),
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Add person") },
+                )
+                TripSection.OVERVIEW -> Unit
+            }
+        },
     ) { contentPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(contentPadding)
-                .padding(16.dp),
+                .padding(contentPadding),
         ) {
-            Text(
-                text = "Overview",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Card(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 14.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "Trip is ready",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "Expenses, balances, members, and settlements will stay available offline from this screen.",
-                        modifier = Modifier.padding(top = 5.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        style = MaterialTheme.typography.bodyMedium,
+                TripSection.entries.forEach { candidate ->
+                    FilterChip(
+                        selected = section == candidate,
+                        onClick = { section = candidate },
+                        label = { Text(candidate.label) },
                     )
                 }
+            }
+            when (section) {
+                TripSection.EXPENSES -> ExpenseList(
+                    expenses = content.expenses,
+                    onOpenExpense = onOpenExpense,
+                    modifier = Modifier.weight(1f),
+                )
+                TripSection.OVERVIEW -> TripOverview(
+                    expenses = content.expenses,
+                    peopleCount = content.people.size,
+                    modifier = Modifier.weight(1f),
+                )
+                TripSection.PEOPLE -> PeopleList(
+                    people = content.people,
+                    currentUserId = currentUserId,
+                    onRemove = { removePerson = it },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
@@ -346,6 +381,278 @@ fun TripDetailScreen(
             },
         )
     }
+    if (showAddPerson) {
+        AddPersonDialog(
+            onDismiss = { showAddPerson = false },
+            onConfirm = { email, name ->
+                showAddPerson = false
+                onAddPerson(email, name)
+            },
+        )
+    }
+    removePerson?.let { person ->
+        AlertDialog(
+            onDismissRequest = { removePerson = null },
+            title = { Text("Remove ${person.displayName}?") },
+            text = {
+                Text("They will lose access after this change reaches the local Supabase service.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        removePerson = null
+                        onRemovePerson(person.id)
+                    },
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { removePerson = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+}
+
+private enum class TripSection(val label: String) {
+    EXPENSES("Expenses"),
+    OVERVIEW("Overview"),
+    PEOPLE("People"),
+}
+
+@Composable
+private fun ExpenseList(
+    expenses: List<Expense>,
+    onOpenExpense: (UUID) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (expenses.isEmpty()) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "No expenses yet",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Add the first expense. It is saved on this device before syncing.",
+                modifier = Modifier.padding(top = 6.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(expenses, key = { it.id }) { expense ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clickable { onOpenExpense(expense.id) },
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = expense.description.orEmpty(),
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = expense.expenseDate.atZone(ZoneId.systemDefault())
+                                .format(tripDateFormatter),
+                            modifier = Modifier.padding(top = 3.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Text(
+                        text = "${expense.amount.amount.toPlainString()} ${expense.amount.currency}",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+        item { Spacer(modifier = Modifier.height(88.dp)) }
+    }
+}
+
+@Composable
+private fun TripOverview(
+    expenses: List<Expense>,
+    peopleCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    val totals = expenses
+        .groupBy { it.amount.currency }
+        .mapValues { (_, rows) ->
+            rows.fold(BigDecimal.ZERO) { total, expense -> total + expense.amount.amount }
+        }
+        .toSortedMap()
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text(
+                text = "Trip summary",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text("$peopleCount people", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "${expenses.size} expenses",
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        if (totals.isEmpty()) {
+            item {
+                Text(
+                    text = "Spending totals appear here after you add an expense.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = "Total spent",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        totals.entries.forEachIndexed { index, (currency, amount) ->
+                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(currency)
+                                Text(amount.toPlainString(), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeopleList(
+    people: List<LocalPerson>,
+    currentUserId: UUID,
+    onRemove: (LocalPerson) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+    ) {
+        items(people, key = { it.id }) { person ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (person.userId == currentUserId) {
+                            "${person.displayName} (you)"
+                        } else {
+                            person.displayName
+                        },
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (person.hasJoined) person.email else "${person.email} · invited",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (person.userId != currentUserId) {
+                    TextButton(onClick = { onRemove(person) }) {
+                        Text("Remove")
+                    }
+                }
+            }
+            HorizontalDivider()
+        }
+        item { Spacer(modifier = Modifier.height(88.dp)) }
+    }
+}
+
+@Composable
+private fun AddPersonDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    var email by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add a person") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Email") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    label = { Text("Display name") },
+                    supportingText = { Text("This requires the local Supabase service to be running.") },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(email.trim(), displayName.trim()) },
+                enabled = email.contains("@") && displayName.isNotBlank(),
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable

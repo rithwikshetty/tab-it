@@ -169,3 +169,19 @@ The expanded sync suite made realtime intermittently time out because each test 
 ## 2026-07-29 16:22 BST — Phase 5 release checks passed
 
 Android unit tests, lint, debug assembly, and the R8-minified release build passed in a 277-task run. The release artifact remains backend-unconfigured and networkless. The disposable Supabase database was reset to the fictional baseline after integration testing; no production service was accessed.
+
+## 2026-07-29 16:27 BST — Phase 6 expense and membership slice implemented
+
+Opened GitHub issue #40 and connected the trip detail screen to Room flows for active people, categories, and expense ledgers. Added trip expense, overview, and people surfaces; typed navigation for expense create, detail, and edit; local-first save and soft delete; and online-only add/remove membership operations through the existing local RPCs. The form supports exact decimal amount and currency, category, date, payment method, multiple payers, equal or exact participants, deterministic validation, and accessible live error announcements.
+
+## 2026-07-29 16:27 BST — Device tests found and corrected lifecycle defaults
+
+The full emulator flow caught two real edge cases before completion. Disposing one nested trip destination could clear selected-trip state after the next destination had set it, so selected-trip lifetime is now owned by the top-level destination transition rather than competing disposal callbacks. A new expense could also reach validation before its current-member payer default was populated; save now has an explicit deterministic default payer and participant fallback while still preserving deliberate multi-payer entries.
+
+## 2026-07-29 16:27 BST — Local integration coverage expanded
+
+Room tests now cover repository-level member, category, and individual expense flows. Supabase integration verifies member add and remove against the disposable local RPCs. Compose tests cover validation and exact-decimal expense construction, while an application-level test signs in, opens the seeded trip, creates an expense, returns to the list, opens its detail, and verifies payer and split ledgers. The pre-existing Realtime case timed out when embedded in the first aggregate run but passed in isolation; its test driver now retries a bounded local change while one subscribed collector waits, and the complete nine-test sync suite passes together.
+
+## 2026-07-29 16:35 BST — Phase 6 clean verification
+
+All Android JVM tests, debug lint, debug assembly, and the R8-minified release assembly passed in a 279-task run. Eleven Room tests, nine synchronization tests, and three Compose/application tests passed on the API 36 emulator. The release manifest has no Internet permission, and artifact inspection confirmed that neither a configured backend URL nor the local publishable key is present. The living HTML report passes semantic validation. The disposable local database was reset to its fictional seed after testing; production was not accessed.

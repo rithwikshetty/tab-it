@@ -18,6 +18,7 @@ import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -178,14 +179,43 @@ class LocalSupabaseIntegrationTest {
         val aggregate = checkNotNull(database.expenses().findAggregate(expenseId.toString()))
 
         val event = async {
-            withTimeout(20_000) {
+            withTimeout(45_000) {
                 gateway.observeCurrentTripChanges(TRIP_ID.toString()).first()
             }
         }
-        delay(1_000)
-        gateway.pushExpense(aggregate)
-
+        val pusher = launch {
+            repeat(5) {
+                delay(2_000)
+                gateway.pushExpense(aggregate)
+            }
+        }
         event.await()
+        pusher.cancel()
+    }
+
+    @Test
+    fun memberAddAndRemoveUseLocalRpcAndRefreshRoomState() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val personId = UUID.randomUUID()
+        val email = "android-${personId.toString().take(8)}@tab.local"
+
+        gateway.addTripPerson(
+            tripId = TRIP_ID.toString(),
+            email = email,
+            displayName = "Android Guest",
+            personId = personId.toString(),
+        )
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+
+        val repository = LocalTripRepository(database)
+        val added = repository.observePeople(TRIP_ID).first().single { it.id == personId }
+        assertEquals(email, added.email)
+        assertFalse(added.hasJoined)
+
+        gateway.removeTripPerson(personId.toString())
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        assertTrue(repository.observePeople(TRIP_ID).first().none { it.id == personId })
     }
 
     private fun testExpense(id: UUID, now: Instant): Expense = Expense(

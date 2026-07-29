@@ -12,6 +12,7 @@ import com.rithwikshetty.tab.data.local.SyncStamp
 import com.rithwikshetty.tab.data.local.TabDatabase
 import com.rithwikshetty.tab.data.local.TripEntity
 import com.rithwikshetty.tab.data.local.TripPersonEntity
+import com.rithwikshetty.tab.data.local.CategoryEntity
 import com.rithwikshetty.tab.domain.Expense
 import com.rithwikshetty.tab.domain.ExpenseSplit
 import com.rithwikshetty.tab.domain.CurrencyCatalog
@@ -35,6 +36,21 @@ public data class LocalTripSummary(
     public val lastActivityAt: Instant,
 )
 
+public data class LocalPerson(
+    public val id: UUID,
+    public val userId: UUID?,
+    public val email: String,
+    public val displayName: String,
+    public val hasJoined: Boolean,
+)
+
+public data class LocalCategory(
+    public val id: UUID,
+    public val name: String,
+    public val icon: String,
+    public val isDefault: Boolean,
+)
+
 public class LocalTripRepository(
     private val database: TabDatabase,
 ) {
@@ -43,6 +59,16 @@ public class LocalTripRepository(
 
     public fun observeTrip(id: UUID): Flow<LocalTripSummary?> =
         database.trips().observeTrip(id.toString()).map { it?.toSummary() }
+
+    public fun observePeople(id: UUID): Flow<List<LocalPerson>> =
+        database.trips().observeActivePeople(id.toString()).map { people ->
+            people.map(TripPersonEntity::toLocalPerson)
+        }
+
+    public fun observeCategories(id: UUID): Flow<List<LocalCategory>> =
+        database.trips().observeCategories(id.toString()).map { categories ->
+            categories.map(CategoryEntity::toLocalCategory)
+        }
 
     public suspend fun create(
         name: String,
@@ -179,6 +205,12 @@ public class LocalExpenseRepository(
             rows.map(ExpenseWithLedger::toDomain)
         }
 
+    public fun observeExpense(id: UUID): Flow<Expense?> =
+        database.expenses().observeAggregate(id.toString()).map { it?.toDomain() }
+
+    public suspend fun find(id: UUID): Expense? =
+        database.expenses().findAggregate(id.toString())?.toDomain()
+
     public suspend fun save(
         expense: Expense,
         writeId: UUID = UUID.randomUUID(),
@@ -258,6 +290,18 @@ public class LocalExpenseRepository(
 
 private fun TripEntity.toSummary(): LocalTripSummary =
     LocalTripSummary(UUID.fromString(id), name, Instant.parse(lastActivityAt))
+
+private fun TripPersonEntity.toLocalPerson(): LocalPerson =
+    LocalPerson(
+        id = UUID.fromString(id),
+        userId = userId?.let(UUID::fromString),
+        email = email,
+        displayName = displayName,
+        hasJoined = joinedAt != null,
+    )
+
+private fun CategoryEntity.toLocalCategory(): LocalCategory =
+    LocalCategory(UUID.fromString(id), name, icon, isDefault)
 
 private fun Expense.toEntity(stamp: SyncStamp): ExpenseEntity = ExpenseEntity(
     id = id.toString(),

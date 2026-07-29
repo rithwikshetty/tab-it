@@ -27,7 +27,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,6 +50,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.rithwikshetty.tab.ui.auth.AuthScreen
 import com.rithwikshetty.tab.ui.auth.BackendUnavailableScreen
+import com.rithwikshetty.tab.ui.expenses.ExpenseDetailScreen
+import com.rithwikshetty.tab.ui.expenses.ExpenseEditorScreen
 import com.rithwikshetty.tab.ui.trips.TripDetailScreen
 import com.rithwikshetty.tab.ui.trips.TripsScreen
 import java.util.UUID
@@ -87,6 +88,10 @@ fun TabApp(
             onRenameTrip = viewModel::renameTrip,
             onArchiveTrip = viewModel::archiveTrip,
             onTripVisible = viewModel::setVisibleTrip,
+            onSaveExpense = viewModel::saveExpense,
+            onDeleteExpense = viewModel::deleteExpense,
+            onAddTripPerson = viewModel::addTripPerson,
+            onRemoveTripPerson = viewModel::removeTripPerson,
             onSignOut = viewModel::signOut,
             modifier = modifier,
         )
@@ -102,6 +107,10 @@ private fun SignedInApp(
     onRenameTrip: (UUID, String) -> Unit,
     onArchiveTrip: (UUID, () -> Unit) -> Unit,
     onTripVisible: (UUID?) -> Unit,
+    onSaveExpense: (com.rithwikshetty.tab.domain.Expense) -> Unit,
+    onDeleteExpense: (UUID) -> Unit,
+    onAddTripPerson: (UUID, String, String?) -> Unit,
+    onRemoveTripPerson: (UUID) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -139,12 +148,14 @@ private fun SignedInApp(
                     modifier = Modifier.padding(contentPadding),
                 ) {
             composable<FriendsRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
                 PlaceholderScreen(
                     title = "Friends",
                     body = "Balances with people across your shared groups appear here.",
                 )
             }
             composable<TripsRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
                 TripsScreen(
                     trips = state.trips,
                     isWorking = state.isWorking,
@@ -158,12 +169,14 @@ private fun SignedInApp(
                 )
             }
             composable<ActivityRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
                 PlaceholderScreen(
                     title = "Activity",
                     body = "Changes from your trips appear here after sync.",
                 )
             }
             composable<SettingsRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
                 SettingsScreen(
                     email = (state.session as SessionState.SignedIn).user.email,
                     isWorking = state.isWorking,
@@ -173,12 +186,18 @@ private fun SignedInApp(
             composable<TripRoute> { entry ->
                 val route = entry.toRoute<TripRoute>()
                 val id = UUID.fromString(route.id)
-                DisposableEffect(id) {
+                LaunchedEffect(id) {
                     onTripVisible(id)
-                    onDispose { onTripVisible(null) }
                 }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == id }
+                    ?: TripContentUiState(tripId = id)
                 TripDetailScreen(
                     trip = state.trips.firstOrNull { it.id == id },
+                    content = tripContent,
+                    currentUserId = UUID.fromString(
+                        (state.session as SessionState.SignedIn).user.id,
+                    ),
                     onBack = navController::popBackStack,
                     onRename = { onRenameTrip(id, it) },
                     onArchive = {
@@ -186,6 +205,91 @@ private fun SignedInApp(
                             navController.popBackStack()
                         }
                     },
+                    onAddExpense = {
+                        navController.navigate(NewExpenseRoute(id.toString()))
+                    },
+                    onOpenExpense = { expenseId ->
+                        navController.navigate(
+                            ExpenseRoute(id.toString(), expenseId.toString()),
+                        )
+                    },
+                    onAddPerson = { email, displayName ->
+                        onAddTripPerson(id, email, displayName)
+                    },
+                    onRemovePerson = onRemoveTripPerson,
+                )
+            }
+            composable<NewExpenseRoute> { entry ->
+                val route = entry.toRoute<NewExpenseRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                LaunchedEffect(tripId) {
+                    onTripVisible(tripId)
+                }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                ExpenseEditorScreen(
+                    tripId = tripId,
+                    currentUserId = UUID.fromString(
+                        (state.session as SessionState.SignedIn).user.id,
+                    ),
+                    people = tripContent.people,
+                    categories = tripContent.categories,
+                    existing = null,
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onSave = onSaveExpense,
+                )
+            }
+            composable<ExpenseRoute> { entry ->
+                val route = entry.toRoute<ExpenseRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                val expenseId = UUID.fromString(route.expenseId)
+                LaunchedEffect(tripId) {
+                    onTripVisible(tripId)
+                }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                val expense = tripContent.expenses.firstOrNull { it.id == expenseId }
+                ExpenseDetailScreen(
+                    expense = expense,
+                    people = tripContent.people,
+                    category = tripContent.categories
+                        .firstOrNull { it.id == expense?.categoryId },
+                    onBack = navController::popBackStack,
+                    onEdit = {
+                        navController.navigate(
+                            EditExpenseRoute(route.tripId, route.expenseId),
+                        )
+                    },
+                    onDelete = {
+                        onDeleteExpense(expenseId)
+                        navController.popBackStack()
+                    },
+                )
+            }
+            composable<EditExpenseRoute> { entry ->
+                val route = entry.toRoute<EditExpenseRoute>()
+                val tripId = UUID.fromString(route.tripId)
+                val expenseId = UUID.fromString(route.expenseId)
+                LaunchedEffect(tripId) {
+                    onTripVisible(tripId)
+                }
+                val tripContent = state.tripContent
+                    .takeIf { it.tripId == tripId }
+                    ?: TripContentUiState(tripId = tripId)
+                ExpenseEditorScreen(
+                    tripId = tripId,
+                    currentUserId = UUID.fromString(
+                        (state.session as SessionState.SignedIn).user.id,
+                    ),
+                    people = tripContent.people,
+                    categories = tripContent.categories,
+                    existing = tripContent.expenses.firstOrNull { it.id == expenseId },
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onSave = onSaveExpense,
                 )
             }
                 }
@@ -376,3 +480,12 @@ private data object SettingsRoute
 
 @Serializable
 private data class TripRoute(val id: String)
+
+@Serializable
+private data class NewExpenseRoute(val tripId: String)
+
+@Serializable
+private data class ExpenseRoute(val tripId: String, val expenseId: String)
+
+@Serializable
+private data class EditExpenseRoute(val tripId: String, val expenseId: String)

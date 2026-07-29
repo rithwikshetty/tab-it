@@ -7,7 +7,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import java.util.UUID
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,16 +22,7 @@ class AppShellTest {
 
     @Test
     fun localSignInOpensTripsNavigation() {
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty() ||
-                composeRule.onAllNodesWithText("Trips").fetchSemanticsNodes().isNotEmpty()
-        }
-        if (composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()) {
-            composeRule.onNodeWithText("Sign in").performClick()
-        }
-        composeRule.waitUntil(timeoutMillis = 20_000) {
-            composeRule.onAllNodesWithText("Trips").fetchSemanticsNodes().isNotEmpty()
-        }
+        ensureSignedIn()
         composeRule.onNodeWithContentDescription("Refresh trips").assertIsDisplayed()
 
         composeRule.activityRule.scenario.recreate()
@@ -42,5 +36,45 @@ class AppShellTest {
             composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText("Sign in").assertIsDisplayed()
+    }
+
+    @Test
+    fun seededTripSupportsCreateAndOpenExpenseFlow() {
+        val description = "Android UI ${UUID.randomUUID().toString().take(8)}"
+        ensureSignedIn()
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Lake District").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Lake District").performClick()
+        composeRule.onNodeWithTag("addExpense").performClick()
+        composeRule.onNodeWithTag("expenseDescription").performTextInput(description)
+        composeRule.onNodeWithTag("expenseAmount").performTextReplacement("14.75")
+        composeRule.onNodeWithTag("saveExpense").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText(description).fetchSemanticsNodes().isNotEmpty() &&
+                composeRule.onAllNodesWithText("Expenses").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(description).performClick()
+        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("14.75 GBP").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("14.75 GBP")[0].assertIsDisplayed()
+        composeRule.onNodeWithText("Paid by").assertIsDisplayed()
+        composeRule.onNodeWithText("Split between").assertIsDisplayed()
+    }
+
+    private fun ensureSignedIn() {
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("Trips").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (composeRule.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithText("Sign in").performClick()
+        }
+        composeRule.waitUntil(timeoutMillis = 20_000) {
+            composeRule.onAllNodesWithText("Trips").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

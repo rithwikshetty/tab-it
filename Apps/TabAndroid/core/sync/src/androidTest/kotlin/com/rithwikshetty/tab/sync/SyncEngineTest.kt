@@ -224,6 +224,15 @@ private class FakeGateway(
         creator: com.rithwikshetty.tab.data.local.TripPersonEntity?,
     ): PushReceipt = PushReceipt(trip.sync.writeId)
 
+    override suspend fun addTripPerson(
+        tripId: String,
+        email: String,
+        displayName: String?,
+        personId: String,
+    ) = Unit
+
+    override suspend fun removeTripPerson(personId: String) = Unit
+
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> = emptyFlow()
 }
 

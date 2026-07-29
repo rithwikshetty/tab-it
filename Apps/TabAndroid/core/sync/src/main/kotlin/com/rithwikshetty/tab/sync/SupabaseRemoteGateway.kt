@@ -198,6 +198,39 @@ public class SupabaseRemoteGateway private constructor(
         return PushReceipt(trip.sync.writeId)
     }
 
+    override suspend fun addTripPerson(
+        tripId: String,
+        email: String,
+        displayName: String?,
+        personId: String,
+    ) {
+        checkNotNull(currentUser()) { "Authentication is required before changing members." }
+        UUID.fromString(tripId)
+        UUID.fromString(personId)
+        val normalizedEmail = email.trim().lowercase()
+        require(normalizedEmail.contains("@")) { "A valid email is required." }
+        client.postgrest.rpc(
+            "add_trip_person_by_email",
+            Json.encodeToJsonElement(
+                AddTripPersonParameters(
+                    tripId,
+                    normalizedEmail,
+                    displayName?.trim()?.ifEmpty { null },
+                    personId,
+                ),
+            ).jsonObject,
+        )
+    }
+
+    override suspend fun removeTripPerson(personId: String) {
+        checkNotNull(currentUser()) { "Authentication is required before changing members." }
+        UUID.fromString(personId)
+        client.postgrest.rpc(
+            "remove_trip_person",
+            Json.encodeToJsonElement(RemoveTripPersonParameters(personId)).jsonObject,
+        )
+    }
+
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> {
         UUID.fromString(tripId)
         val channel = client.channel("trip-$tripId")

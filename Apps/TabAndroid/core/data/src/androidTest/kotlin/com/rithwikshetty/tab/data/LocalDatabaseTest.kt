@@ -124,11 +124,33 @@ class LocalDatabaseTest {
     fun activeTripAndPeopleFlowsExcludeSoftDeletedOrRemovedRows() = runTest {
         val tripRepository = LocalTripRepository(database)
         assertEquals(listOf("Local Test Trip"), tripRepository.observeTrips().first().map { it.name })
-        assertEquals(2, database.trips().observeActivePeople(tripId.toString()).first().size)
+        val people = tripRepository.observePeople(tripId).first()
+        assertEquals(2, people.size)
+        assertEquals("Test User", people.first { it.id == payerId }.displayName)
+        assertTrue(people.first { it.id == payerId }.hasJoined)
+        assertEquals("Food & Drink", tripRepository.observeCategories(tripId).first().single().name)
 
         val removed = database.trips().findPerson(debtorId.toString())!!.copy(removedAt = now.toString())
         database.trips().upsertPeople(listOf(removed))
-        assertEquals(1, database.trips().observeActivePeople(tripId.toString()).first().size)
+        assertEquals(1, tripRepository.observePeople(tripId).first().size)
+    }
+
+    @Test
+    fun individualExpenseFlowTracksEditsAndSoftDeleteMetadata() = runTest {
+        val original = expense()
+        repository.save(original)
+        assertEquals("Local dinner", repository.observeExpense(original.id).first()?.description)
+        assertEquals(original, repository.find(original.id))
+
+        val edited = original.copy(
+            description = "Edited dinner",
+            updatedAt = now.plusSeconds(30),
+        )
+        repository.save(edited)
+        assertEquals("Edited dinner", repository.observeExpense(original.id).first()?.description)
+
+        repository.softDelete(original.id, now.plusSeconds(60))
+        assertNotNull(repository.find(original.id)?.deletedAt)
     }
 
     @Test

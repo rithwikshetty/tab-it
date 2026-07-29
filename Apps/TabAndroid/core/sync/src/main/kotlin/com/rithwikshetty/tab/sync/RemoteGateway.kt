@@ -56,5 +56,14 @@ public interface RemoteGateway {
 
     public suspend fun pushTrip(trip: TripEntity, creator: TripPersonEntity?): PushReceipt
 
+    public suspend fun addTripPerson(
+        tripId: String,
+        email: String,
+        displayName: String?,
+        personId: String,
+    )
+
+    public suspend fun removeTripPerson(personId: String)
+
     public fun observeCurrentTripChanges(tripId: String): Flow<Unit>
 }

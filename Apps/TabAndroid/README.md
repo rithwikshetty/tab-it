@@ -60,6 +60,13 @@ Settings destinations, and supports Room-first trip create, rename and archive.
 Sign-out first requires a successful sync, then clears that account's local
 copy so a later account cannot see stale data.
 
+Trip detail is also Room-backed. It exposes expenses, per-currency trip totals,
+and active or invited people. Expense create and edit support exact decimal
+amounts, currency, category, date, payment method, multiple payers, and equal or
+exact splits; save and delete are local-first outbox operations. Member add and
+remove use the existing Supabase RPCs and therefore require the disposable local
+service to be running.
+
 The generated and ignored `local.properties` points debug builds at
 `http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse
 mapping to the guarded local Supabase API. It refuses physical devices and

@@ -87,6 +87,15 @@ public interface TripDao {
     @Query("SELECT * FROM categories WHERE id = :id")
     public suspend fun findCategory(id: String): CategoryEntity?
 
+    @Query(
+        """
+        SELECT * FROM categories
+        WHERE deleted_at IS NULL AND (trip_id IS NULL OR trip_id = :tripId)
+        ORDER BY is_default DESC, name COLLATE NOCASE, id
+        """,
+    )
+    public fun observeCategories(tripId: String): Flow<List<CategoryEntity>>
+
     @Query("SELECT COUNT(*) FROM trips")
     public suspend fun count(): Int
 
@@ -151,6 +160,10 @@ public interface ExpenseDao {
     @Transaction
     @Query("SELECT * FROM expenses WHERE id = :id")
     public suspend fun findAggregate(id: String): ExpenseWithLedger?
+
+    @Transaction
+    @Query("SELECT * FROM expenses WHERE id = :id")
+    public fun observeAggregate(id: String): Flow<ExpenseWithLedger?>
 
     @Query(
         """

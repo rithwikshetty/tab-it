@@ -5,14 +5,20 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rithwikshetty.tab.TabContainer
 import com.rithwikshetty.tab.data.LocalTripSummary
+import com.rithwikshetty.tab.data.LocalCategory
+import com.rithwikshetty.tab.data.LocalPerson
+import com.rithwikshetty.tab.domain.Expense
 import com.rithwikshetty.tab.sync.AuthenticatedUser
 import com.rithwikshetty.tab.sync.RealtimeSyncCoordinator
 import java.util.UUID
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -26,25 +32,51 @@ sealed interface SessionState {
 data class TabUiState(
     val session: SessionState = SessionState.Loading,
     val trips: List<LocalTripSummary> = emptyList(),
+    val tripContent: TripContentUiState = TripContentUiState(),
     val isWorking: Boolean = false,
     val message: String? = null,
 )
 
+data class TripContentUiState(
+    val tripId: UUID? = null,
+    val people: List<LocalPerson> = emptyList(),
+    val categories: List<LocalCategory> = emptyList(),
+    val expenses: List<Expense> = emptyList(),
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class TabViewModel(
     private val container: TabContainer,
 ) : ViewModel() {
     private val session = MutableStateFlow<SessionState>(SessionState.Loading)
     private val isWorking = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
+    private val visibleTripId = MutableStateFlow<UUID?>(null)
     private var realtimeJob: Job? = null
+
+    private val tripContent = combine(
+        visibleTripId,
+        visibleTripId.flatMapLatest { id ->
+            id?.let(container.tripRepository::observePeople) ?: flowOf(emptyList())
+        },
+        visibleTripId.flatMapLatest { id ->
+            id?.let(container.tripRepository::observeCategories) ?: flowOf(emptyList())
+        },
+        visibleTripId.flatMapLatest { id ->
+            id?.let(container.expenseRepository::observeExpenses) ?: flowOf(emptyList())
+        },
+    ) { tripId, people, categories, expenses ->
+        TripContentUiState(tripId, people, categories, expenses)
+    }
 
     val uiState: StateFlow<TabUiState> = combine(
         session,
         container.tripRepository.observeTrips(),
+        tripContent,
         isWorking,
         message,
-    ) { currentSession, trips, working, currentMessage ->
-        TabUiState(currentSession, trips, working, currentMessage)
+    ) { currentSession, trips, currentTripContent, working, currentMessage ->
+        TabUiState(currentSession, trips, currentTripContent, working, currentMessage)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -124,11 +156,48 @@ class TabViewModel(
     fun setVisibleTrip(id: UUID?) {
         realtimeJob?.cancel()
         realtimeJob = null
+        visibleTripId.value = id
         if (id == null || session.value !is SessionState.SignedIn) return
         val remote = container.remoteGateway ?: return
         val engine = container.syncEngine ?: return
         realtimeJob = RealtimeSyncCoordinator(remote, engine)
             .start(viewModelScope, id.toString())
+    }
+
+    fun saveExpense(expense: Expense) {
+        launchWorking {
+            container.expenseRepository.save(expense)
+            sync()
+        }
+    }
+
+    fun deleteExpense(id: UUID) {
+        launchWorking {
+            container.expenseRepository.softDelete(id, java.time.Instant.now())
+            sync()
+        }
+    }
+
+    fun addTripPerson(tripId: UUID, email: String, displayName: String?) {
+        val remote = container.remoteGateway ?: return
+        launchWorking {
+            sync()
+            remote.addTripPerson(
+                tripId = tripId.toString(),
+                email = email,
+                displayName = displayName,
+                personId = UUID.randomUUID().toString(),
+            )
+            sync()
+        }
+    }
+
+    fun removeTripPerson(personId: UUID) {
+        val remote = container.remoteGateway ?: return
+        launchWorking {
+            remote.removeTripPerson(personId.toString())
+            sync()
+        }
     }
 
     fun clearMessage() {
