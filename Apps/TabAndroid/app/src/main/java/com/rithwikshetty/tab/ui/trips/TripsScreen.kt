@@ -226,9 +226,13 @@ fun TripDetailScreen(
     trip: LocalTripSummary?,
     content: TripContentUiState,
     currentUserId: UUID,
+    isMuted: Boolean,
     onBack: () -> Unit,
     onRename: (String) -> Unit,
     onArchive: () -> Unit,
+    onToggleMute: (Boolean) -> Unit,
+    onShareInvite: () -> Unit,
+    onRevokeInvite: () -> Unit,
     onAddExpense: () -> Unit,
     onOpenExpense: (UUID) -> Unit,
     onAddPerson: (String, String) -> Unit,
@@ -276,6 +280,27 @@ fun TripDetailScreen(
                                 onClick = {
                                     menuOpen = false
                                     showRename = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isMuted) "Unmute activity" else "Mute activity") },
+                                onClick = {
+                                    menuOpen = false
+                                    onToggleMute(!isMuted)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Share invite link") },
+                                onClick = {
+                                    menuOpen = false
+                                    onShareInvite()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Revoke invite link") },
+                                onClick = {
+                                    menuOpen = false
+                                    onRevokeInvite()
                                 },
                             )
                             DropdownMenuItem(

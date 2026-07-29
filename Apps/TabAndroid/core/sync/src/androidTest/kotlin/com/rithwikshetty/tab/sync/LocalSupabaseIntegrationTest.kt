@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rithwikshetty.tab.data.LocalExpenseRepository
+import com.rithwikshetty.tab.data.LocalActivityRepository
 import com.rithwikshetty.tab.data.LocalSettlementRepository
 import com.rithwikshetty.tab.data.LocalTripRepository
 import com.rithwikshetty.tab.data.local.TabDatabase
@@ -302,6 +303,34 @@ class LocalSupabaseIntegrationTest {
                 it.expense.id == expense.id.toString()
             },
         )
+    }
+
+    @Test
+    fun activityMuteAndInviteContractsRoundTripThroughLocalSupabase() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val activity = LocalActivityRepository(database)
+        val seenAt = Instant.now()
+
+        activity.markSeen(USER_ID, seenAt)
+        val serverSeenAt = Instant.parse(gateway.markActivitySeen(seenAt.toString()))
+        assertFalse(serverSeenAt.isAfter(Instant.now().plusSeconds(1)))
+
+        activity.setTripMuted(TRIP_ID, USER_ID, muted = true)
+        val muted = SyncEngine(database, gateway).syncOnce()
+        assertEquals(1, muted.pushed)
+        assertTrue(gateway.pullSnapshot().mutePreferences.any { it.tripId == TRIP_ID.toString() })
+
+        val token = gateway.getOrCreateTripInvite(TRIP_ID.toString())
+        assertTrue(token.matches(Regex("[0-9a-f]{32}")))
+        val joined = gateway.joinTripWithInvite(token)
+        assertEquals(TRIP_ID.toString(), joined.tripId)
+
+        gateway.revokeTripInvite(TRIP_ID.toString())
+        activity.setTripMuted(TRIP_ID, USER_ID, muted = false)
+        val unmuted = SyncEngine(database, gateway).syncOnce()
+        assertEquals(1, unmuted.pushed)
+        assertTrue(gateway.pullSnapshot().mutePreferences.none { it.tripId == TRIP_ID.toString() })
     }
 
     private fun testExpense(id: UUID, now: Instant): Expense = Expense(

@@ -44,6 +44,12 @@ public data class RemoteParticipant(
     public val displayName: String,
 )
 
+public data class JoinedTrip(
+    public val tripId: String,
+    public val personId: String,
+    public val tripName: String,
+)
+
 public interface RemoteGateway {
     public suspend fun restoreSession(): AuthenticatedUser?
 
@@ -62,6 +68,21 @@ public interface RemoteGateway {
     public suspend fun pushTrip(trip: TripEntity, creator: TripPersonEntity?): PushReceipt
 
     public suspend fun pushSettlement(settlement: SettlementEntity): PushReceipt
+
+    public suspend fun pushMute(mute: TripMutePreferenceEntity): PushReceipt =
+        error("Mute synchronization is not implemented.")
+
+    public suspend fun markActivitySeen(seenAt: String): String =
+        error("Activity read state is not implemented.")
+
+    public suspend fun getOrCreateTripInvite(tripId: String): String =
+        error("Trip invitations are not implemented.")
+
+    public suspend fun revokeTripInvite(tripId: String): Unit =
+        error("Trip invitations are not implemented.")
+
+    public suspend fun joinTripWithInvite(token: String): JoinedTrip =
+        error("Trip invitations are not implemented.")
 
     public suspend fun addTripPerson(
         tripId: String,

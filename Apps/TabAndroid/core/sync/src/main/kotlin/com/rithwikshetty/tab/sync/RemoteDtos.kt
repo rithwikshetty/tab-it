@@ -25,8 +25,9 @@ internal data class ProfileDto(
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
     @SerialName("write_id") val writeId: String,
+    @SerialName("activity_last_seen_at") val activityLastSeenAt: String? = null,
 ) {
-    fun toEntity(activityLastSeenAt: String?): ProfileEntity = ProfileEntity(
+    fun toEntity(): ProfileEntity = ProfileEntity(
         id,
         displayName,
         avatarUrl,
@@ -66,6 +67,42 @@ internal data class CreateTripParameters(
     @SerialName("p_trip_id") val tripId: String,
     @SerialName("p_person_id") val personId: String,
     @SerialName("p_name") val name: String,
+)
+
+@Serializable
+internal data class MuteUpsertPayload(
+    @SerialName("trip_id") val tripId: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("muted_at") val mutedAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("write_id") val writeId: String,
+)
+
+@Serializable
+internal data class MarkActivitySeenParameters(
+    @SerialName("p_seen_at") val seenAt: String,
+)
+
+@Serializable
+internal data class TripIdParameters(
+    @SerialName("p_trip_id") val tripId: String,
+)
+
+@Serializable
+internal data class TripInviteDto(
+    val token: String,
+)
+
+@Serializable
+internal data class JoinTripInviteParameters(
+    @SerialName("p_token") val token: String,
+)
+
+@Serializable
+internal data class JoinedTripDto(
+    @SerialName("trip_id") val tripId: String,
+    @SerialName("person_id") val personId: String,
+    @SerialName("trip_name") val tripName: String,
 )
 
 @Serializable

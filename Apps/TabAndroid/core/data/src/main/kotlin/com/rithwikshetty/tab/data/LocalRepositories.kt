@@ -14,6 +14,8 @@ import com.rithwikshetty.tab.data.local.TabDatabase
 import com.rithwikshetty.tab.data.local.TripEntity
 import com.rithwikshetty.tab.data.local.TripPersonEntity
 import com.rithwikshetty.tab.data.local.CategoryEntity
+import com.rithwikshetty.tab.data.local.ActivityEntity
+import com.rithwikshetty.tab.data.local.TripMutePreferenceEntity
 import com.rithwikshetty.tab.domain.Expense
 import com.rithwikshetty.tab.domain.ExpenseSplit
 import com.rithwikshetty.tab.domain.CurrencyCatalog
@@ -46,6 +48,24 @@ public data class LocalPerson(
     public val displayName: String,
     public val hasJoined: Boolean,
     public val tripId: UUID? = null,
+    public val joinedAt: Instant? = null,
+)
+
+public data class LocalActivity(
+    public val id: UUID,
+    public val tripId: UUID,
+    public val actorId: UUID,
+    public val action: String,
+    public val entityType: String,
+    public val entityId: UUID,
+    public val timestamp: Instant,
+    public val snapshotJson: String?,
+)
+
+public data class LocalActivityState(
+    public val items: List<LocalActivity> = emptyList(),
+    public val mutedTripIds: Set<UUID> = emptySet(),
+    public val lastSeenAt: Instant? = null,
 )
 
 public data class LocalCategory(
@@ -399,6 +419,60 @@ public class LocalBalanceRepository(
     }
 }
 
+public class LocalActivityRepository(
+    private val database: TabDatabase,
+) {
+    public fun observe(userId: UUID): Flow<LocalActivityState> = combine(
+        database.activity().observeAll(),
+        database.preferences().observeMutedTripIds(userId.toString()),
+        database.profiles().observe(userId.toString()),
+    ) { activity, muted, profile ->
+        LocalActivityState(
+            items = activity.map(ActivityEntity::toLocalActivity),
+            mutedTripIds = muted.map(UUID::fromString).toSet(),
+            lastSeenAt = profile?.activityLastSeenAt?.let(Instant::parse),
+        )
+    }
+
+    public suspend fun markSeen(userId: UUID, seenAt: Instant = Instant.now()) {
+        check(database.profiles().updateActivityLastSeen(userId.toString(), seenAt.toString()) == 1) {
+            "Current profile is not available."
+        }
+    }
+
+    public suspend fun setTripMuted(
+        tripId: UUID,
+        userId: UUID,
+        muted: Boolean,
+        now: Instant = Instant.now(),
+        writeId: UUID = UUID.randomUUID(),
+    ) {
+        val entity = TripMutePreferenceEntity(
+            tripId = tripId.toString(),
+            userId = userId.toString(),
+            mutedAt = now.toString(),
+            sync = SyncStamp(
+                updatedAt = now.toString(),
+                deletedAt = if (muted) null else now.toString(),
+                writeId = writeId.toString(),
+                isDirty = true,
+            ),
+        )
+        database.withTransaction {
+            database.preferences().upsert(entity)
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "mute",
+                    entityId = entity.tripId,
+                    operation = if (muted) "upsert" else "delete",
+                    writeId = entity.sync.writeId,
+                    createdAt = now.toString(),
+                ),
+            )
+        }
+    }
+}
+
 private fun TripEntity.toSummary(): LocalTripSummary =
     LocalTripSummary(UUID.fromString(id), name, Instant.parse(lastActivityAt))
 
@@ -410,6 +484,19 @@ private fun TripPersonEntity.toLocalPerson(): LocalPerson =
         displayName = displayName,
         hasJoined = joinedAt != null,
         tripId = UUID.fromString(tripId),
+        joinedAt = joinedAt?.let(Instant::parse),
+    )
+
+private fun ActivityEntity.toLocalActivity(): LocalActivity =
+    LocalActivity(
+        id = UUID.fromString(id),
+        tripId = UUID.fromString(tripId),
+        actorId = UUID.fromString(actorId),
+        action = action,
+        entityType = entityType,
+        entityId = UUID.fromString(entityId),
+        timestamp = Instant.parse(timestamp),
+        snapshotJson = snapshotJson,
     )
 
 private fun CategoryEntity.toLocalCategory(): LocalCategory =

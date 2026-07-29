@@ -1,5 +1,6 @@
 package com.rithwikshetty.tab.ui.app
 
+import android.content.Intent
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -50,6 +53,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.rithwikshetty.tab.ui.auth.AuthScreen
 import com.rithwikshetty.tab.ui.auth.BackendUnavailableScreen
+import com.rithwikshetty.tab.ui.activity.ActivityScreen
 import com.rithwikshetty.tab.ui.expenses.ExpenseDetailScreen
 import com.rithwikshetty.tab.ui.expenses.ExpenseEditorScreen
 import com.rithwikshetty.tab.ui.friends.FriendsScreen
@@ -102,6 +106,11 @@ fun TabApp(
             onAddTripPerson = viewModel::addTripPerson,
             onRemoveTripPerson = viewModel::removeTripPerson,
             onResolveNonGroup = viewModel::resolveNonGroupContainer,
+            onMarkActivitySeen = viewModel::markActivitySeen,
+            onSetTripMuted = viewModel::setTripMuted,
+            onShareTripInvite = viewModel::shareTripInvite,
+            onRevokeTripInvite = viewModel::revokeTripInvite,
+            onJoinTripInvite = viewModel::joinTripInvite,
             onSignOut = viewModel::signOut,
             modifier = modifier,
         )
@@ -135,10 +144,16 @@ private fun SignedInApp(
         List<com.rithwikshetty.tab.sync.RemoteParticipant>,
         (UUID) -> Unit,
     ) -> Unit,
+    onMarkActivitySeen: () -> Unit,
+    onSetTripMuted: (UUID, Boolean) -> Unit,
+    onShareTripInvite: (UUID, (String) -> Unit) -> Unit,
+    onRevokeTripInvite: (UUID) -> Unit,
+    onJoinTripInvite: (String, (UUID) -> Unit) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showNavigation = topDestinations.any {
@@ -201,9 +216,17 @@ private fun SignedInApp(
             }
             composable<ActivityRoute> {
                 LaunchedEffect(Unit) { onTripVisible(null) }
-                PlaceholderScreen(
-                    title = "Activity",
-                    body = "Changes from your trips appear here after sync.",
+                DisposableEffect(Unit) {
+                    onDispose(onMarkActivitySeen)
+                }
+                ActivityScreen(
+                    state = state.activity,
+                    trips = state.trips,
+                    isWorking = state.isWorking,
+                    onRefresh = onRefresh,
+                    onOpenTrip = {
+                        navController.navigate(TripRoute(it.toString()))
+                    },
                 )
             }
             composable<SettingsRoute> {
@@ -211,6 +234,11 @@ private fun SignedInApp(
                 SettingsScreen(
                     email = (state.session as SessionState.SignedIn).user.email,
                     isWorking = state.isWorking,
+                    onJoinTrip = { value ->
+                        onJoinTripInvite(value) { tripId ->
+                            navController.navigate(TripRoute(tripId.toString()))
+                        }
+                    },
                     onSignOut = onSignOut,
                 )
             }
@@ -229,6 +257,7 @@ private fun SignedInApp(
                     currentUserId = UUID.fromString(
                         (state.session as SessionState.SignedIn).user.id,
                     ),
+                    isMuted = id in state.activity.mutedTripIds,
                     onBack = navController::popBackStack,
                     onRename = { onRenameTrip(id, it) },
                     onArchive = {
@@ -236,6 +265,21 @@ private fun SignedInApp(
                             navController.popBackStack()
                         }
                     },
+                    onToggleMute = { muted -> onSetTripMuted(id, muted) },
+                    onShareInvite = {
+                        onShareTripInvite(id) { url ->
+                            context.startActivity(
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    },
+                                    "Share trip invite",
+                                ),
+                            )
+                        }
+                    },
+                    onRevokeInvite = { onRevokeTripInvite(id) },
                     onAddExpense = {
                         navController.navigate(NewExpenseRoute(id.toString()))
                     },
@@ -538,10 +582,13 @@ private fun PlaceholderScreen(
 private fun SettingsScreen(
     email: String?,
     isWorking: Boolean,
+    onJoinTrip: (String) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
+    var showJoin by remember { mutableStateOf(false) }
+    var inviteValue by remember { mutableStateOf("") }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -564,12 +611,47 @@ private fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(
+            onClick = { showJoin = true },
+            modifier = Modifier.padding(top = 16.dp),
+            enabled = !isWorking,
+        ) {
+            Text("Join a trip with an invite")
+        }
+        TextButton(
             onClick = { confirmSignOut = true },
             modifier = Modifier.padding(top = 24.dp),
             enabled = !isWorking,
         ) {
             Text("Sign out")
         }
+    }
+    if (showJoin) {
+        AlertDialog(
+            onDismissRequest = { showJoin = false },
+            title = { Text("Join a trip") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = inviteValue,
+                    onValueChange = { inviteValue = it },
+                    label = { Text("Invite link or token") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showJoin = false
+                        onJoinTrip(inviteValue)
+                    },
+                    enabled = inviteValue.isNotBlank(),
+                ) {
+                    Text("Join")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJoin = false }) { Text("Cancel") }
+            },
+        )
     }
     if (confirmSignOut) {
         AlertDialog(

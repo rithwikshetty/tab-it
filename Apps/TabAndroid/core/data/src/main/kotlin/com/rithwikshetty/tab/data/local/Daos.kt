@@ -32,6 +32,15 @@ public interface ProfileDao {
 
     @Query("SELECT * FROM profiles WHERE id = :id")
     public fun observe(id: String): Flow<ProfileEntity?>
+
+    @Query(
+        """
+        UPDATE profiles
+        SET activity_last_seen_at = :seenAt
+        WHERE id = :id
+        """,
+    )
+    public suspend fun updateActivityLastSeen(id: String, seenAt: String): Int
 }
 
 @Dao
@@ -297,6 +306,15 @@ public interface PreferenceDao {
 
     @Query("DELETE FROM trip_mute_preferences WHERE trip_id = :tripId AND user_id = :userId")
     public suspend fun deleteMute(tripId: String, userId: String)
+
+    @Query(
+        """
+        UPDATE trip_mute_preferences
+        SET is_dirty = 0
+        WHERE trip_id = :tripId AND user_id = :userId AND write_id = :writeId
+        """,
+    )
+    public suspend fun markClean(tripId: String, userId: String, writeId: String): Int
 
     @Query(
         """

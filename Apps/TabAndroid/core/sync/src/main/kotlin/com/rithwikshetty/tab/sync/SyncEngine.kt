@@ -110,6 +110,27 @@ public class SyncEngine(
                 }
                 database.outbox().acknowledge(item.sequence)
             }
+            "mute" -> {
+                val userId = checkNotNull(remote.currentUser()).id
+                val mute = database.preferences().find(item.entityId, userId)
+                if (mute == null) {
+                    database.outbox().acknowledge(item.sequence)
+                    return
+                }
+                val receipt = remote.pushMute(mute)
+                if (receipt.acceptedWriteId == item.writeId) {
+                    if (mute.sync.deletedAt == null) {
+                        database.preferences().markClean(
+                            mute.tripId,
+                            mute.userId,
+                            item.writeId,
+                        )
+                    } else {
+                        database.preferences().deleteMute(mute.tripId, mute.userId)
+                    }
+                }
+                database.outbox().acknowledge(item.sequence)
+            }
             else -> error("Unsupported outbox entity type: ${item.entityType}")
         }
     }

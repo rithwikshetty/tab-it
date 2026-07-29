@@ -259,6 +259,27 @@ class LocalDatabaseTest {
     }
 
     @Test
+    fun activityRepositoryAdvancesCursorAndQueuesMuteChangesOffline() = runTest {
+        val repository = LocalActivityRepository(database)
+        val seenAt = now.plusSeconds(30)
+
+        repository.markSeen(userId, seenAt)
+        repository.setTripMuted(tripId, userId, muted = true, now = seenAt)
+
+        val muted = repository.observe(userId).first()
+        assertEquals(seenAt, muted.lastSeenAt)
+        assertEquals(setOf(tripId), muted.mutedTripIds)
+        assertEquals("mute", database.outbox().observeAll().first().single().entityType)
+
+        repository.setTripMuted(tripId, userId, muted = false, now = seenAt.plusSeconds(1))
+        assertTrue(repository.observe(userId).first().mutedTripIds.isEmpty())
+        assertEquals(
+            listOf("upsert", "delete"),
+            database.outbox().observeAll().first().map(OutboxEntity::operation),
+        )
+    }
+
+    @Test
     fun settlementRepositoryPersistsExactAmountAndQueuesSoftDelete() = runTest {
         val repository = LocalSettlementRepository(database)
         val settlement = Settlement(

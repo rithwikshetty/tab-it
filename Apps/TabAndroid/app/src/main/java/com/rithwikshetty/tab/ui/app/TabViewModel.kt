@@ -16,6 +16,8 @@ import com.rithwikshetty.tab.domain.UserBalance
 import com.rithwikshetty.tab.domain.Money
 import com.rithwikshetty.tab.ui.friends.FriendsPresenter
 import com.rithwikshetty.tab.ui.friends.FriendsUiState
+import com.rithwikshetty.tab.ui.activity.ActivityPresenter
+import com.rithwikshetty.tab.ui.activity.ActivityUiState
 import java.math.BigDecimal
 import java.time.Instant
 import com.rithwikshetty.tab.sync.AuthenticatedUser
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -45,6 +48,7 @@ data class TabUiState(
     val trips: List<LocalTripSummary> = emptyList(),
     val tripContent: TripContentUiState = TripContentUiState(),
     val friends: FriendsUiState = FriendsUiState(),
+    val activity: ActivityUiState = ActivityUiState(),
     val isWorking: Boolean = false,
     val message: String? = null,
 )
@@ -108,7 +112,19 @@ class TabViewModel(
         }
     }
 
-    private val ledgerContent = combine(tripContent, friends, ::Pair)
+    private val activity = session.flatMapLatest { currentSession ->
+        val user = currentSession as? SessionState.SignedIn
+        if (user == null) {
+            flowOf(ActivityUiState())
+        } else {
+            val id = UUID.fromString(user.user.id)
+            container.activityRepository.observe(id).map {
+                ActivityPresenter.present(it, id)
+            }
+        }
+    }
+
+    private val ledgerContent = combine(tripContent, friends, activity, ::Triple)
 
     val uiState: StateFlow<TabUiState> = combine(
         session,
@@ -122,6 +138,7 @@ class TabViewModel(
             trips = trips,
             tripContent = content.first,
             friends = content.second,
+            activity = content.third,
             isWorking = working,
             message = currentMessage,
         )
@@ -300,6 +317,63 @@ class TabViewModel(
         }
     }
 
+    fun markActivitySeen() {
+        val user = signedInUser() ?: return
+        val remote = container.remoteGateway ?: return
+        viewModelScope.launch {
+            val now = Instant.now()
+            runCatching {
+                container.activityRepository.markSeen(UUID.fromString(user.id), now)
+                val accepted = remote.markActivitySeen(now.toString())
+                container.activityRepository.markSeen(
+                    UUID.fromString(user.id),
+                    Instant.parse(accepted),
+                )
+            }.onFailure { message.value = it.userMessage() }
+        }
+    }
+
+    fun setTripMuted(tripId: UUID, muted: Boolean) {
+        val user = signedInUser() ?: return
+        launchWorking {
+            container.activityRepository.setTripMuted(
+                tripId,
+                UUID.fromString(user.id),
+                muted,
+            )
+            sync()
+        }
+    }
+
+    fun shareTripInvite(tripId: UUID, onReady: (String) -> Unit) {
+        val remote = container.remoteGateway ?: return
+        launchWorking {
+            val token = remote.getOrCreateTripInvite(tripId.toString())
+            onReady("https://tab-it.app/join/$token")
+        }
+    }
+
+    fun revokeTripInvite(tripId: UUID) {
+        val remote = container.remoteGateway ?: return
+        launchWorking {
+            remote.revokeTripInvite(tripId.toString())
+            message.value = "Invite link revoked."
+        }
+    }
+
+    fun joinTripInvite(linkOrToken: String, onJoined: (UUID) -> Unit) {
+        val remote = container.remoteGateway ?: return
+        val token = inviteToken(linkOrToken) ?: run {
+            message.value = "Enter a valid Tab invite link or token."
+            return
+        }
+        launchWorking {
+            val joined = remote.joinTripWithInvite(token)
+            sync()
+            onJoined(UUID.fromString(joined.tripId))
+        }
+    }
+
     fun clearMessage() {
         message.value = null
     }
@@ -341,6 +415,12 @@ class TabViewModel(
         (session.value as? SessionState.SignedIn)?.user.also {
             if (it == null) message.value = "Sign in before changing a trip."
         }
+
+    private fun inviteToken(value: String): String? {
+        val trimmed = value.trim().lowercase()
+        val token = trimmed.substringAfterLast('/')
+        return token.takeIf { it.matches(Regex("[0-9a-f]{32}")) }
+    }
 
     private fun launchWorking(block: suspend () -> Unit) {
         if (isWorking.value) return

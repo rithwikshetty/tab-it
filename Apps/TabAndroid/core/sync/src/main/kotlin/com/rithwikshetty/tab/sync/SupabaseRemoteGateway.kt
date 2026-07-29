@@ -4,6 +4,7 @@ import com.rithwikshetty.tab.data.local.ExpenseWithLedger
 import com.rithwikshetty.tab.data.local.SettlementEntity
 import com.rithwikshetty.tab.data.local.TripEntity
 import com.rithwikshetty.tab.data.local.TripPersonEntity
+import com.rithwikshetty.tab.data.local.TripMutePreferenceEntity
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -60,7 +61,9 @@ public class SupabaseRemoteGateway private constructor(
         client.auth.currentUserOrNull()?.let { AuthenticatedUser(it.id, it.email) }
 
     override suspend fun pullSnapshot(): RemoteSnapshot {
-        checkNotNull(currentUser()) { "Authentication is required before synchronization." }
+        checkNotNull(currentUser()) {
+            "Authentication is required before synchronization."
+        }
 
         val profiles = client.from("visible_profiles").select().decodeList<ProfileDto>()
         val trips = client.from("trips").select().decodeList<TripDto>()
@@ -77,7 +80,7 @@ public class SupabaseRemoteGateway private constructor(
         val splitsByExpense = splits.map(ExpenseSplitDto::toEntity).groupBy { it.expenseId }
 
         return RemoteSnapshot(
-            profiles = profiles.map { it.toEntity(activityLastSeenAt = null) },
+            profiles = profiles.map(ProfileDto::toEntity),
             trips = trips.map(TripDto::toEntity),
             people = people.map(TripPersonDto::toEntity),
             categories = categories.map(CategoryDto::toEntity),
@@ -237,6 +240,68 @@ public class SupabaseRemoteGateway private constructor(
             }
         }.decodeSingle<SettlementDto>()
         return PushReceipt(accepted.writeId)
+    }
+
+    override suspend fun pushMute(mute: TripMutePreferenceEntity): PushReceipt {
+        checkNotNull(currentUser()) { "Authentication is required before synchronization." }
+        if (mute.sync.deletedAt == null) {
+            client.from("trip_mute_prefs").upsert(
+                MuteUpsertPayload(
+                    tripId = mute.tripId,
+                    userId = mute.userId,
+                    mutedAt = mute.mutedAt,
+                    updatedAt = mute.sync.updatedAt,
+                    writeId = mute.sync.writeId,
+                ),
+            )
+        } else {
+            client.from("trip_mute_prefs").delete {
+                filter {
+                    eq("trip_id", mute.tripId)
+                    eq("user_id", mute.userId)
+                }
+            }
+        }
+        return PushReceipt(mute.sync.writeId)
+    }
+
+    override suspend fun markActivitySeen(seenAt: String): String {
+        checkNotNull(currentUser()) { "Authentication is required before synchronization." }
+        return client.postgrest.rpc(
+            "mark_activity_seen",
+            Json.encodeToJsonElement(MarkActivitySeenParameters(seenAt)).jsonObject,
+        ).decodeAs()
+    }
+
+    override suspend fun getOrCreateTripInvite(tripId: String): String {
+        checkNotNull(currentUser()) { "Authentication is required before sharing a trip." }
+        UUID.fromString(tripId)
+        return client.postgrest.rpc(
+            "get_or_create_trip_invite",
+            Json.encodeToJsonElement(TripIdParameters(tripId)).jsonObject,
+        ).decodeAs<TripInviteDto>().token
+    }
+
+    override suspend fun revokeTripInvite(tripId: String) {
+        checkNotNull(currentUser()) { "Authentication is required before changing a trip invite." }
+        UUID.fromString(tripId)
+        client.postgrest.rpc(
+            "revoke_trip_invite",
+            Json.encodeToJsonElement(TripIdParameters(tripId)).jsonObject,
+        )
+    }
+
+    override suspend fun joinTripWithInvite(token: String): JoinedTrip {
+        checkNotNull(currentUser()) { "Authentication is required before joining a trip." }
+        val normalized = token.trim().lowercase()
+        require(normalized.matches(Regex("[0-9a-f]{32}"))) {
+            "Enter a valid Tab invite link or token."
+        }
+        val row = client.postgrest.rpc(
+            "join_trip_with_invite",
+            Json.encodeToJsonElement(JoinTripInviteParameters(normalized)).jsonObject,
+        ).decodeSingle<JoinedTripDto>()
+        return JoinedTrip(row.tripId, row.personId, row.tripName)
     }
 
     override suspend fun addTripPerson(

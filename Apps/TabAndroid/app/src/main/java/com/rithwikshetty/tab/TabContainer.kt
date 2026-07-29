@@ -3,6 +3,7 @@ package com.rithwikshetty.tab
 import android.content.Context
 import com.rithwikshetty.tab.data.LocalExpenseRepository
 import com.rithwikshetty.tab.data.LocalBalanceRepository
+import com.rithwikshetty.tab.data.LocalActivityRepository
 import com.rithwikshetty.tab.data.LocalSettlementRepository
 import com.rithwikshetty.tab.data.LocalTripRepository
 import com.rithwikshetty.tab.data.local.TabDatabase
@@ -17,6 +18,7 @@ class TabContainer(context: Context) {
     val expenseRepository: LocalExpenseRepository = LocalExpenseRepository(database)
     val settlementRepository: LocalSettlementRepository = LocalSettlementRepository(database)
     val balanceRepository: LocalBalanceRepository = LocalBalanceRepository(database)
+    val activityRepository: LocalActivityRepository = LocalActivityRepository(database)
 
     private val backendConfiguration: LocalBackendConfiguration? =
         LocalBackendConfiguration.debugOrNull()
