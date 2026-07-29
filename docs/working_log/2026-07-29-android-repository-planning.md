@@ -145,3 +145,27 @@ The first realtime integration test established the websocket but timed out beca
 ## 2026-07-29 15:45 BST — Phase 4 verified and local data restored
 
 Android passed all unit tests, lint, debug assembly, R8-minified release assembly, nine data instrumentation tests, six synchronization instrumentation tests, and the Compose smoke test on the API 36 emulator. The sync tests cover real fictional sign-in, full pull and Room hydration, confirmed outbox push, offline retry retention, dirty-local conflict protection, remote delete-wins, and realtime delivery. APK inspection found no backend endpoint or key in release. A transitive Internet permission was found and explicitly removed from release; the rebuilt release declares no Internet permission. All 15 pgTAP suites passed, then the disposable stack was reset back to its three seeded expenses. Production was not accessed.
+
+## 2026-07-29 15:50 BST — Android app shell and trip issue started
+
+Opened GitHub issue #39 and checked current Android architecture guidance before replacing the foundation screen. The app now follows a single-activity Compose structure with Navigation Compose, repository-backed Room flows, a lifecycle-aware screen state holder, and manual constructor injection through one application container. The four iOS-aligned destinations are Friends, Trips, Activity, and Settings; unfinished destinations remain explicit placeholders rather than fake data.
+
+## 2026-07-29 15:57 BST — Local session and trip flows implemented
+
+Added persisted local Supabase session restoration, fictional email/password sign-in, guarded sign-out, and Room-first trip create, rename, and archive. New trips create their creator membership and an ordered outbox item in one transaction. Sync uses the existing `create_trip_with_self` RPC for first delivery and compatibility-preserving table updates afterward. Sign-out refuses to discard unsynced work, performs a successful sync first, then clears the account-local database to prevent cross-account data exposure.
+
+## 2026-07-29 16:04 BST — App shell verified on emulator
+
+The first device run exposed only assertion and realtime timing issues in the tests, not product failures: a raw trip observer intentionally includes tombstones, duplicate visible “Trips” labels made a single-node assertion ambiguous, and the realtime case passed when rerun outside the initially failing aggregate run. Corrected the assertions to distinguish active-list behavior from raw tombstone access. Ten Room tests, seven sync tests, and the Compose sign-in/navigation test then passed separately on the API 36 emulator. The local integration test verified create, rename, and archive against Docker only.
+
+## 2026-07-29 16:12 BST — Phase 5 lifecycle coverage completed
+
+Completed the issue's remaining shell requirements: pull-to-refresh, a navigation rail at tablet widths, selected-trip realtime that starts and stops with the destination, keyboard submit actions, session survival across Activity recreation, and a sign-out confirmation flow. Added an integration case for archiving a never-synced trip so the create and delete outbox entries cannot strand each other.
+
+## 2026-07-29 16:18 BST — Resource leaks and sign-out threading corrected
+
+The expanded sync suite made realtime intermittently time out because each test closed its session but not the Supabase client's HTTP and websocket resources. Added an explicit close boundary and test teardown; all eight sync device tests then passed together. The sign-out UI test also caught `RoomDatabase.clearAllTables()` running on the main thread. Moved account-local cleanup to the IO dispatcher. The full sign-in, Activity recreation, navigation, guarded sign-out, and signed-out state test passed afterward.
+
+## 2026-07-29 16:22 BST — Phase 5 release checks passed
+
+Android unit tests, lint, debug assembly, and the R8-minified release build passed in a 277-task run. The release artifact remains backend-unconfigured and networkless. The disposable Supabase database was reset to the fictional baseline after integration testing; no production service was accessed.

@@ -51,6 +51,7 @@ class LocalSupabaseIntegrationTest {
     @After
     fun tearDown() = runBlocking {
         runCatching { gateway.signOut() }
+        gateway.close()
         database.close()
     }
 
@@ -59,6 +60,7 @@ class LocalSupabaseIntegrationTest {
         assertNull(gateway.currentUser())
         val user = gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
         assertEquals(USER_ID.toString(), user.id)
+        assertEquals(USER_ID.toString(), gateway.restoreSession()?.id)
 
         val snapshot = gateway.pullSnapshot()
         assertTrue(snapshot.trips.any { it.id == TRIP_ID.toString() })
@@ -110,6 +112,60 @@ class LocalSupabaseIntegrationTest {
         assertNotNull(
             gateway.pullSnapshot().expenses.singleOrNull { it.expense.id == expenseId.toString() },
         )
+    }
+
+    @Test
+    fun offlineTripCreateRenameAndArchiveReachOnlyLocalSupabase() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val repository = LocalTripRepository(database)
+        val tripId = repository.create(
+            name = "Android trip sync test",
+            userId = USER_ID,
+            email = LOCAL_EMAIL,
+            displayName = "Test User",
+        )
+
+        val created = SyncEngine(database, gateway).syncOnce()
+        assertEquals(1, created.pushed)
+        assertNotNull(gateway.pullSnapshot().trips.singleOrNull { it.id == tripId.toString() })
+
+        repository.rename(tripId, "Android renamed trip")
+        val renamed = SyncEngine(database, gateway).syncOnce()
+        assertEquals(1, renamed.pushed)
+        assertEquals(
+            "Android renamed trip",
+            gateway.pullSnapshot().trips.single { it.id == tripId.toString() }.name,
+        )
+
+        repository.archive(tripId)
+        val archived = SyncEngine(database, gateway).syncOnce()
+        assertEquals(1, archived.pushed)
+        assertTrue(database.outbox().observeAll().first().isEmpty())
+        assertTrue(repository.observeTrips().first().none { it.id == tripId })
+        assertNotNull(repository.observeTrip(tripId).first())
+    }
+
+    @Test
+    fun neverSyncedTripCanBeArchivedWithoutStrandingItsOutbox() = runBlocking {
+        gateway.signIn(LOCAL_EMAIL, LOCAL_PASSWORD)
+        RemoteSnapshotApplier(database).apply(gateway.pullSnapshot())
+        val repository = LocalTripRepository(database)
+        val tripId = repository.create(
+            name = "Never synced trip",
+            userId = USER_ID,
+            email = LOCAL_EMAIL,
+            displayName = "Test User",
+        )
+        repository.archive(tripId)
+
+        val report = SyncEngine(database, gateway).syncOnce()
+
+        assertEquals(2, report.pushed)
+        assertEquals(0, report.pushFailures)
+        assertTrue(report.pullCompleted)
+        assertTrue(database.outbox().observeAll().first().isEmpty())
+        assertTrue(repository.observeTrips().first().none { it.id == tripId })
     }
 
     @Test

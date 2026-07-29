@@ -197,10 +197,14 @@ private class FakeGateway(
     private val pushFailure: Exception? = null,
     private val pullFailure: Exception? = null,
 ) : RemoteGateway {
+    override suspend fun restoreSession(): AuthenticatedUser? = currentUser()
+
     override suspend fun signIn(email: String, password: String): AuthenticatedUser =
         AuthenticatedUser("11111111-1111-1111-1111-111111111111", email)
 
     override suspend fun signOut() = Unit
+
+    override suspend fun close() = Unit
 
     override fun currentUser(): AuthenticatedUser =
         AuthenticatedUser("11111111-1111-1111-1111-111111111111", "local@tab.local")
@@ -214,6 +218,11 @@ private class FakeGateway(
         pushFailure?.let { throw it }
         return PushReceipt(expense.expense.sync.writeId)
     }
+
+    override suspend fun pushTrip(
+        trip: com.rithwikshetty.tab.data.local.TripEntity,
+        creator: com.rithwikshetty.tab.data.local.TripPersonEntity?,
+    ): PushReceipt = PushReceipt(trip.sync.writeId)
 
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> = emptyFlow()
 }

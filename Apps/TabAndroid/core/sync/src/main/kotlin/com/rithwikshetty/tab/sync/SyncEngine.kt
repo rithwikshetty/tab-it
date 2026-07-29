@@ -78,6 +78,26 @@ public class SyncEngine(
                 }
                 database.outbox().acknowledge(item.sequence)
             }
+            "trip" -> {
+                val trip = database.trips().findTrip(item.entityId)
+                if (trip == null) {
+                    database.outbox().acknowledge(item.sequence)
+                    return
+                }
+                val creator = if (item.operation == "create") {
+                    database.trips().findPersonForUser(trip.id, trip.createdBy)
+                } else {
+                    null
+                }
+                check(item.operation != "create" || creator != null) {
+                    "A new trip requires its creator membership."
+                }
+                val receipt = remote.pushTrip(trip, creator)
+                if (receipt.acceptedWriteId == item.writeId) {
+                    database.trips().markClean(item.entityId, item.writeId)
+                }
+                database.outbox().acknowledge(item.sequence)
+            }
             else -> error("Unsupported outbox entity type: ${item.entityType}")
         }
     }

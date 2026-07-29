@@ -6,10 +6,12 @@ import com.rithwikshetty.tab.data.local.ExpensePaymentEntity
 import com.rithwikshetty.tab.data.local.ExpenseSplitEntity
 import com.rithwikshetty.tab.data.local.ExpenseWithLedger
 import com.rithwikshetty.tab.data.local.OutboxEntity
+import com.rithwikshetty.tab.data.local.ProfileEntity
 import com.rithwikshetty.tab.data.local.ReceiptDraftEntity
 import com.rithwikshetty.tab.data.local.SyncStamp
 import com.rithwikshetty.tab.data.local.TabDatabase
 import com.rithwikshetty.tab.data.local.TripEntity
+import com.rithwikshetty.tab.data.local.TripPersonEntity
 import com.rithwikshetty.tab.domain.Expense
 import com.rithwikshetty.tab.domain.ExpenseSplit
 import com.rithwikshetty.tab.domain.CurrencyCatalog
@@ -24,6 +26,8 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 public data class LocalTripSummary(
     public val id: UUID,
@@ -36,6 +40,135 @@ public class LocalTripRepository(
 ) {
     public fun observeTrips(): Flow<List<LocalTripSummary>> =
         database.trips().observeActiveTrips().map { rows -> rows.map(TripEntity::toSummary) }
+
+    public fun observeTrip(id: UUID): Flow<LocalTripSummary?> =
+        database.trips().observeTrip(id.toString()).map { it?.toSummary() }
+
+    public suspend fun create(
+        name: String,
+        userId: UUID,
+        email: String,
+        displayName: String,
+        now: Instant = Instant.now(),
+        tripId: UUID = UUID.randomUUID(),
+        personId: UUID = UUID.randomUUID(),
+        writeId: UUID = UUID.randomUUID(),
+    ): UUID {
+        val cleanName = name.trim()
+        val cleanEmail = email.trim().lowercase(Locale.ROOT)
+        require(cleanName.isNotEmpty()) { "Trip name is required." }
+        require(cleanEmail.contains("@")) { "A verified email is required." }
+        val stamp = SyncStamp(
+            updatedAt = now.toString(),
+            deletedAt = null,
+            writeId = writeId.toString(),
+            isDirty = true,
+        )
+        val trip = TripEntity(
+            id = tripId.toString(),
+            name = cleanName,
+            kind = "trip",
+            memberSignature = null,
+            createdBy = userId.toString(),
+            lastActivityAt = now.toString(),
+            createdAt = now.toString(),
+            sync = stamp,
+        )
+        val person = TripPersonEntity(
+            id = personId.toString(),
+            tripId = trip.id,
+            userId = userId.toString(),
+            email = cleanEmail,
+            displayName = displayName.trim().ifEmpty { cleanEmail.substringBefore("@") },
+            invitedBy = userId.toString(),
+            joinedAt = now.toString(),
+            removedAt = null,
+            createdAt = now.toString(),
+            sync = stamp.copy(isDirty = false),
+        )
+        database.withTransaction {
+            if (database.profiles().find(userId.toString()) == null) {
+                database.profiles().upsert(
+                    ProfileEntity(
+                        id = userId.toString(),
+                        displayName = person.displayName,
+                        avatarUrl = null,
+                        activityLastSeenAt = null,
+                        createdAt = now.toString(),
+                        sync = stamp.copy(isDirty = false),
+                    ),
+                )
+            }
+            database.trips().upsert(trip)
+            database.trips().upsertPeople(listOf(person))
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "trip",
+                    entityId = trip.id,
+                    operation = "create",
+                    writeId = stamp.writeId,
+                    createdAt = now.toString(),
+                ),
+            )
+        }
+        return tripId
+    }
+
+    public suspend fun rename(
+        id: UUID,
+        name: String,
+        now: Instant = Instant.now(),
+        writeId: UUID = UUID.randomUUID(),
+    ) {
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty()) { "Trip name is required." }
+        database.withTransaction {
+            check(
+                database.trips().rename(
+                    id.toString(),
+                    cleanName,
+                    now.toString(),
+                    writeId.toString(),
+                ) == 1,
+            ) { "Trip not found." }
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "trip",
+                    entityId = id.toString(),
+                    operation = "upsert",
+                    writeId = writeId.toString(),
+                    createdAt = now.toString(),
+                ),
+            )
+        }
+    }
+
+    public suspend fun archive(
+        id: UUID,
+        now: Instant = Instant.now(),
+        writeId: UUID = UUID.randomUUID(),
+    ) {
+        database.withTransaction {
+            check(
+                database.trips().softDelete(id.toString(), now.toString(), writeId.toString()) == 1,
+            ) { "Trip not found." }
+            database.outbox().enqueue(
+                OutboxEntity(
+                    entityType = "trip",
+                    entityId = id.toString(),
+                    operation = "delete",
+                    writeId = writeId.toString(),
+                    createdAt = now.toString(),
+                ),
+            )
+        }
+    }
+
+    public suspend fun clearAccountData() {
+        withContext(Dispatchers.IO) {
+            database.clearAllTables()
+        }
+    }
 }
 
 public class LocalExpenseRepository(

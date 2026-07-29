@@ -40,15 +40,21 @@ public data class PushReceipt(
 )
 
 public interface RemoteGateway {
+    public suspend fun restoreSession(): AuthenticatedUser?
+
     public suspend fun signIn(email: String, password: String): AuthenticatedUser
 
     public suspend fun signOut()
+
+    public suspend fun close()
 
     public fun currentUser(): AuthenticatedUser?
 
     public suspend fun pullSnapshot(): RemoteSnapshot
 
     public suspend fun pushExpense(expense: ExpenseWithLedger): PushReceipt
+
+    public suspend fun pushTrip(trip: TripEntity, creator: TripPersonEntity?): PushReceipt
 
     public fun observeCurrentTripChanges(tripId: String): Flow<Unit>
 }

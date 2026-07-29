@@ -11,14 +11,17 @@ import kotlinx.coroutines.launch
 class TabApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val database: TabDatabase by lazy {
-        TabDatabase.create(this)
-    }
+    val container: TabContainer by lazy { TabContainer(this) }
+
+    val database: TabDatabase
+        get() = container.database
 
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
-            LocalDataInitializer.initialize(database)
+            if (!container.isBackendConfigured) {
+                LocalDataInitializer.initialize(database)
+            }
         }
     }
 }

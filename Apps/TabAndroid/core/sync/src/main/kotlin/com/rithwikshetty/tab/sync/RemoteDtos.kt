@@ -62,6 +62,21 @@ internal data class TripDto(
 }
 
 @Serializable
+internal data class CreateTripParameters(
+    @SerialName("p_trip_id") val tripId: String,
+    @SerialName("p_person_id") val personId: String,
+    @SerialName("p_name") val name: String,
+)
+
+@Serializable
+internal data class TripUpdatePayload(
+    val name: String,
+    @SerialName("deleted_at") val deletedAt: String?,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("write_id") val writeId: String,
+)
+
+@Serializable
 internal data class TripPersonDto(
     val id: String,
     @SerialName("trip_id") val tripId: String,

@@ -132,6 +132,30 @@ class LocalDatabaseTest {
     }
 
     @Test
+    fun tripChangesAreLocalFirstAndStrictlyOrderedInTheOutbox() = runTest {
+        val repository = LocalTripRepository(database)
+        val createdId = repository.create(
+            name = "  Offline weekend  ",
+            userId = userId,
+            email = "mock@tab.local",
+            displayName = "Test User",
+            now = now.plusSeconds(10),
+        )
+        repository.rename(createdId, "Renamed weekend", now.plusSeconds(20))
+        repository.archive(createdId, now.plusSeconds(30))
+
+        assertEquals(
+            listOf("create", "upsert", "delete"),
+            database.outbox().observeAll().first()
+                .filter { it.entityId == createdId.toString() }
+                .map { it.operation },
+        )
+        assertTrue(repository.observeTrips().first().none { it.id == createdId })
+        assertNotNull(repository.observeTrip(createdId).first())
+        assertNotNull(database.trips().findPersonForUser(createdId.toString(), userId.toString()))
+    }
+
+    @Test
     fun repositoryRejectsInvalidTotalsBeforeOpeningTransaction() = runTest {
         val invalid = expense().copy(
             payments = listOf(Payment(payerId, BigDecimal("9.99"), SplitType.EXACT)),

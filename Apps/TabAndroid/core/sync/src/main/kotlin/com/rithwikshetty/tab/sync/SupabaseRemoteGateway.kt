@@ -1,6 +1,8 @@
 package com.rithwikshetty.tab.sync
 
 import com.rithwikshetty.tab.data.local.ExpenseWithLedger
+import com.rithwikshetty.tab.data.local.TripEntity
+import com.rithwikshetty.tab.data.local.TripPersonEntity
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
@@ -30,6 +32,11 @@ import kotlinx.serialization.json.jsonObject
 public class SupabaseRemoteGateway private constructor(
     private val client: SupabaseClient,
 ) : RemoteGateway {
+    override suspend fun restoreSession(): AuthenticatedUser? {
+        client.auth.awaitInitialization()
+        return currentUser()
+    }
+
     override suspend fun signIn(email: String, password: String): AuthenticatedUser {
         require(email.isNotBlank()) { "Email is required." }
         require(password.isNotBlank()) { "Password is required." }
@@ -42,6 +49,10 @@ public class SupabaseRemoteGateway private constructor(
 
     override suspend fun signOut() {
         client.auth.signOut()
+    }
+
+    override suspend fun close() {
+        client.close()
     }
 
     override fun currentUser(): AuthenticatedUser? =
@@ -144,6 +155,47 @@ public class SupabaseRemoteGateway private constructor(
             }
         }.decodeSingle<ExpenseDto>()
         return PushReceipt(accepted.writeId)
+    }
+
+    override suspend fun pushTrip(
+        trip: TripEntity,
+        creator: TripPersonEntity?,
+    ): PushReceipt {
+        checkNotNull(currentUser()) { "Authentication is required before synchronization." }
+        if (creator != null) {
+            client.postgrest.rpc(
+                "create_trip_with_self",
+                Json.encodeToJsonElement(
+                    CreateTripParameters(
+                        tripId = trip.id,
+                        personId = creator.id,
+                        name = trip.name,
+                    ),
+                ).jsonObject,
+            )
+        } else {
+            client.from("trips").update(
+                TripUpdatePayload(
+                    name = trip.name,
+                    deletedAt = trip.sync.deletedAt,
+                    updatedAt = trip.sync.updatedAt,
+                    writeId = trip.sync.writeId,
+                ),
+            ) {
+                filter {
+                    eq("id", trip.id)
+                }
+            }
+            val accepted = client.from("trips").select {
+                filter {
+                    eq("id", trip.id)
+                }
+            }.decodeSingle<TripDto>()
+            check(accepted.writeId == trip.sync.writeId) {
+                "The server did not accept the trip write."
+            }
+        }
+        return PushReceipt(trip.sync.writeId)
     }
 
     override fun observeCurrentTripChanges(tripId: String): Flow<Unit> {

@@ -12,6 +12,7 @@ same repository as the existing iOS app.
 - Compose BOM 2026.06.00
 - Room 2.8.4 with KSP 2.3.9
 - Supabase Kotlin 3.6.0 behind `:core:sync`
+- Navigation Compose 2.9.8 with lifecycle-aware ViewModels
 - compile SDK 37, target SDK 36, minimum SDK 26
 
 On the current Homebrew-based macOS setup:
@@ -50,6 +51,14 @@ The Android-only `:core:sync` module owns local authentication, typed Supabase
 transport, snapshot-to-Room conflict handling, ordered outbox delivery, retry
 backoff, and current-trip realtime refresh. The community-maintained Supabase
 Kotlin dependency stays behind the `RemoteGateway` interface.
+
+The app is a single-activity Compose client with manual dependency injection,
+screen-level state held by `TabViewModel`, and Room-backed flows collected with
+Android lifecycle awareness. The current shell restores local sessions, signs
+in to the fictional local account, provides Friends, Trips, Activity and
+Settings destinations, and supports Room-first trip create, rename and archive.
+Sign-out first requires a successful sync, then clears that account's local
+copy so a later account cannot see stale data.
 
 The generated and ignored `local.properties` points debug builds at
 `http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse

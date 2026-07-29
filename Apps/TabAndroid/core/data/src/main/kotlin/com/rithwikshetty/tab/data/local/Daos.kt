@@ -29,6 +29,9 @@ public interface ProfileDao {
 
     @Query("SELECT * FROM profiles WHERE id = :id")
     public suspend fun find(id: String): ProfileEntity?
+
+    @Query("SELECT * FROM profiles WHERE id = :id")
+    public fun observe(id: String): Flow<ProfileEntity?>
 }
 
 @Dao
@@ -57,6 +60,9 @@ public interface TripDao {
     @Query("SELECT * FROM trips WHERE id = :id")
     public suspend fun findTrip(id: String): TripEntity?
 
+    @Query("SELECT * FROM trips WHERE id = :id")
+    public fun observeTrip(id: String): Flow<TripEntity?>
+
     @Query(
         """
         SELECT * FROM trip_people
@@ -69,11 +75,47 @@ public interface TripDao {
     @Query("SELECT * FROM trip_people WHERE id = :id")
     public suspend fun findPerson(id: String): TripPersonEntity?
 
+    @Query(
+        """
+        SELECT * FROM trip_people
+        WHERE trip_id = :tripId AND user_id = :userId
+        LIMIT 1
+        """,
+    )
+    public suspend fun findPersonForUser(tripId: String, userId: String): TripPersonEntity?
+
     @Query("SELECT * FROM categories WHERE id = :id")
     public suspend fun findCategory(id: String): CategoryEntity?
 
     @Query("SELECT COUNT(*) FROM trips")
     public suspend fun count(): Int
+
+    @Query(
+        """
+        UPDATE trips
+        SET name = :name, updated_at = :updatedAt, write_id = :writeId, is_dirty = 1
+        WHERE id = :id AND deleted_at IS NULL
+        """,
+    )
+    public suspend fun rename(id: String, name: String, updatedAt: String, writeId: String): Int
+
+    @Query(
+        """
+        UPDATE trips
+        SET deleted_at = :deletedAt, updated_at = :deletedAt, write_id = :writeId, is_dirty = 1
+        WHERE id = :id AND deleted_at IS NULL
+        """,
+    )
+    public suspend fun softDelete(id: String, deletedAt: String, writeId: String): Int
+
+    @Query(
+        """
+        UPDATE trips
+        SET is_dirty = 0
+        WHERE id = :id AND write_id = :writeId
+        """,
+    )
+    public suspend fun markClean(id: String, writeId: String): Int
 }
 
 @Dao
