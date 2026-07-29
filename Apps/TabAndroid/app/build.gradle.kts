@@ -24,7 +24,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("String", "BACKEND_ENVIRONMENT", "\"local\"")
-            buildConfigField("String", "BACKEND_BASE_URL", "\"http://10.0.2.2:54321\"")
+            buildConfigField("String", "BACKEND_BASE_URL", "\"http://127.0.0.1:54321\"")
         }
         release {
             isMinifyEnabled = true
@@ -64,6 +64,7 @@ kotlin {
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    implementation(project(":core:sync"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

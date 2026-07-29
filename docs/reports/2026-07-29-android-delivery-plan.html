@@ -362,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Local authentication and synchronization</strong>
+          <strong>Complete product feature slices</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -384,8 +384,8 @@
           </article>
           <article class="card">
             <span class="label">Verified</span>
-            <h3>Disposable local backend</h3>
-            <p>A clean reset and fictional seed passed all 15 pgTAP suites. Remote environment variables make the runner refuse execution.</p>
+            <h3>Local authentication and sync</h3>
+            <p>Fictional sign-in, Room hydration, outbox push, conflicts, retries and current-trip realtime passed on the emulator.</p>
           </article>
           <article class="card">
             <span class="label">Standardised</span>
@@ -417,10 +417,10 @@
           </article>
           <span class="arrow" aria-hidden="true">↔</span>
           <article class="card">
-            <span class="label">Planned</span>
+            <span class="label">Current</span>
             <div>
               <h3>Apps/TabAndroid</h3>
-              <p>Kotlin, Compose, Room and one pure domain module to begin.</p>
+              <p>Kotlin, Compose, Room, pure domain rules and a narrow local Supabase adapter.</p>
             </div>
           </article>
         </div>
@@ -446,13 +446,13 @@
             <span><strong class="phase-name">First offline slice</strong><span class="phase-detail">Trip list and offline expense using mocks, then an isolated environment.</span></span>
             <span class="pill">Complete</span>
           </li>
-          <li class="current">
+          <li class="done">
             <span><strong class="phase-name">Local backend integration</strong><span class="phase-detail">Authenticate, pull, push and observe changes against local Supabase only.</span></span>
-            <span class="pill">Current</span>
+            <span class="pill">Complete</span>
           </li>
-          <li>
+          <li class="current">
             <span><strong class="phase-name">Feature slices</strong><span class="phase-detail">Members, full expenses, receipts, balances, activity and settings.</span></span>
-            <span class="pill">Later</span>
+            <span class="pill">Current</span>
           </li>
           <li>
             <span><strong class="phase-name">Release readiness</strong><span class="phase-detail">Compatibility, rollout, monitoring and separately approved production work.</span></span>
@@ -474,17 +474,17 @@
 
       <section class="next" aria-labelledby="next">
         <p class="eyebrow">Next action</p>
-        <h2 id="next">Connect only to local Supabase</h2>
+        <h2 id="next">Build the complete local product surface</h2>
         <ul>
-          <li>Add local debug authentication without embedding a production identity or service-role key.</li>
-          <li>Pull remote rows into Room and push the ordered outbox through a narrow adapter.</li>
-          <li>Test offline retries, conflicts and realtime updates against the disposable local stack.</li>
+          <li>Replace the foundation screen with authentication, trip and navigation flows.</li>
+          <li>Add expense editing, members, settlements, balances, activity, receipts and settings.</li>
+          <li>Keep every feature Room-first and verify it on the API 36 emulator.</li>
         </ul>
       </section>
     </main>
 
     <footer>
-      <span>Foundation: <a href="https://github.com/rithwikshetty/tab-it/issues/33">#33</a> · DB grants: <a href="https://github.com/rithwikshetty/tab-it/issues/34">#34</a> · Android skeleton: <a href="https://github.com/rithwikshetty/tab-it/issues/35">#35</a></span>
+      <span>Foundation: <a href="https://github.com/rithwikshetty/tab-it/issues/33">#33</a> · Android: <a href="https://github.com/rithwikshetty/tab-it/issues/35">#35</a>–<a href="https://github.com/rithwikshetty/tab-it/issues/38">#38</a></span>
       <span>Supporting research: <a href="../research/2026-07-29-android-repository-architecture.md">repository architecture note</a></span>
     </footer>
   </div>

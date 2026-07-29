@@ -10,7 +10,16 @@ insert into auth.users (
   instance_id,
   aud,
   role,
-  raw_user_meta_data
+  encrypted_password,
+  email_confirmed_at,
+  confirmation_token,
+  recovery_token,
+  email_change_token_new,
+  email_change,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
 )
 values
   (
@@ -19,7 +28,16 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    '{"display_name":"Test User"}'
+    crypt('local-only-password', gen_salt('bf')),
+    '2026-07-20T08:00:00Z',
+    '',
+    '',
+    '',
+    '',
+    '{"provider":"email","providers":["email"]}',
+    '{"display_name":"Test User"}',
+    '2026-07-20T08:00:00Z',
+    '2026-07-20T08:00:00Z'
   ),
   (
     '22222222-2222-2222-2222-222222222222',
@@ -27,7 +45,16 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    '{"display_name":"Alex"}'
+    crypt('local-only-password', gen_salt('bf')),
+    '2026-07-20T08:00:00Z',
+    '',
+    '',
+    '',
+    '',
+    '{"provider":"email","providers":["email"]}',
+    '{"display_name":"Alex"}',
+    '2026-07-20T08:00:00Z',
+    '2026-07-20T08:00:00Z'
   ),
   (
     '33333333-3333-3333-3333-333333333333',
@@ -35,8 +62,42 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    '{"display_name":"Sam"}'
+    crypt('local-only-password', gen_salt('bf')),
+    '2026-07-20T08:00:00Z',
+    '',
+    '',
+    '',
+    '',
+    '{"provider":"email","providers":["email"]}',
+    '{"display_name":"Sam"}',
+    '2026-07-20T08:00:00Z',
+    '2026-07-20T08:00:00Z'
   );
+
+insert into auth.identities (
+  provider_id,
+  user_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+select
+  id::text,
+  id,
+  jsonb_build_object(
+    'sub', id::text,
+    'email', email,
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  '2026-07-20T08:00:00Z',
+  '2026-07-20T08:00:00Z',
+  '2026-07-20T08:00:00Z'
+from auth.users
+where email in ('mock@tab.local', 'alex@tab.local', 'sam@tab.local');
 
 insert into public.trips (id, name, created_by, last_activity_at)
 values (

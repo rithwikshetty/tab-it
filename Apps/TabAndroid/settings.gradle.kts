@@ -19,3 +19,4 @@ rootProject.name = "TabAndroid"
 include(":app")
 include(":core:domain")
 include(":core:data")
+include(":core:sync")

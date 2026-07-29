@@ -24,6 +24,9 @@ public interface ProfileDao {
     @Upsert
     public suspend fun upsert(profile: ProfileEntity)
 
+    @Upsert
+    public suspend fun upsert(profiles: List<ProfileEntity>)
+
     @Query("SELECT * FROM profiles WHERE id = :id")
     public suspend fun find(id: String): ProfileEntity?
 }
@@ -32,6 +35,9 @@ public interface ProfileDao {
 public interface TripDao {
     @Upsert
     public suspend fun upsert(trip: TripEntity)
+
+    @Upsert
+    public suspend fun upsertTrips(trips: List<TripEntity>)
 
     @Upsert
     public suspend fun upsertPeople(people: List<TripPersonEntity>)
@@ -48,6 +54,9 @@ public interface TripDao {
     )
     public fun observeActiveTrips(): Flow<List<TripEntity>>
 
+    @Query("SELECT * FROM trips WHERE id = :id")
+    public suspend fun findTrip(id: String): TripEntity?
+
     @Query(
         """
         SELECT * FROM trip_people
@@ -59,6 +68,9 @@ public interface TripDao {
 
     @Query("SELECT * FROM trip_people WHERE id = :id")
     public suspend fun findPerson(id: String): TripPersonEntity?
+
+    @Query("SELECT * FROM categories WHERE id = :id")
+    public suspend fun findCategory(id: String): CategoryEntity?
 
     @Query("SELECT COUNT(*) FROM trips")
     public suspend fun count(): Int
@@ -100,6 +112,31 @@ public interface ExpenseDao {
 
     @Query(
         """
+        SELECT * FROM expense_payments
+        WHERE expense_id = :expenseId AND trip_person_id = :personId
+        """,
+    )
+    public suspend fun findPayment(expenseId: String, personId: String): ExpensePaymentEntity?
+
+    @Query(
+        """
+        SELECT * FROM expense_splits
+        WHERE expense_id = :expenseId AND trip_person_id = :personId
+        """,
+    )
+    public suspend fun findSplit(expenseId: String, personId: String): ExpenseSplitEntity?
+
+    @Query(
+        """
+        UPDATE expenses
+        SET is_dirty = 0
+        WHERE id = :id AND write_id = :writeId
+        """,
+    )
+    public suspend fun markClean(id: String, writeId: String): Int
+
+    @Query(
+        """
         UPDATE expenses
         SET deleted_at = :deletedAt, updated_at = :deletedAt, write_id = :writeId, is_dirty = 1
         WHERE id = :id
@@ -112,6 +149,9 @@ public interface ExpenseDao {
 public interface SettlementDao {
     @Upsert
     public suspend fun upsert(settlement: SettlementEntity)
+
+    @Query("SELECT * FROM settlements WHERE id = :id")
+    public suspend fun find(id: String): SettlementEntity?
 
     @Query(
         """
@@ -136,6 +176,14 @@ public interface ActivityDao {
 public interface PreferenceDao {
     @Upsert
     public suspend fun upsert(mute: TripMutePreferenceEntity)
+
+    @Query(
+        """
+        SELECT * FROM trip_mute_preferences
+        WHERE trip_id = :tripId AND user_id = :userId
+        """,
+    )
+    public suspend fun find(tripId: String, userId: String): TripMutePreferenceEntity?
 
     @Query("DELETE FROM trip_mute_preferences WHERE trip_id = :tripId AND user_id = :userId")
     public suspend fun deleteMute(tripId: String, userId: String)

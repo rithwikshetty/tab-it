@@ -6,7 +6,7 @@ import org.junit.Test
 
 class BackendConfigurationTest {
     @Test
-    fun debugBackendUsesTheEmulatorHostAlias() {
+    fun debugBackendUsesTheForwardedEmulatorLoopback() {
         assertTrue(BackendConfiguration.isAllowedLocalUrl(BackendConfiguration.baseUrl))
         assertFalse(BackendConfiguration.baseUrl.contains(".supabase.co"))
     }

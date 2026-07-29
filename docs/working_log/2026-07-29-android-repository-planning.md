@@ -125,3 +125,23 @@ Added Flow-based repositories that read active trips and expenses from Room, val
 ## 2026-07-29 15:08 BST — Phase 3 emulator verification
 
 Nine Room instrumentation tests passed on the API 36 emulator. They cover exported schema creation, exact decimal round-tripping, ledger/receipt/outbox atomicity, foreign-key rollback, soft deletion, retry scheduling, Flow observation, debug-seed idempotency, settlements, activity, and mute preferences. Android data lint and the R8-minified release build passed. A cold debug launch created `tab.db` in the application sandbox. Release declares no Internet permission and contains no local or hosted Supabase URL; production remained untouched.
+
+## 2026-07-29 15:12 BST — Local authentication and sync issue opened
+
+Opened GitHub issue #38 with the local-only authentication, snapshot, outbox, conflict, retry, realtime, emulator, and release-safety acceptance criteria. The phase uses the current Supabase Kotlin BOM behind a repository-owned `RemoteGateway`; release configuration remains empty.
+
+## 2026-07-29 15:18 BST — Fictional Auth seed and ignored debug configuration
+
+Extended the disposable seed with confirmed email identities and bcrypt passwords for the three fictional local users. A guarded script now writes only the local publishable key to ignored Android `local.properties`; it never reads a hosted target or writes a secret or service-role key. A second script configures ADB reverse only for exactly one emulator and refuses physical devices.
+
+## 2026-07-29 15:29 BST — Local sync boundary implemented
+
+Added `:core:sync` with typed Auth and PostgREST transport, full RLS-filtered snapshot pulls, transactional snapshot application, ordered expense outbox delivery through the existing atomic RPC, exponential retry scheduling, last-write-wins and delete-wins merging, and current-trip realtime subscriptions. Remote rows hydrate Room in foreign-key order, while dirty offline rows survive older remote snapshots.
+
+## 2026-07-29 15:37 BST — Realtime collection ordering corrected
+
+The first realtime integration test established the websocket but timed out because channel flows were collected only after subscription. Changed the coordinator to start all four filtered collectors before subscribing. The selected-trip insert then emitted successfully on the emulator.
+
+## 2026-07-29 15:45 BST — Phase 4 verified and local data restored
+
+Android passed all unit tests, lint, debug assembly, R8-minified release assembly, nine data instrumentation tests, six synchronization instrumentation tests, and the Compose smoke test on the API 36 emulator. The sync tests cover real fictional sign-in, full pull and Room hydration, confirmed outbox push, offline retry retention, dirty-local conflict protection, remote delete-wins, and realtime delivery. APK inspection found no backend endpoint or key in release. A transitive Internet permission was found and explicitly removed from release; the rebuilt release declares no Internet permission. All 15 pgTAP suites passed, then the disposable stack was reset back to its three seeded expenses. Production was not accessed.

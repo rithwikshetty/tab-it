@@ -11,6 +11,7 @@ same repository as the existing iOS app.
 - Kotlin 2.4.10
 - Compose BOM 2026.06.00
 - Room 2.8.4 with KSP 2.3.9
+- Supabase Kotlin 3.6.0 behind `:core:sync`
 - compile SDK 37, target SDK 36, minimum SDK 26
 
 On the current Homebrew-based macOS setup:
@@ -24,6 +25,10 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 ## Checks
 
 ```bash
+cd ../..
+bash supabase/scripts/configure_android_local.sh
+bash supabase/scripts/connect_android_emulator.sh
+cd Apps/TabAndroid
 ./gradlew test
 ./gradlew lint
 ./gradlew assembleDebug assembleRelease
@@ -41,9 +46,16 @@ the exact-decimal ledger transaction, receipt drafts, and the ordered sync
 outbox. Its versioned schema is exported under `core/data/schemas/`. Debug
 builds seed only fictional local rows; release builds start empty.
 
-The checked-in debug backend is `http://10.0.2.2:54321`, Android Emulator's
-alias for the host machine's local Supabase API. Release builds contain no
-backend URL. Runtime validation refuses hosted Supabase URLs; there is no
-production fallback.
+The Android-only `:core:sync` module owns local authentication, typed Supabase
+transport, snapshot-to-Room conflict handling, ordered outbox delivery, retry
+backoff, and current-trip realtime refresh. The community-maintained Supabase
+Kotlin dependency stays behind the `RemoteGateway` interface.
+
+The generated and ignored `local.properties` points debug builds at
+`http://127.0.0.1:54321`. The emulator connection script creates an ADB reverse
+mapping to the guarded local Supabase API. It refuses physical devices and
+requires exactly one ready emulator. Release builds contain no backend URL or
+key and explicitly remove the Internet permission. Runtime validation refuses
+hosted Supabase URLs and privileged keys; there is no production fallback.
 
 Use the `Tab_API_36` Android 16 emulator for local device tests.
