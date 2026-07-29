@@ -31,6 +31,8 @@ class AppShellTest {
             composeRule.onAllNodesWithText("Settings").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText("Settings").performClick()
+        composeRule.onNodeWithText("Import from Splitwise").assertIsDisplayed()
+        composeRule.onNodeWithText("Refresh local copy").assertIsDisplayed()
         composeRule.onNodeWithText("Sign out").performClick()
         composeRule.onNodeWithTag("confirmSignOut").performClick()
         composeRule.waitUntil(timeoutMillis = 20_000) {

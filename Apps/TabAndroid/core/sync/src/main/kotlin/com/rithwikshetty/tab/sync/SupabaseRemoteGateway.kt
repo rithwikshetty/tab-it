@@ -7,6 +7,7 @@ import com.rithwikshetty.tab.data.local.TripPersonEntity
 import com.rithwikshetty.tab.data.local.TripMutePreferenceEntity
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.MemorySessionManager
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
@@ -443,12 +444,22 @@ public class SupabaseRemoteGateway private constructor(
             "[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}\\.jpg",
         )
 
-        public fun create(configuration: LocalBackendConfiguration): SupabaseRemoteGateway {
+        public fun create(
+            configuration: LocalBackendConfiguration,
+            persistSession: Boolean = true,
+        ): SupabaseRemoteGateway {
             val client = createSupabaseClient(
                 supabaseUrl = configuration.baseUrl,
                 supabaseKey = configuration.publishableKey,
             ) {
-                install(Auth)
+                install(Auth) {
+                    autoLoadFromStorage = persistSession
+                    autoSaveToStorage = persistSession
+                    if (!persistSession) {
+                        sessionManager = MemorySessionManager()
+                        enableLifecycleCallbacks = false
+                    }
+                }
                 install(Postgrest)
                 install(Realtime)
                 install(Storage)

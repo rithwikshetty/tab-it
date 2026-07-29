@@ -215,3 +215,15 @@ An initial integration run correctly exposed that authenticated clients have no 
 Added Android image selection, bounded decode and downsampling, JPEG conversion, app-private pending files, Room receipt drafts, ordered retryable upload, authenticated private-bucket download and an expense-detail preview. The local Storage RLS test caught the required ordering contract: `can_write_receipt_object` permits upload only after the matching live expense points to that path. Reordered the outbox to create the expense first and upload the receipt immediately afterward; no policy or schema change was needed.
 
 JVM tests, lint, debug assembly and the R8-minified release build passed. Thirteen Room tests and thirteen local Supabase tests passed, including an actual JPEG round trip through the disposable private `receipts` bucket. Six Compose/application tests passed after the local database and app sandbox were returned to a clean fictional baseline. Release remains backend-unconfigured and networkless; production was not accessed.
+
+## 2026-07-29 17:36 BST — Data transfer and final settings implemented
+
+Added a bounded 5 MB local CSV reader, private `FileProvider` exports, deterministic exact-decimal trip CSV generation, and a Splitwise import flow that parses locally before showing expense, settlement, people, and warning counts. The user chooses the trip name and which imported person represents their account. Apply creates the trip locally, adds placeholder invitees through the existing member RPC, writes expenses and settlements through their Room-first repositories, drains the ordered outbox in bounded batches, and archives a partially created trip if any stage fails.
+
+Trip detail can now share a CSV through Android's standard share sheet. Settings shows the signed-in account, the local-only backend status, explicit local refresh, Splitwise import, invitation join, and guarded sign-out. The import screen uses the established sage theme, responsive Compose layout, semantic headings, exact count labels, and disabled working states.
+
+## 2026-07-29 17:44 BST — Aggregate app test isolation corrected
+
+The import integration passed alone but initially conflicted with the application sign-out test when both shared one Room file and the Supabase SDK's platform session lifecycle. Gave the integration test a separate database file, a different fictional account, and an in-memory non-persistent Auth session with lifecycle callbacks disabled. The production app keeps its persisted session behavior. All eight app tests now pass together, including the local-backend import and a dedicated import-preview Compose test.
+
+Thirteen Room tests and thirteen local Supabase synchronization tests also pass on the API 36 emulator. Every database reset in this work used the guarded `tab-local` script; production was not accessed.

@@ -1,6 +1,8 @@
 package com.rithwikshetty.tab.ui.app
 
 import android.content.Intent
+import android.content.ClipData
+import android.net.Uri
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +63,7 @@ import com.rithwikshetty.tab.ui.friends.FriendDetailScreen
 import com.rithwikshetty.tab.ui.friends.NonGroupExpensePickerScreen
 import com.rithwikshetty.tab.ui.settlements.SettlementDetailScreen
 import com.rithwikshetty.tab.ui.settlements.SettlementEditorScreen
+import com.rithwikshetty.tab.ui.importing.SplitwiseImportScreen
 import com.rithwikshetty.tab.ui.trips.TripDetailScreen
 import com.rithwikshetty.tab.ui.trips.TripsScreen
 import com.rithwikshetty.tab.domain.SimplifiedDebt
@@ -112,6 +115,10 @@ fun TabApp(
             onShareTripInvite = viewModel::shareTripInvite,
             onRevokeTripInvite = viewModel::revokeTripInvite,
             onJoinTripInvite = viewModel::joinTripInvite,
+            onExportTrip = viewModel::exportTrip,
+            onPreviewImport = viewModel::previewSplitwiseImport,
+            onClearImport = viewModel::clearImportPreview,
+            onApplyImport = viewModel::applySplitwiseImport,
             onSignOut = viewModel::signOut,
             modifier = modifier,
         )
@@ -151,6 +158,10 @@ private fun SignedInApp(
     onShareTripInvite: (UUID, (String) -> Unit) -> Unit,
     onRevokeTripInvite: (UUID) -> Unit,
     onJoinTripInvite: (String, (UUID) -> Unit) -> Unit,
+    onExportTrip: (UUID, (String) -> Unit) -> Unit,
+    onPreviewImport: (String) -> Unit,
+    onClearImport: () -> Unit,
+    onApplyImport: (String, String, (UUID) -> Unit) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -236,11 +247,13 @@ private fun SignedInApp(
                 SettingsScreen(
                     email = (state.session as SessionState.SignedIn).user.email,
                     isWorking = state.isWorking,
+                    onRefresh = onRefresh,
                     onJoinTrip = { value ->
                         onJoinTripInvite(value) { tripId ->
                             navController.navigate(TripRoute(tripId.toString()))
                         }
                     },
+                    onImport = { navController.navigate(ImportRoute) },
                     onSignOut = onSignOut,
                 )
             }
@@ -282,6 +295,26 @@ private fun SignedInApp(
                         }
                     },
                     onRevokeInvite = { onRevokeTripInvite(id) },
+                    onExport = {
+                        onExportTrip(id) { value ->
+                            val uri = Uri.parse(value)
+                            context.startActivity(
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/csv"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        clipData = ClipData.newUri(
+                                            context.contentResolver,
+                                            "Trip CSV",
+                                            uri,
+                                        )
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    },
+                                    "Share trip CSV",
+                                ),
+                            )
+                        }
+                    },
                     onAddExpense = {
                         navController.navigate(NewExpenseRoute(id.toString()))
                     },
@@ -498,6 +531,22 @@ private fun SignedInApp(
                     },
                 )
             }
+            composable<ImportRoute> {
+                LaunchedEffect(Unit) { onTripVisible(null) }
+                SplitwiseImportScreen(
+                    preview = state.importPreview,
+                    isWorking = state.isWorking,
+                    onBack = navController::popBackStack,
+                    onChooseFile = onPreviewImport,
+                    onClearPreview = onClearImport,
+                    onImport = onApplyImport,
+                    onImported = { tripId ->
+                        navController.navigate(TripRoute(tripId.toString())) {
+                            popUpTo<ImportRoute> { inclusive = true }
+                        }
+                    },
+                )
+            }
                 }
             }
         }
@@ -587,7 +636,9 @@ private fun PlaceholderScreen(
 private fun SettingsScreen(
     email: String?,
     isWorking: Boolean,
+    onRefresh: () -> Unit,
     onJoinTrip: (String) -> Unit,
+    onImport: () -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -615,6 +666,20 @@ private fun SettingsScreen(
             modifier = Modifier.padding(top = 4.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        TextButton(
+            onClick = onRefresh,
+            modifier = Modifier.padding(top = 12.dp),
+            enabled = !isWorking,
+        ) {
+            Text("Refresh local copy")
+        }
+        TextButton(
+            onClick = onImport,
+            modifier = Modifier.padding(top = 16.dp),
+            enabled = !isWorking,
+        ) {
+            Text("Import from Splitwise")
+        }
         TextButton(
             onClick = { showJoin = true },
             modifier = Modifier.padding(top = 16.dp),
@@ -762,3 +827,6 @@ private data object NonGroupExpensePickerRoute
 
 @Serializable
 private data class FriendRoute(val identityKey: String)
+
+@Serializable
+private data object ImportRoute

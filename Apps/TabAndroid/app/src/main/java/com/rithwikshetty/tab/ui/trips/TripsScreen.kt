@@ -233,6 +233,7 @@ fun TripDetailScreen(
     onToggleMute: (Boolean) -> Unit,
     onShareInvite: () -> Unit,
     onRevokeInvite: () -> Unit,
+    onExport: () -> Unit,
     onAddExpense: () -> Unit,
     onOpenExpense: (UUID) -> Unit,
     onAddPerson: (String, String) -> Unit,
@@ -301,6 +302,13 @@ fun TripDetailScreen(
                                 onClick = {
                                     menuOpen = false
                                     onRevokeInvite()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export trip CSV") },
+                                onClick = {
+                                    menuOpen = false
+                                    onExport()
                                 },
                             )
                             DropdownMenuItem(

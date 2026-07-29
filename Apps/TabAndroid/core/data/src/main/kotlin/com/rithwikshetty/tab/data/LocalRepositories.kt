@@ -32,6 +32,7 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -233,6 +234,9 @@ public class LocalTripRepository(
             database.clearAllTables()
         }
     }
+
+    public suspend fun hasPendingWork(): Boolean =
+        database.outbox().observeAll().first().isNotEmpty()
 }
 
 public class LocalExpenseRepository(

@@ -15,6 +15,9 @@ import com.rithwikshetty.tab.domain.Settlement
 import com.rithwikshetty.tab.domain.SimplifiedDebt
 import com.rithwikshetty.tab.domain.UserBalance
 import com.rithwikshetty.tab.domain.Money
+import com.rithwikshetty.tab.domain.SplitwiseImport
+import com.rithwikshetty.tab.domain.SplitwiseImportResult
+import com.rithwikshetty.tab.TripCsvExporter
 import com.rithwikshetty.tab.ui.friends.FriendsPresenter
 import com.rithwikshetty.tab.ui.friends.FriendsUiState
 import com.rithwikshetty.tab.ui.activity.ActivityPresenter
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -50,8 +54,14 @@ data class TabUiState(
     val tripContent: TripContentUiState = TripContentUiState(),
     val friends: FriendsUiState = FriendsUiState(),
     val activity: ActivityUiState = ActivityUiState(),
+    val importPreview: ImportPreviewUiState? = null,
     val isWorking: Boolean = false,
     val message: String? = null,
+)
+
+data class ImportPreviewUiState(
+    val result: SplitwiseImportResult,
+    val sourceName: String,
 )
 
 data class TripContentUiState(
@@ -72,6 +82,7 @@ class TabViewModel(
     private val isWorking = MutableStateFlow(false)
     private val message = MutableStateFlow<String?>(null)
     private val visibleTripId = MutableStateFlow<UUID?>(null)
+    private val importPreview = MutableStateFlow<ImportPreviewUiState?>(null)
     private var realtimeJob: Job? = null
 
     private val tripContent = combine(
@@ -126,20 +137,22 @@ class TabViewModel(
     }
 
     private val ledgerContent = combine(tripContent, friends, activity, ::Triple)
+    private val screenContent = combine(ledgerContent, importPreview, ::Pair)
 
     val uiState: StateFlow<TabUiState> = combine(
         session,
         container.tripRepository.observeTrips(),
-        ledgerContent,
+        screenContent,
         isWorking,
         message,
     ) { currentSession, trips, content, working, currentMessage ->
         TabUiState(
             session = currentSession,
             trips = trips,
-            tripContent = content.first,
-            friends = content.second,
-            activity = content.third,
+            tripContent = content.first.first,
+            friends = content.first.second,
+            activity = content.first.third,
+            importPreview = content.second,
             isWorking = working,
             message = currentMessage,
         )
@@ -256,6 +269,65 @@ class TabViewModel(
                 local ?: checkNotNull(container.remoteGateway).downloadReceipt(remotePath)
             }.onSuccess(onLoaded)
                 .onFailure { message.value = "Couldn't load receipt." }
+        }
+    }
+
+    fun exportTrip(tripId: UUID, onReady: (String) -> Unit) {
+        launchWorking {
+            val trip = checkNotNull(container.tripRepository.observeTrip(tripId).first()) {
+                "Trip not found."
+            }
+            val people = container.tripRepository.observePeople(tripId).first()
+            val categories = container.tripRepository.observeCategories(tripId).first()
+            val expenses = container.expenseRepository.observeExpenses(tripId).first()
+            val settlements = container.settlementRepository.observeSettlements(tripId).first()
+            val csv = TripCsvExporter.generate(expenses, settlements, people, categories)
+            val uri = container.dataTransferStore.writeCsv(trip.name, csv)
+            onReady(uri.toString())
+        }
+    }
+
+    fun previewSplitwiseImport(uri: String) {
+        launchWorking {
+            val parsed = SplitwiseImport.parse(
+                container.dataTransferStore.readCsv(Uri.parse(uri)),
+            )
+            importPreview.value = ImportPreviewUiState(
+                result = parsed,
+                sourceName = Uri.parse(uri).lastPathSegment ?: "Splitwise CSV",
+            )
+        }
+    }
+
+    fun clearImportPreview() {
+        importPreview.value = null
+    }
+
+    fun applySplitwiseImport(
+        tripName: String,
+        selfPerson: String,
+        onImported: (UUID) -> Unit,
+    ) {
+        val user = signedInUser() ?: return
+        val preview = importPreview.value ?: return
+        val cleanName = tripName.trim()
+        if (cleanName.isEmpty() || selfPerson !in preview.result.people) {
+            message.value = "Choose a trip name and which person is you."
+            return
+        }
+        if (user.email == null) {
+            message.value = "A verified email is required to import a trip."
+            return
+        }
+        launchWorking {
+            val tripId = container.splitwiseImporter.run(
+                preview.result,
+                cleanName,
+                selfPerson,
+                user,
+            )
+            importPreview.value = null
+            onImported(tripId)
         }
     }
 
