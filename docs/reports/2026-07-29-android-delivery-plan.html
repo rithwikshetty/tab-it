@@ -351,9 +351,9 @@
 <body>
   <div class="page">
     <header>
-      <p class="eyebrow">Android initiative · living report · 29 July 2026</p>
+      <p class="eyebrow">Android initiative · living report · 29 July 2026 · updated 8 August 2026</p>
       <h1>Android local delivery</h1>
-      <p class="lede">The agreed native Android scope is complete in the same repository as iOS, with an independent Kotlin build and a disposable local Supabase backend. Production remained outside the implementation workflow.</p>
+      <p class="lede">The agreed native Android scope is complete in the same repository as iOS, with an independent Kotlin build, a disposable local Supabase backend and a successful Android 11 physical-device pass. Production remained outside the implementation workflow.</p>
 
       <div class="status-row" role="group" aria-label="Initiative status">
         <div class="status">
@@ -362,7 +362,7 @@
         </div>
         <div class="status">
           <span class="label">Current phase</span>
-          <strong>Local implementation complete</strong>
+          <strong>Local implementation and Pixel validation complete</strong>
         </div>
         <div class="status">
           <span class="label">Production</span>
@@ -384,8 +384,8 @@
           </article>
           <article class="card">
             <span class="label">Verified</span>
-            <h3>All planned local surfaces work</h3>
-            <p>Trips, expenses, balances, settlements, Friends, activity, receipts, invitations, CSV transfer and settings pass on the API 36 emulator.</p>
+            <h3>Local surfaces and physical smoke pass</h3>
+            <p>The complete scope passes on the API 36 emulator. Room, focused Compose flows, installation and launch also pass on a Pixel 2 running Android 11.</p>
           </article>
           <article class="card">
             <span class="label">Standardised</span>
@@ -463,13 +463,13 @@
 
       <section aria-labelledby="evidence">
         <p class="eyebrow">Final evidence</p>
-        <h2 id="evidence">The local build closes cleanly</h2>
-        <p class="section-intro">Verification ran after the final feature commit and the disposable database was reset to its fictional baseline afterward.</p>
+        <h2 id="evidence">The local build closes cleanly on emulator and Pixel 2</h2>
+        <p class="section-intro">The final emulator pass used the disposable fictional database. A fresh 8 August build then installed and launched on Android 11 without a runtime crash.</p>
         <div class="decision">
           <article class="card">
             <span class="label">Android</span>
-            <h3>32 JVM and 34 device tests</h3>
-            <p>Thirteen Room, thirteen real local-Supabase, and eight app or Compose emulator tests passed. Lint, debug assembly and the R8 release build also passed.</p>
+            <h3>32 JVM, 34 emulator and 16 Pixel tests</h3>
+            <p>The original Room, local-Supabase and app suites passed on the emulator. The Pixel added thirteen Room and three focused Compose passes; all 153 fresh JVM, lint and debug-build tasks also passed.</p>
           </article>
           <article class="card">
             <span class="label">Shared contracts</span>
@@ -501,7 +501,7 @@
         <ul>
           <li>Choose and verify Android release authentication, app-link ownership and notification delivery.</li>
           <li>Rehearse compatibility in an isolated non-production Supabase environment.</li>
-          <li>Add signing, store distribution, monitoring, account-deletion UX and physical-device coverage.</li>
+          <li>Add signing, store distribution, monitoring, account-deletion UX and a broader physical-device matrix.</li>
           <li>Review the rollout and authorize each production change explicitly; none is implied by this local completion.</li>
         </ul>
       </section>
