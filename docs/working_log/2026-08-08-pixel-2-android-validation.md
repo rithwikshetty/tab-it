@@ -27,3 +27,7 @@ The physical-device scope remained production-safe: no hosted Supabase endpoint,
 ## 2026-08-08 14:24 BST — Documentation and publication gate
 
 Updated the existing living Android report rather than creating a competing initiative report. The report now distinguishes the original complete emulator/local-Supabase evidence from the new Android 11 Pixel pass and keeps broader device coverage plus hosted release readiness separate. The cached project validator reports the HTML valid, `git diff --check` passes, and the publish range contains no tracked `local.properties`, environment file, build output, keystore, or signing file.
+
+## 2026-08-08 14:25 BST — Git publication verified
+
+Committed the physical-device evidence as `9d30ea8` and pushed the full thirteen-commit local range to `origin/main`. A fresh fetch confirmed the local and remote SHA were identical at `9d30ea83d7fe8b9480407cffe8caf4bd4950acbb`, with zero commits ahead and zero behind. This is Git publication evidence only; no application deployment or production change occurred.
