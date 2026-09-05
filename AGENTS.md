@@ -57,9 +57,9 @@ The iOS app depends on `TabCore` via local SwiftPM. The independent Android buil
 - **Exact-split**: validates sum, no missing/extra participants. Throws on mismatch.
 - **Tests live in `Tests/<TargetName>Tests/`** (canonical SPM).
 - **`.build/` and `.swiftpm/` are gitignored.**
-- **Keep a live working log in `docs/working_log/`** while executing actual repo work. Name files `YYYY-MM-DD-descriptive-slug.md`. The log is **chronological and append-only**: start with the goal, then append each meaningful update (findings, direction changes, blockers, pivots, decisions, validations) as a new timestamped entry. Never rewrite or remove earlier entries — the point is a full narrative of how the work unfolded, including dead ends and changes in direction.
-- **Use GitHub Issues as the main work tracker.** Create or identify one bounded issue before implementing a phase or substantial deliverable. Add concise comments at meaningful milestones: start, material decision or blocker, validation, and completion. Link the relevant report, pull request, or commit; do not paste raw logs or secrets into issues.
-- **Explain plans and phase outcomes with concise HTML reports in `docs/reports/`.** Name reports `YYYY-MM-DD-descriptive-slug.html`. Prefer one living report per initiative, updated as phases progress. Reports must be self-contained, readable on mobile and desktop, visually use the established sage palette, and state the outcome, scope, decisions, risks, current phase, evidence, and next action without repeating the same information in multiple sections.
+- **Keep a live working log in `docs/working_log/`** for substantial implementation or investigation. Small isolated edits do not need a new log. Name files `YYYY-MM-DD-descriptive-slug.md`. The log is **chronological and append-only**: start with the goal, then append each meaningful update (findings, direction changes, blockers, pivots, decisions, validations) as a new timestamped entry. Never rewrite or remove earlier entries — the point is a full narrative of how the work unfolded, including dead ends and changes in direction.
+- **Use GitHub Issues as the main work tracker.** Use an existing bounded issue for a phase or substantial deliverable; create one when issue updates are authorized. Small maintenance edits do not require a new issue. Add concise comments at meaningful milestones: start, material decision or blocker, validation, and completion. Link the relevant report, pull request, or commit; do not paste raw logs or secrets into issues.
+- **Explain substantial phase plans and outcomes with concise HTML reports in `docs/reports/`.** Routine edits need only a concise response. Name reports `YYYY-MM-DD-descriptive-slug.html`. Prefer one living report per initiative, updated as phases progress. Reports must be self-contained, readable on mobile and desktop, visually use the established sage palette, and state the outcome, scope, decisions, risks, current phase, evidence, and next action without repeating the same information in multiple sections.
 
 ## Database
 
@@ -132,3 +132,9 @@ session_set_defaults with env: {"TAB_MOCK_AUTH": "1"}
 - **Work tracking** → GitHub Issues in `rithwikshetty/tab-it`
 - **Local Supabase** → `supabase/config.toml` uses project id `tab-local`; local scripts refuse `SUPABASE_PROJECT_REF`
 - **MCP config** → `.mcp.json` (Claude Code), `.codex/config.toml` (Codex), `.pi/mcp.json` (Pi)
+
+## Task completion
+
+Continue an authorized change through implementation, affected checks, and fixes for failures it causes. Choose routine reversible details from the established architecture. Ask only for missing facts or decisions that materially change the result. The production and migration boundaries above remain in force.
+
+Select validation by changed behavior: TabCore for shared money logic, the affected Android modules for Android work, and isolated database checks for SQL changes. Documentation-only edits need content, links, and diff checks. Do not rerun passing suites without a change or unresolved concern. Browser and simulator interaction require an explicit request for this task.
