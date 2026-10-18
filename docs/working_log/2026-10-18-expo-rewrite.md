@@ -68,3 +68,11 @@ Five findings on the round-2 fixes, all confirmed. Fixed in `8ea0c81`.
 - The uploader deleted a photo before saving the completion. It now deletes after, so a failed save retries the upload instead of reporting a missing photo.
 - Testing note: when Metro restarts, a running app keeps its old bundle until it's relaunched. The first re-test ran stale code; after relaunching Android, the photo staged into the account folder, uploaded, and was cleaned up after the save.
 - Round 4 was requested on the new store rule.
+
+### 11:15: Astra review round 4
+
+Two findings on the new store rule, both confirmed and fixed.
+
+- If reloading from disk also failed, the store logged it and kept accepting writes on top of unsaved memory. It now refuses further writes until the app restarts.
+- The generation was bumped after listeners were notified of the reload, so a listener's write was wrongly rejected. It's now bumped first, and notifying happens outside the reload's error handling.
+- 418 tests pass, typecheck and Prettier are clean. Nothing new to review: both changes are what the review asked for.

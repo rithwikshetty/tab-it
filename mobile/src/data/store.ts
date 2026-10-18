@@ -11,7 +11,8 @@ import { rowKey, TABLE_NAMES, type Op, type State, type TableMaps, type TableNam
 // If a transaction fails, memory is reloaded from disk, and every commit made
 // before that reload finished fails too: any of them may build on the change
 // that wasn't saved. So nothing can sync, or be partly saved, on top of a
-// change the phone never stored.
+// change the phone never stored. If even the reload fails, the store refuses
+// further writes until the app restarts and reads the file afresh.
 
 export interface Store {
   readonly userId: string;
@@ -74,9 +75,11 @@ export async function openStore(userId: string): Promise<Store> {
   // Bumped when a write fails and again once memory is reloaded; a commit from
   // an older generation was made before the reload and must not save.
   let generation = 0;
+  let broken = false;
 
   function commit(ops: readonly Op[]): Promise<void> {
     if (closed) return writes;
+    if (broken) return Promise.reject(new Error("This phone's storage isn't working. Restart the app."));
     const gen = generation;
     const nextTables: Partial<Record<TableName, Map<string, unknown>>> = {};
     let nextMeta: Map<string, string> | null = null;
@@ -137,11 +140,13 @@ export async function openStore(userId: string): Promise<Store> {
         generation++;
         try {
           state = await load(db);
-          for (const listener of listeners) listener();
+          // Commits from here on, including any a listener makes, build on disk.
+          generation++;
         } catch (e) {
           console.error("[store] reload failed", e);
+          broken = true;
         }
-        generation++;
+        if (!broken) for (const listener of listeners) listener();
       }
       throw error;
     });

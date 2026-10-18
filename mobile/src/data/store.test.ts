@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-const runtime = vi.hoisted(() => ({ root: "", failTransactions: 0 }));
+const runtime = vi.hoisted(() => ({ root: "", failTransactions: 0, failReads: false }));
 
 vi.mock("expo-sqlite", async () => {
   const { DatabaseSync } = await import("node:sqlite");
@@ -14,6 +14,7 @@ vi.mock("expo-sqlite", async () => {
         db.exec(sql);
       },
       async getAllAsync<T>(sql: string, ...params: Param[]) {
+        if (runtime.failReads) throw new Error("Injected read failure");
         return db.prepare(sql).all(...params) as T[];
       },
       async getFirstAsync<T>(sql: string, ...params: Param[]) {
@@ -68,6 +69,7 @@ function trip(id: string, name: string): LocalTrip {
 beforeEach(async () => {
   runtime.root = mkdtempSync("/tmp/tab-store-test-");
   runtime.failTransactions = 0;
+  runtime.failReads = false;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   store = await openStore(userId);
 });
@@ -136,4 +138,31 @@ test("commits after the reload save normally", async () => {
   store = await openStore(userId);
   expect(store.getState().tables.trips.has("a")).toBe(false);
   expect(store.getState().tables.trips.get("b")?.name).toBe("Kept");
+});
+
+test("a write a listener makes after the reload saves", async () => {
+  let wrote = false;
+  store.subscribe(() => {
+    if (wrote || store.getState().tables.trips.has("a")) return;
+    wrote = true;
+    void store.commit([{ meta: "seen", value: "yes" }]);
+  });
+  runtime.failTransactions = 1;
+  await expect(store.commit([{ table: "trips", row: trip("a", "Lost") }])).rejects.toThrow();
+  await store.flush();
+  expect(store.getState().meta.get("seen")).toBe("yes");
+  await store.close();
+  store = await openStore(userId);
+  expect(store.getState().meta.get("seen")).toBe("yes");
+});
+
+test("if the reload fails too, the store refuses further writes", async () => {
+  runtime.failTransactions = 1;
+  runtime.failReads = true;
+  await expect(store.commit([{ table: "trips", row: trip("a", "Lost") }])).rejects.toThrow();
+  runtime.failReads = false;
+  await expect(store.commit([{ table: "trips", row: trip("a", "Lost") }])).rejects.toThrow("Restart the app");
+  await store.close();
+  store = await openStore(userId);
+  expect(store.getState().tables.trips.has("a")).toBe(false);
 });
