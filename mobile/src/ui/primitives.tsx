@@ -224,12 +224,13 @@ export function IconButton({
 }
 
 /**
- * Space to keep above the bottom edge on a tab screen. On iOS the tab bar
- * floats over content; on Android the navigation bar sits below the screen.
+ * Space from the bottom of a tab screen to just above its tab bar. On iOS the
+ * floating tab bar overlaps the screen and the screen's bottom safe area
+ * already reaches its top edge; on Android the tab bar sits below the screen.
  */
 export function useTabBarClearance(): number {
   const insets = useSafeAreaInsets();
-  return Platform.OS === "ios" ? insets.bottom + 62 : 16;
+  return Platform.OS === "ios" ? insets.bottom : 16;
 }
 
 export function Fab({ label, icon = "add", onPress, bottom }: { label?: string; icon?: IconName; onPress: () => void; bottom?: number }) {
