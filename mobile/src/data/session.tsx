@@ -1,8 +1,10 @@
 import type { Session, User } from "@supabase/supabase-js";
-import { createContext, use, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { supabase } from "@/lib/supabase";
 
+import { importLegacyData } from "./legacy";
+import { loadInitialSession } from "./legacy/startup";
 import type { State } from "./schema";
 import { deleteStore, openStore, type Store } from "./store";
 import { SyncEngine, type SyncStatus } from "./sync";
@@ -47,11 +49,24 @@ function currentUserFrom(user: User): CurrentUser {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [opened, setOpened] = useState<SignedIn | null>(null);
+  const legacyUserId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => active && setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    let loading = true;
+    let pending: Session | null | undefined;
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (!active || event === "INITIAL_SESSION") return;
+      if (loading) {
+        if (event !== "TOKEN_REFRESHED") pending = next;
+      } else setSession(next);
+    });
+    void loadInitialSession(supabase.auth).then((initial) => {
+      if (!active) return;
+      legacyUserId.current = initial.legacyUserId;
+      loading = false;
+      setSession(pending === undefined ? initial.session : pending);
+    });
     return () => {
       active = false;
       data.subscription.unsubscribe();
@@ -69,23 +84,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let engine: SyncEngine | null = null;
     let store: Store | null = null;
     const user = currentUserFrom(session.user);
-    (async () => {
+    const opening = (async () => {
       store = await openStore(userId);
-      if (cancelled) return store.close();
+      if (cancelled) return;
+      try {
+        const imported = await importLegacyData(store, userId, { legacyUserId: legacyUserId.current });
+        if (imported.status === "failed" || imported.status === "account-mismatch") {
+          console.warn("[legacy] Import was deferred; it will retry on the next launch.");
+        }
+      } catch {
+        console.warn("[legacy] Import did not complete; it will retry on the next launch.");
+      }
+      if (cancelled) return;
       engine = new SyncEngine(store, user);
       setOpened({ store, sync: engine, user });
       // Pending trip people added by email become this account's before the
       // first pull, so newly joined trips arrive with it.
-      await supabase.rpc("claim_trip_people_for_current_email").then(
-        () => undefined,
-        () => undefined,
-      );
-      if (!cancelled) engine.start();
-    })();
+      void supabase
+        .rpc("claim_trip_people_for_current_email")
+        .then(
+          () => undefined,
+          () => undefined,
+        )
+        .then(() => {
+          if (!cancelled) engine?.start();
+        });
+    })().catch(() => {
+      console.warn("[session] Could not open the local store.");
+    });
     return () => {
       cancelled = true;
       engine?.stop();
-      void store?.close();
+      void opening
+        .then(() => store?.close())
+        .catch(() => {
+          console.warn("[session] Could not close the local store.");
+        });
     };
     // The session object changes on every token refresh; only the user matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps

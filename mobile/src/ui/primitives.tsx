@@ -232,17 +232,7 @@ export function useTabBarClearance(): number {
   return Platform.OS === "ios" ? insets.bottom + 62 : 16;
 }
 
-export function Fab({
-  label,
-  icon = "add",
-  onPress,
-  bottom,
-}: {
-  label?: string;
-  icon?: IconName;
-  onPress: () => void;
-  bottom?: number;
-}) {
+export function Fab({ label, icon = "add", onPress, bottom }: { label?: string; icon?: IconName; onPress: () => void; bottom?: number }) {
   const insets = useSafeAreaInsets();
   return (
     <Pressable

@@ -2,15 +2,19 @@
 
 Exports from `@/data/legacy`:
 
-- `restoreLegacySession(): Promise<string | null>` returns a refresh token without removing its saved item. The native query mismatch below requires a bridge for installed Swift sessions.
-- `clearLegacySession(): Promise<boolean>` clears the item restored through SecureStore. Call only after successful refresh and durable JS session persistence.
+- `restoreLegacySession(): Promise<LegacySession | null>` returns `{ refreshToken, legacyUserId }` without removing the saved item. Missing or invalid tokens and user IDs return `null`.
+- `clearLegacySession(): Promise<boolean>` deletes the native item that was restored. Call only after successful refresh and durable JS session persistence.
 - `importLegacyData(store, userId, { legacyUserId? }): Promise<LegacyImportResult>` always resolves. Status is `imported`, `already-imported`, `not-found`, `unsupported`, `account-mismatch`, or `failed`.
 
 ## Integration
 
-In `../session.tsx:53`, await `getSession()`. When no JS session exists, await `restoreLegacySession()`, then `supabase.auth.refreshSession({ refresh_token })`. Keep loading until this finishes. Clear the old item only after the new session is durably saved. Preserve it on failure. The native bridge must also return the old `user.id`.
+`../session.tsx` uses `startup.ts` to await `getSession()`. With no JS session, it awaits `restoreLegacySession()`, then `supabase.auth.refreshSession({ refresh_token })`. The installed auth client awaits its storage writes before resolving refresh. The restored account must match the refreshed session before the native item can be cleared. Failures preserve that item and show sign-in without logging token contents.
 
-After `openStore(userId)` at `../session.tsx:73`, await `importLegacyData(store, userId, { legacyUserId })` before publishing the store, constructing/starting sync, or claiming people. Recheck cancellation afterward. Make effect cleanup wait for import before closing the store. Surface failed/ambiguous imports without crashing or deleting data, and retry next launch.
+Startup stays loading through auth notifications and the handoff. The wait limits are 10 seconds for the saved JS session, 3 seconds for a native read, 15 seconds for refresh, and 3 seconds for clearing. An existing JS session has a separate 3-second limit for reading legacy account evidence. Overlapping startup calls share the same promise to avoid duplicate refreshes.
+
+Before native deletion, `clearLegacySession()` saves the legacy user ID in SecureStore under `legacy.swiftData.userId.<account-key>`. This preserves account evidence for import retries after the token has moved to JS storage. `legacyImportUserId()` reads it on later launches, falling back to a retained native session. A failed account-evidence write prevents native deletion.
+
+After `openStore(userId)`, the provider awaits `importLegacyData(store, userId, { legacyUserId })` before publishing the store, constructing/starting sync, or claiming people. It rechecks cancellation afterward, and cleanup waits for opening and import before closing the store. Failed or ambiguous imports log a warning and allow normal use; they retry next launch. A pending claim request does not delay store cleanup. The `signedIn` object remains stable across token refreshes.
 
 Activity uses the existing `_readAt`, `_dismissedAt`, and `activity.seenAt` fields. `activity.seenAtPushed` stays unset so normal sync acknowledges the cursor. No selector changes are needed.
 
@@ -31,7 +35,7 @@ The app supplies no custom storage or access group, `Apps/Tab/Sources/Tab/Servic
 
 **SDK 58 SecureStore cannot query the Swift item.** Its queries require a generic attribute and a byte-valued account, `mobile/node_modules/expo-secure-store/ios/SecureStoreModule.swift:186-198`. Swift sets a string account and no generic attribute. SecureStore tries service suffixes `:no-auth` and `:auth`, then the original service, lines 82-90. Accessibility options cannot change these attributes.
 
-Add a local Expo native module using `SecItemCopyMatching` with the exact class, service, and string account above, `kSecReturnData = true`, and `kSecMatchLimitOne`. Omit the generic attribute and explicit access group. Return the decoded refresh token and `user.id`. Add a separate native delete method with the same query, called after refreshed-session persistence. Wire this fallback into `session.ts` here. Until then, native sessions remain untouched and users must sign in again. Node auth tests prove the JS contract only.
+`mobile/modules/legacy-keychain/` is a local Expo Modules API module. Its Swift `readLegacySession(service, account)` uses `SecItemCopyMatching` with the exact class, service, and string account above, `kSecReturnData = true`, and `kSecMatchLimitOne`. Its separate `deleteLegacySession(service, account)` uses the same identifying attributes. Neither query includes a generic attribute or access group. JS decodes the raw UTF-8 JSON into the refresh token and `user.id`. The module no-ops on Android and in binaries without the native module. Expo discovers it through the default `modules/` autolinking directory, without a dependency or config-plugin entry.
 
 Preserve bundle `com.rithwikshetty.tab`, team `KR8C647GCW`, signing access groups, and callback identity. Test an update over the installed app; uninstalling removes its data container.
 
@@ -54,7 +58,7 @@ Rows and `legacy.swiftData.v1` commit atomically. Only afterward are the origina
 - SwiftData has no explicit owner field. A unique self-only cursor or single cached profile identifies the account. Multiple profiles without a cursor defer until the caller supplies a native-session `legacyUserId`. Do not guess it.
 - SQLite REAL may already have lost Swift Decimal precision; casting cannot recover those bits. The archived original remains available.
 - Unknown/corrupt schemas retain the source files. General UserDefaults preferences, queued invites, APNs registration, signed-URL caches, and data removed by sign-out/uninstall are outside this import.
-- A signed device update, native Keychain reader, Expo runtime import, and old/new sync convergence remain release checks. No hosted backend or production data was used.
+- A signed device update must prove access to the installed app's actual Keychain item, refresh-token validity, Expo runtime import, and old/new sync convergence. Unit tests and a simulator build cannot prove these upgrade behaviours. No hosted backend or production data was used.
 
 The fictional fixture was captured on iPhone 18 Pro `649BB472-E327-412F-B750-CC52DB177743`. The old app was built from a `/tmp` copy using XcodeGen and xcodebuild with `TAB_SUPABASE_URL=http://127.0.0.1:54321` and `TAB_SUPABASE_PUBLISHABLE_KEY=local`; the built Info.plist was verified. Launch used mock auth and both requested seed flags. Because the demo seed marks some parents clean, the scratch build also ran `fixtures/seed.swift` after `DemoScreenshotSeed` to add dirty parents and missing edge cases. The fixture is a checkpointed backup taken after termination. The app was uninstalled and that simulator shut down; iPhone 16 was untouched.
 
@@ -63,6 +67,19 @@ From `mobile/`, with Node supporting `node:sqlite`:
 ```sh
 npx vitest run src/data/legacy
 npx tsc --noEmit
+npx vitest run
+npx prettier --check "src/**/*.{ts,tsx}"
+npx prettier --ignore-path /dev/null --check src/data/legacy/session.ts src/data/legacy/session.test.ts src/data/legacy/startup.ts src/data/legacy/startup.test.ts src/data/legacy/native-keychain.test.ts src/data/legacy/session-provider.test.ts src/data/legacy/index.ts modules/legacy-keychain/index.ts
 ```
 
-Tests cover the native fixture and real Node SQLite/filesystem adapters, including ledger totals, large amounts, WAL recovery, repeat/concurrent import, disk failure, closed stores, account isolation, receipts, and activity state. ESLint was unavailable in the installed dependencies. Changes are confined to this directory; session wiring is left to the integrating agent.
+Tests cover the native fixture and real Node SQLite/filesystem adapters, including ledger totals, large amounts, WAL recovery, repeat/concurrent import, disk failure, closed stores, account isolation, receipts, and activity state. Auth tests cover exact JS bridge arguments, Android no-ops, session decoding, persistence ordering, account-evidence retention, timeouts, shared refreshes, provider auth-event buffering, import ordering, cancellation, cleanup, and stable `signedIn` identity. `.prettierignore` excludes this legacy directory, so its edited files also need the explicit formatting check above.
+
+## Handoff validation log
+
+### 2026-10-18
+
+- Added the iOS keychain module and bounded session startup. Persisted legacy account evidence supports data-import retries after native token deletion. The provider waits for import before exposing the store or creating sync, and waits for import before closing a cancelled store.
+- `npx tsc --noEmit` passed. `npx vitest run` passed all 410 tests across 34 files. Explicit Prettier checks passed for every edited TypeScript file. The full source formatting check passed before concurrent UI edits; its final run flags the out-of-scope `src/ui/primitives.tsx`.
+- `npx expo prebuild --platform ios --no-install`, `pod install`, and `xcodebuild -workspace ios/tabit.xcworkspace -scheme tabit -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/tab-legacy-dd build` passed. The native module compiled for arm64 and x86_64, and the generated module provider registers `LegacyKeychainModule`. The built bundle ID is `com.rithwikshetty.tab`. No simulator install or launch was performed.
+- Focused legacy/module ESLint checks passed using a temporary config. The provider's existing synchronous `setOpened(null)` effect triggers `react-hooks/set-state-in-effect`, also reproduced against its unchanged baseline. Expo's automatic lint setup was removed from the app dependency files and repository config.
+- Signed device upgrade and real installed-session/runtime import checks remain. No hosted backend or production data was accessed.
