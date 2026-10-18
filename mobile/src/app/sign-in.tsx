@@ -91,15 +91,17 @@ export default function SignIn() {
                 onPress={() => !busy && run("apple", signInWithApple)}
               />
             )}
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => run("google", signInWithGoogle)}
-              style={({ pressed }) => [styles.google, pressed && { opacity: 0.7 }]}
-            >
-              <Text style={styles.googleG}>G</Text>
-              <Text style={styles.googleText}>Continue with Google</Text>
-            </Pressable>
+            {config.googleSignIn && (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => run("google", signInWithGoogle)}
+                style={({ pressed }) => [styles.google, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.googleG}>G</Text>
+                <Text style={styles.googleText}>Continue with Google</Text>
+              </Pressable>
+            )}
 
             <View style={styles.orRow}>
               <View style={styles.orLine} />

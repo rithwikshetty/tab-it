@@ -18,6 +18,8 @@ export const config = {
   supabaseKey,
   turnstileSiteKey: turnstileSiteKey || null,
   isConfigured: supabaseUrl.length > 0 && supabaseKey.length > 0,
+  /** Google sign-in needs the Google provider set up on the backend, so it's off unless a build turns it on. */
+  googleSignIn: process.env.EXPO_PUBLIC_GOOGLE_SIGN_IN?.trim() === "1",
   /** A local Supabase stack (Docker) rather than a hosted project. */
   isLocalBackend: /^http:\/\/(127\.0\.0\.1|localhost|10\.0\.2\.2)(:\d+)?/.test(supabaseUrl),
 };
