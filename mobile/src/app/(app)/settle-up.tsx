@@ -115,7 +115,7 @@ export default function SettleUp() {
       name: p.id === me?.id ? "You" : p.display_name,
       avatarName: p.id === me?.id ? ctx.user.displayName : p.display_name,
       email: p.email,
-      pending: !p.user_id,
+      userId: p.user_id,
     }));
   }, [rows, me, from, to, debts, ctx.user.displayName]);
 

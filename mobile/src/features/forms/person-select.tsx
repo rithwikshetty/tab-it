@@ -9,8 +9,8 @@ export interface SelectablePerson {
   id: string;
   name: string;
   avatarName: string;
+  userId?: string | null;
   email?: string;
-  pending?: boolean;
 }
 
 /** A pill that opens a native menu of people. */
@@ -34,11 +34,7 @@ export function PersonSelect({
     >
       <View style={styles.pill} accessible accessibilityRole="button" accessibilityLabel={`${label}: ${current?.name ?? "choose"}`}>
         {current && (
-          <Avatar
-            person={{ id: current.id, name: current.avatarName, email: current.email, pending: current.pending }}
-            size={24}
-            ring={0}
-          />
+          <Avatar person={{ id: current.id, name: current.avatarName, userId: current.userId, email: current.email }} size={24} ring={0} />
         )}
         <Text style={styles.text} numberOfLines={1}>
           {current?.name ?? "Choose"}

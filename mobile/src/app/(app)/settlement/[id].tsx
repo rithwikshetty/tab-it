@@ -60,8 +60,8 @@ export default function SettlementDetail() {
           person={{
             id: pid,
             name: p?.user_id === ctx.user.id ? ctx.user.displayName : (p?.display_name ?? "?"),
+            userId: p?.user_id,
             email: p?.email,
-            pending: !p?.user_id,
           }}
           size={52}
           ring={0}

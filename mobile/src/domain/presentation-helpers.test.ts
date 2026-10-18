@@ -6,6 +6,7 @@ import {
   avatarInitial,
   avatarTone,
   emailAvatarTone,
+  personTone,
   sortedPeople,
 } from "./presentation-helpers";
 import {
@@ -127,6 +128,12 @@ test("avatar names and byte sums match the iOS helpers", () => {
   expect(avatarInitial("👩‍💻 Alex")).toBe("👩‍💻");
   expect(avatarTone(a)).toBe("sand");
   expect(emailAvatarTone("alex@example.com")).toBe(emailAvatarTone("alex@example.com"));
+});
+test("a person's tone follows their account, then their email, across trips", () => {
+  expect(personTone({ id: b, user_id: a, email: "alex@example.com" })).toBe(avatarTone(a));
+  expect(personTone({ id: c, user_id: a, email: "other@example.com" })).toBe(avatarTone(a));
+  expect(personTone({ id: b, user_id: null, email: "alex@example.com" })).toBe(emailAvatarTone("alex@example.com"));
+  expect(personTone({ id: b })).toBe(avatarTone(b));
 });
 test("people sort self, joined, then pending names", () => {
   const p = [{ ...person(b, "Bob"), joined_at: null }, person(c, "Cara"), person(a, "Alice")];

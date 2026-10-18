@@ -9,6 +9,10 @@ export function avatarTone(id: string): AvatarTone {
 export function emailAvatarTone(email: string): AvatarTone {
   return tones[utf8Bytes(email).reduce((sum, b) => (sum + b) % 256, 0) % 4]!;
 }
+/** Joined people take their account's tone and pending people their email's, so a person matches in every trip. */
+export function personTone(person: { id: string; user_id?: string | null; email?: string | null }): AvatarTone {
+  return person.user_id ? avatarTone(person.user_id) : person.email ? emailAvatarTone(person.email) : avatarTone(person.id);
+}
 export function nameCharacters(value: string): string[] {
   const points = Array.from(value),
     result: string[] = [];

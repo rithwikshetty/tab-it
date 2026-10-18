@@ -101,8 +101,8 @@ export default function Friends() {
 function FriendItem({ friend, first }: { friend: FriendRow; first: boolean }) {
   const avatar =
     friend.friend.type === "user"
-      ? { id: friend.friend.id, name: friend.displayName }
-      : { id: friend.friend.email, name: friend.displayName, email: friend.friend.email, pending: true };
+      ? { id: friend.friend.id, userId: friend.friend.id, name: friend.displayName }
+      : { id: friend.friend.email, name: friend.displayName, email: friend.friend.email };
   return (
     <View>
       {!first && <Divider inset={68} />}

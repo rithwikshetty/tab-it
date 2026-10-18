@@ -54,8 +54,8 @@ export default function TripScreen() {
       ).map((p) => ({
         id: p.id,
         name: p.id === me.id ? ctx.user.displayName : p.display_name,
+        userId: p.user_id,
         email: p.email,
-        pending: !p.user_id,
       })),
     };
   }, [rows, me, ctx.user.displayName]);

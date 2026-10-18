@@ -234,7 +234,7 @@ function PersonAmount({
   return (
     <View style={styles.personRow}>
       <Avatar
-        person={{ id: person?.id ?? name, name: isMe ? you : name, email: person?.email, pending: !person?.user_id }}
+        person={{ id: person?.id ?? name, name: isMe ? you : name, userId: person?.user_id, email: person?.email }}
         size={30}
         ring={0}
       />

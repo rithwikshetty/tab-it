@@ -309,7 +309,7 @@ export default function ExpenseForm() {
                   style={[styles.personChip, selected && styles.personChipOn]}
                 >
                   <Avatar
-                    person={{ id: m.id, name: m.id === me.id ? ctx.user.displayName : m.display_name, email: m.email, pending: !m.user_id }}
+                    person={{ id: m.id, name: m.id === me.id ? ctx.user.displayName : m.display_name, userId: m.user_id, email: m.email }}
                     size={22}
                     ring={0}
                   />

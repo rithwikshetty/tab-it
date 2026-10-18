@@ -70,6 +70,8 @@ export default function TripsScreen() {
                       <AvatarGroup
                         people={card.members.map((m) => ({
                           id: m.id,
+                          userId: m.userID,
+                          email: m.email,
                           name: m.displayName === "You" ? ctx.user.displayName : m.displayName,
                         }))}
                         size={30}

@@ -3,7 +3,7 @@ import type { TripRows } from "./models";
 import { balancesFromRows } from "./balance-engine";
 import { mirroredSimplifiedBalances } from "./debt-simplifier";
 import { deriveTripState } from "./trip-state-deriver";
-import { avatarInitial, avatarTone, sortedPeople } from "./presentation-helpers";
+import { avatarInitial, personTone, sortedPeople } from "./presentation-helpers";
 import { abs } from "./decimal";
 import { formatMoney } from "./money-formatter";
 export interface TripCardStatus {
@@ -57,9 +57,11 @@ export function tripCard(
       currentPersonID,
     ).map((p) => ({
       id: p.id,
+      userID: p.user_id,
+      email: p.email,
       displayName: p.id === currentPersonID ? "You" : p.display_name,
       initial: avatarInitial(p.id === currentPersonID ? (currentUserDisplayName ?? p.display_name) : p.display_name),
-      tone: avatarTone(p.id),
+      tone: personTone(p),
     })),
     status,
     isCompleted: state === "completed",

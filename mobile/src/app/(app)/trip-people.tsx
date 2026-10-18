@@ -94,7 +94,7 @@ export default function TripPeople() {
                   style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}
                 >
                   <Avatar
-                    person={{ id: p.id, name: isMe ? ctx.user.displayName : p.display_name, email: p.email, pending: !p.user_id }}
+                    person={{ id: p.id, name: isMe ? ctx.user.displayName : p.display_name, userId: p.user_id, email: p.email }}
                     size={36}
                     ring={0}
                   />

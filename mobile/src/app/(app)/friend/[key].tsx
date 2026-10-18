@@ -44,8 +44,8 @@ export default function FriendDetail() {
 
   const avatar =
     identity.type === "user"
-      ? { id: identity.id, name: detail.displayName }
-      : { id: identity.email, name: detail.displayName, email: identity.email, pending: true };
+      ? { id: identity.id, userId: identity.id, name: detail.displayName }
+      : { id: identity.email, name: detail.displayName, email: identity.email };
 
   return (
     <ScrollView style={styles.fill} contentContainerStyle={{ paddingBottom: 48 }}>

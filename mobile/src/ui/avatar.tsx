@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { avatarInitial, avatarTone, emailAvatarTone } from "@/domain";
+import { avatarInitial, personTone } from "@/domain";
 
 import { haptics } from "./haptics";
 import { avatarTones, colors } from "./theme";
@@ -8,14 +8,13 @@ import { avatarTones, colors } from "./theme";
 export interface AvatarPerson {
   id: string;
   name: string;
-  /** Pending people have no stable account yet; their colour follows the email. */
+  /** Set once the person has joined; see personTone. */
+  userId?: string | null;
   email?: string | null;
-  pending?: boolean;
 }
 
 export function toneFor(person: AvatarPerson): string {
-  const tone = person.pending && person.email ? emailAvatarTone(person.email) : avatarTone(person.id);
-  return avatarTones[tone];
+  return avatarTones[personTone({ id: person.id, user_id: person.userId, email: person.email })];
 }
 
 export function Avatar({ person, size = 28, ring = 2 }: { person: AvatarPerson; size?: number; ring?: number }) {

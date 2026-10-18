@@ -14,6 +14,8 @@ import { colors, PAGE, radius } from "@/ui/theme";
 export interface PickedPerson {
   email: string;
   displayName: string;
+  /** Known people who have joined somewhere keep their account's avatar colour. */
+  userId?: string | null;
 }
 
 /**
@@ -126,7 +128,7 @@ export function PeoplePicker({
                   person={p}
                   trailing={<Icon name="add-circle-outline" size={22} color={colors.accent} />}
                   label={`Add ${p.displayName}`}
-                  onPress={() => add({ email: p.email, displayName: p.displayName })}
+                  onPress={() => add({ email: p.email, displayName: p.displayName, userId: p.userId })}
                 />
               </View>
             ))}
@@ -170,7 +172,7 @@ function PersonRow({
           <Icon name="mail-outline" size={16} color={colors.textSecondary} />
         </View>
       ) : (
-        <Avatar person={{ id: person.email, name: person.displayName, email: person.email, pending: true }} size={34} ring={0} />
+        <Avatar person={{ id: person.email, name: person.displayName, userId: person.userId, email: person.email }} size={34} ring={0} />
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[styles.name, invite && { color: colors.accentStrong, fontWeight: "600" }]} numberOfLines={1}>
