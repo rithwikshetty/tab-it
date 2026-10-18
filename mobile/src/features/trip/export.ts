@@ -15,7 +15,7 @@ export async function shareTripExport(rows: TripRows, tripName: string) {
   const file = new File(Paths.cache, `${safe} Expenses.xlsx`);
   if (file.exists) file.delete();
   file.create();
-  file.write(workbookXLSX(buildWorkbook(extractExportData(rows, undefined, localOffset))));
+  await file.write(workbookXLSX(buildWorkbook(extractExportData(rows, undefined, localOffset))));
   if (!(await Sharing.isAvailableAsync())) throw new Error("Sharing isn't available on this device.");
   await Sharing.shareAsync(file.uri, {
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

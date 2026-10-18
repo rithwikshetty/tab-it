@@ -152,26 +152,37 @@ export interface ExpenseInput {
 }
 
 export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Promise<string> {
-  const t = store.getState().tables;
-  const existing = input.id ? t.expenses.get(input.id) : undefined;
-  if (existing?.deleted_at) throw new Error("This expense was deleted.");
-  const id = existing?.id ?? input.id ?? uuid();
+  if (input.id && store.getState().tables.expenses.get(input.id)?.deleted_at) throw new Error("This expense was deleted.");
+  const id = input.id ?? uuid();
   const now = nowISO();
   const s = stamp();
+  // Preparing a new photo is the only wait. Everything after it reads the store
+  // as it is now, so a sync that ran meanwhile (say, renaming a person) isn't
+  // undone by a stale copy.
+  const newPath = receiptPath(input.tripId, id);
+  const staged = input.receipt?.action === "set" ? await stageReceipt(input.receipt, newPath, s.write_id) : null;
+
+  const t = store.getState().tables;
+  const existing = t.expenses.get(id);
+  if (existing?.deleted_at) {
+    if (staged) discardStagedReceipt(newPath, staged);
+    throw new Error("This expense was deleted.");
+  }
 
   let receipt_storage_path = existing?.receipt_storage_path ?? null;
   let _receipt = existing?._receipt ?? null;
   let _receiptFile = existing?._receiptFile ?? null;
+  // The local copy of a photo this save replaces or removes; it goes once the
+  // save is on disk.
+  const superseded =
+    receipt_storage_path && (input.receipt?.action === "remove" || staged) ? { path: receipt_storage_path, file: _receiptFile } : null;
   if (input.receipt?.action === "remove") {
-    if (receipt_storage_path) discardStagedReceipt(receipt_storage_path, _receiptFile);
     receipt_storage_path = null;
     _receipt = null;
     _receiptFile = null;
-  } else if (input.receipt?.action === "set") {
-    const path = receiptPath(input.tripId, id);
-    if (receipt_storage_path && _receiptFile) discardStagedReceipt(receipt_storage_path, _receiptFile);
-    _receiptFile = await stageReceipt(input.receipt, path, s.write_id);
-    receipt_storage_path = path;
+  } else if (staged) {
+    _receiptFile = staged;
+    receipt_storage_path = newPath;
     _receipt = "pending";
   }
 
@@ -224,7 +235,13 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
     };
     ops.push({ table: "expense_splits", row });
   }
-  await store.commit(ops);
+  try {
+    await store.commit(ops);
+  } catch (error) {
+    if (staged) discardStagedReceipt(newPath, staged);
+    throw error;
+  }
+  if (superseded) discardStagedReceipt(superseded.path, superseded.file);
   return id;
 }
 

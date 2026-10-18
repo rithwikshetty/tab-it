@@ -4,6 +4,7 @@ import { createContext, use, useEffect, useMemo, useRef, useState, useSyncExtern
 import { supabase } from "@/lib/supabase";
 
 import { importLegacyData } from "./legacy";
+import { pruneStagedReceipts } from "./receipts";
 import { loadInitialSession } from "./legacy/startup";
 import type { State } from "./schema";
 import { deleteStore, openStore, type Store } from "./store";
@@ -96,6 +97,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         console.warn("[legacy] Import did not complete; it will retry on the next launch.");
       }
       if (cancelled) return;
+      try {
+        pruneStagedReceipts(store);
+      } catch {
+        console.warn("[receipts] Could not tidy unused photos.");
+      }
       engine = new SyncEngine(store, user);
       setOpened({ store, sync: engine, user });
       // Pending trip people added by email become this account's before the

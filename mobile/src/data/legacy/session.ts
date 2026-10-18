@@ -91,3 +91,16 @@ export async function clearLegacySession(): Promise<boolean> {
     return false;
   }
 }
+
+/** Deletes the Swift app's saved session so it can't sign anyone back in after they sign out. */
+export async function forgetLegacySession(): Promise<void> {
+  restored = null;
+  if (Platform.OS !== "ios") return;
+  const key = legacySessionKey(config.supabaseUrl);
+  if (!key) return;
+  try {
+    await deleteLegacySession(LEGACY_KEYCHAIN_SERVICE, key);
+  } catch {
+    console.warn("[legacy] Could not clear the legacy session.");
+  }
+}

@@ -305,7 +305,11 @@ export class SyncEngine {
     if (!rows || rows.length === 0) throw new RemoteError(GONE, false);
   }
 
-  /** Best-effort delete of a row the server may or may not have (an unacknowledged create). */
+  /**
+   * Deletes a row the server may or may not have (an unacknowledged create).
+   * Matching no row means it never arrived. A refusal throws, so the delete
+   * stays on this phone with its error rather than being forgotten.
+   */
   private async deleteIfPresent(
     table: "trips" | "expenses" | "settlements",
     id: string,
@@ -314,12 +318,7 @@ export class SyncEngine {
     writeId: string,
   ) {
     this.alive();
-    try {
-      await call(supabase.from(table).update({ deleted_at: deletedAt, updated_at: updatedAt, write_id: writeId }).eq("id", id));
-    } catch (error) {
-      const e = toRemoteError(error);
-      if (e.transient) throw e;
-    }
+    await call(supabase.from(table).update({ deleted_at: deletedAt, updated_at: updatedAt, write_id: writeId }).eq("id", id));
   }
 
   private async pushProfile() {
@@ -343,8 +342,10 @@ export class SyncEngine {
       if (trip._pushed === null && trip.deleted_at) {
         // Deleted before the server acknowledged it. Its creation may still
         // have landed, so send the delete too, then forget it here.
-        await this.deleteIfPresent("trips", trip.id, trip.deleted_at, trip.updated_at, trip.write_id);
-        await this.store.commit(this.removeTripOps(trip.id));
+        await this.attempt("trips", trip.id, async () => {
+          await this.deleteIfPresent("trips", trip.id, trip.deleted_at!, trip.updated_at, trip.write_id);
+          await this.store.commit(this.removeTripOps(trip.id));
+        });
         continue;
       }
       await this.attempt("trips", trip.id, () => this.pushTrip(trip));
@@ -453,9 +454,11 @@ export class SyncEngine {
       const ready = this.tripReady(expense.trip_id);
       if (expense.deleted_at) {
         if (expense._pushed === null) {
-          if (ready === "ready")
-            await this.deleteIfPresent("expenses", expense.id, expense.deleted_at, expense.updated_at, expense.write_id);
-          await this.store.commit(this.removeExpenseOps(expense.id));
+          await this.attempt("expenses", expense.id, async () => {
+            if (ready === "ready")
+              await this.deleteIfPresent("expenses", expense.id, expense.deleted_at!, expense.updated_at, expense.write_id);
+            await this.store.commit(this.removeExpenseOps(expense.id));
+          });
         } else if (ready === "deleted") {
           // The trip's own delete carries it; the server refuses writes under a deleted trip.
           await this.ack("expenses", expense.id, expense.write_id);
@@ -537,8 +540,10 @@ export class SyncEngine {
     for (const s of dirty) {
       const ready = this.tripReady(s.trip_id);
       if (s.deleted_at && s._pushed === null) {
-        if (ready === "ready") await this.deleteIfPresent("settlements", s.id, s.deleted_at, s.updated_at, s.write_id);
-        await this.store.commit([{ table: "settlements", key: s.id, remove: true }]);
+        await this.attempt("settlements", s.id, async () => {
+          if (ready === "ready") await this.deleteIfPresent("settlements", s.id, s.deleted_at!, s.updated_at, s.write_id);
+          await this.store.commit([{ table: "settlements", key: s.id, remove: true }]);
+        });
         continue;
       }
       if (ready === "deleted" && s.deleted_at) {

@@ -69,7 +69,7 @@ vi.mock("expo-sqlite", async () => {
     const adapter = {
       async execAsync(sql: string) { db.exec(sql); },
       async getAllAsync<T>(sql: string) { return db.prepare(sql).all() as T[]; },
-      async getFirstAsync<T>(sql: string) { return db.prepare(sql).get() as T | undefined; },
+      async getFirstAsync<T>(sql: string, ...params: (string | number | null)[]) { return db.prepare(sql).get(...params) as T | undefined; },
       async runAsync(sql: string, ...params: (string | number | null)[]) { return db.prepare(sql).run(...params); },
       async withExclusiveTransactionAsync(work: (tx: { runAsync(sql: string, ...params: (string | number | null)[]): Promise<unknown> }) => Promise<void>) {
         if (runtime.failWrites) throw new Error("Injected disk failure");

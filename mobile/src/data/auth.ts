@@ -8,6 +8,7 @@ import * as WebBrowser from "expo-web-browser";
 import { AUTH_CALLBACK_URL, config } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
 
+import { discardImportedLegacyFiles, forgetLegacySession, IMPORT_MARKER } from "./legacy";
 import { unregisterPushDevice } from "./push";
 import type { Store } from "./store";
 import { deleteStore } from "./store";
@@ -175,8 +176,19 @@ export async function deleteAccount(session: { userId: string; store: Store; syn
 
 async function wipeLocal({ userId, store, sync }: { userId: string; store: Store; sync: SyncEngine }) {
   sync.stop();
+  // Swift app data already in the store goes with it; data that never made it
+  // in stays for the next sign-in to that account.
+  const imported = store.getState().meta.has(IMPORT_MARKER);
   await store.close();
   await deleteStore(userId);
   const receipts = new Directory(Paths.document, "receipts");
   if (receipts.exists) receipts.delete();
+  await forgetLegacySession();
+  if (imported) {
+    try {
+      discardImportedLegacyFiles();
+    } catch {
+      console.warn("[legacy] Could not remove the Swift app's files.");
+    }
+  }
 }

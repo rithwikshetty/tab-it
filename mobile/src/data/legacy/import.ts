@@ -45,6 +45,24 @@ async function archiveStore(source: File): Promise<boolean> {
   return archive.exists && !source.exists;
 }
 
+/**
+ * Deletes the Swift app's database, photos and their archives once their
+ * contents live in the local store, so a later sign-in can't import them again.
+ */
+export function discardImportedLegacyFiles(): void {
+  if (Platform.OS !== "ios") return;
+  const { support, source, receiptSource } = locations();
+  for (const base of [source.uri, `${source.uri}${ARCHIVE_SUFFIX}`]) {
+    for (const suffix of ["-wal", "-shm", ""] as const) {
+      const file = new File(`${base}${suffix}`);
+      if (file.exists) file.delete();
+    }
+  }
+  for (const dir of [receiptSource, new Directory(support, `ReceiptUploads${ARCHIVE_SUFFIX}`)]) {
+    if (dir.exists) dir.delete();
+  }
+}
+
 function receiptFiles(dir: Directory): Map<string, File> {
   const files = new Map<string, File>();
   if (!dir.exists) return files;

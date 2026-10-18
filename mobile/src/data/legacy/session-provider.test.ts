@@ -33,6 +33,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: { auth: { onAuthStateChange: mocks.
 vi.mock("../legacy", () => ({ importLegacyData: mocks.importLegacyData }));
 vi.mock("./startup", () => ({ loadInitialSession: mocks.loadInitialSession }));
 vi.mock("../store", () => ({ openStore: mocks.openStore, deleteStore: vi.fn() }));
+vi.mock("../receipts", () => ({ pruneStagedReceipts: vi.fn() }));
 vi.mock("../sync", () => ({
   SyncEngine: class {
     constructor(...args: unknown[]) {

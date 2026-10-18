@@ -60,12 +60,28 @@ export async function stageReceipt(source: { uri: string; width: number; height:
       const name = fileNameFor(path, version);
       const target = new File(pendingDir(), name);
       if (target.exists) target.delete();
-      file.move(target);
+      await file.move(target);
       return name;
     }
     file.delete();
     edge = Math.floor(edge * 0.75);
     if (edge < 480) throw new Error("That photo is too large to attach.");
+  }
+}
+
+/**
+ * Deletes pending photos no expense refers to, left when the app quit during a
+ * save. Runs when the store opens, before anything can stage a new one.
+ */
+export function pruneStagedReceipts(store: Store): void {
+  const dir = new Directory(Paths.document, "receipts");
+  if (!dir.exists) return;
+  const wanted = new Set<string>();
+  for (const e of store.getState().tables.expenses.values()) {
+    if (e._receipt && e.receipt_storage_path) wanted.add(e._receiptFile ?? fileNameFor(e.receipt_storage_path));
+  }
+  for (const entry of dir.list()) {
+    if (entry instanceof File && !wanted.has(entry.name)) entry.delete();
   }
 }
 
@@ -82,17 +98,20 @@ export async function uploadPendingReceipts(store: Store, alive: () => void): Pr
     const path = expense.receipt_storage_path;
     const name = expense._receiptFile ?? fileNameFor(path);
     const file = new File(pendingDir(), name);
-    let outcome: "done" | "failed" = "done";
+    // A pending photo whose file is gone can't be sent; mark it failed so the
+    // expense shows it needs a new photo instead of claiming one was saved.
+    let outcome: "done" | "failed" = "failed";
     if (file.exists) {
       try {
         const bytes = await file.bytes();
+        alive();
         await call(supabase.storage.from(BUCKET).upload(path, bytes, { contentType: "image/jpeg", upsert: true }) as never);
         file.delete();
+        outcome = "done";
       } catch (error) {
         const e = toRemoteError(error);
         if (e.transient) throw e;
         console.warn(`[receipts] upload refused for ${path}: ${e.message}`);
-        outcome = "failed";
       }
     }
     alive();

@@ -16,6 +16,8 @@ Before native deletion, `clearLegacySession()` saves the legacy user ID in Secur
 
 After `openStore(userId)`, the provider awaits `importLegacyData(store, userId, { legacyUserId })` before publishing the store, constructing/starting sync, or claiming people. It rechecks cancellation afterward, and cleanup waits for opening and import before closing the store. Failed or ambiguous imports log a warning and allow normal use; they retry next launch. A pending claim request does not delay store cleanup. The `signedIn` object remains stable across token refreshes.
 
+Signing out calls `forgetLegacySession()`, which deletes the Swift Keychain item whether or not this launch restored it, so a signed-out phone stays signed out. When the store being wiped carries the import marker, `discardImportedLegacyFiles()` also deletes the Swift database, its pending photos and their archives; that data was in the store the user chose to discard, and leaving it would import it again on the next sign-in. Without the marker the originals stay for a later import into that account.
+
 Activity uses the existing `_readAt`, `_dismissedAt`, and `activity.seenAt` fields. `activity.seenAtPushed` stays unset so normal sync acknowledges the cursor. No selector changes are needed.
 
 ## Keychain findings
@@ -56,7 +58,7 @@ Rows and `legacy.swiftData.v1` commit atomically. Only afterward are the origina
 ## Limits and tests
 
 - SwiftData has no explicit owner field. A unique self-only cursor or single cached profile identifies the account. Multiple profiles without a cursor defer until the caller supplies a native-session `legacyUserId`. Do not guess it.
-- SQLite REAL may already have lost Swift Decimal precision; casting cannot recover those bits. The archived original remains available.
+- SQLite REAL may already have lost Swift Decimal precision; casting cannot recover those bits. The archived original remains on the phone until sign-out.
 - Unknown/corrupt schemas retain the source files. General UserDefaults preferences, queued invites, APNs registration, signed-URL caches, and data removed by sign-out/uninstall are outside this import.
 - A signed device update must prove access to the installed app's actual Keychain item, refresh-token validity, Expo runtime import, and old/new sync convergence. Unit tests and a simulator build cannot prove these upgrade behaviours. No hosted backend or production data was used.
 
