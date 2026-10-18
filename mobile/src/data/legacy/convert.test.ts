@@ -8,7 +8,7 @@ import { TABLE_NAMES, type Op, type State } from "../schema";
 import {
   ACTIVITY_SEEN, LEGACY_TABLES, LegacyAccountMismatch,
   convertLegacyRows, legacyDecimal, legacyTimestamp,
-  legacyUUID, selectLegacyOps, type LegacyRows,
+  legacyUUID, selectLegacyOps, type LegacyRow, type LegacyRows,
 } from "./convert";
 import { pendingLegacyActivitySeen } from "./preferences";
 import { legacySelect, readLegacyRows } from "./reader";
@@ -161,6 +161,28 @@ describe("stored value encodings", () => {
     expect(sql).toContain('CAST("ZAMOUNTOWED" AS TEXT)');
     expect(sql).toContain('CAST("ZSHAREUNITS" AS TEXT)');
     expect(() => legacySelect("not-a-table", [])).toThrow();
+  });
+
+  it("recovers currency scale from a large REAL value without JS money numbers", async () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      db.exec("CREATE TABLE ZEXPENSEENTITY (ZAMOUNT DECIMAL)");
+      db.prepare("INSERT INTO ZEXPENSEENTITY VALUES (?)").run("999999999999.999");
+      const selected = db.prepare(legacySelect("ZEXPENSEENTITY", ["ZAMOUNT"])).get() as LegacyRow;
+      const rows = await fixtureRows();
+      rows.ZEXPENSEENTITY[0]!.ZAMOUNT = selected.ZAMOUNT!;
+      rows.ZEXPENSEENTITY[0]!.ZCURRENCY = "BHD";
+      const expense = upserts(convertLegacyRows(rows, userId)).find((op) => op.table === "expenses")!;
+      expect(expense.row.amount).toBe("999999999999.999");
+    } finally { db.close(); }
+  });
+
+  it("retains decimals for unknown currencies instead of assuming two minor-unit digits", async () => {
+    const rows = await fixtureRows();
+    rows.ZEXPENSEENTITY[0]!.ZCURRENCY = "ZZZ";
+    rows.ZEXPENSEENTITY[0]!.ZAMOUNT = "1.23456789";
+    const expense = upserts(convertLegacyRows(rows, userId)).find((op) => op.table === "expenses")!;
+    expect(expense.row.amount).toBe("1.23456789");
   });
 
   it("reads pending seen dates from binary and XML UserDefaults", () => {

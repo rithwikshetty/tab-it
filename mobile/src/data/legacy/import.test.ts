@@ -190,6 +190,15 @@ describe("in-place upgrade import", () => {
     expect((await importLegacyData(store, userId)).status).toBe("imported");
   });
 
+  it("retains the legacy store if session cleanup closes the destination before commit", async () => {
+    installFixture();
+    store = await openStore(userId);
+    await store.close();
+    expect((await importLegacyData(store, userId)).status).toBe("failed");
+    expect(existsSync(sourcePath())).toBe(true);
+    expect(store.getState().meta.has(IMPORT_MARKER)).toBe(false);
+  });
+
   it("retries a failed archive without importing rows again", async () => {
     installFixture();
     store = await openStore(userId);

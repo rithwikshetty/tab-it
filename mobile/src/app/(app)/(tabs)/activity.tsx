@@ -9,7 +9,7 @@ import { activityOptions } from "@/data/selectors";
 import { useAppState, useSignedIn } from "@/data/session";
 import { activityNavigation, activitySections, type ActivityTarget } from "@/domain";
 import { haptics } from "@/ui/haptics";
-import { Card, Divider, EmptyState, Icon, LargeTitle, SectionHeader, type IconName } from "@/ui/primitives";
+import { Card, Divider, EmptyState, Icon, LargeTitle, SectionHeader, type IconName, useTabBarClearance } from "@/ui/primitives";
 import { colors } from "@/ui/theme";
 
 /** The presenter names SF Symbols; these are their Ionicons equivalents. */
@@ -31,6 +31,7 @@ export default function Activity() {
   const ctx = useSignedIn();
   const state = useAppState();
   const [refreshing, setRefreshing] = useState(false);
+  const clearance = useTabBarClearance();
   const options = useMemo(() => activityOptions(state, ctx.user.id), [state, ctx.user.id]);
   const sections = useMemo(
     () => activitySections([...state.tables.activity_log.values()], options, new Date().toISOString()),
@@ -69,7 +70,7 @@ export default function Activity() {
   return (
     <SafeAreaView style={styles.fill} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: clearance + 24 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

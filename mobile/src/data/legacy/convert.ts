@@ -1,5 +1,6 @@
 import { normalizeDecimal } from "@/domain/decimal";
-import { decimalFromInput } from "@/domain/money";
+import { isSupportedCurrency } from "@/domain/currency-catalog";
+import { decimalFromInput, normalizedAmount } from "@/domain/money";
 import type { ActivityAction, ActivityLogEntry, PaymentMethod, SplitType, TripKind } from "@/domain/records";
 
 import { resolveConflict } from "../merge";
@@ -56,6 +57,11 @@ export function legacyDecimal(value: LegacyValue | undefined): string {
 
 function optionalDecimal(value: LegacyValue | undefined): string | null {
   return value == null ? null : legacyDecimal(value);
+}
+
+function legacyMoney(value: LegacyValue | undefined, currency: string): string {
+  const amount = legacyDecimal(value);
+  return isSupportedCurrency(currency) ? normalizedAmount(amount, currency) : amount;
 }
 
 function text(row: LegacyRow, column: string): string {
@@ -160,7 +166,7 @@ export function convertLegacyRows(rows: LegacyRows, userId: string, options: Con
     const path = optionalText(r, "ZRECEIPTSTORAGEPATH");
     ops.push({ table: "expenses", row: {
       id: legacyUUID(r.ZID), trip_id: legacyUUID(referenced(trips, r, "ZTRIP").ZID),
-      amount: legacyDecimal(r.ZAMOUNT), currency: text(r, "ZCURRENCY"), category_id: optionalUUID(r.ZCATEGORYID),
+      amount: legacyMoney(r.ZAMOUNT, text(r, "ZCURRENCY")), currency: text(r, "ZCURRENCY"), category_id: optionalUUID(r.ZCATEGORYID),
       description: text(r, "ZDESCRIPTIONTEXT"), expense_date: legacyTimestamp(r.ZEXPENSEDATE).slice(0, 10),
       receipt_storage_path: path,
       payment_method: choice<PaymentMethod>(text(r, "ZPAYMENTMETHODRAW"), ["cash", "card", "bank_transfer"]),
@@ -174,7 +180,7 @@ export function convertLegacyRows(rows: LegacyRows, userId: string, options: Con
     const expense = referenced(expenses, r, "ZEXPENSE");
     ops.push({ table: "expense_payments", row: {
       expense_id: legacyUUID(expense.ZID), trip_person_id: legacyUUID(r.ZTRIPPERSONID),
-      amount_paid: legacyDecimal(r.ZAMOUNTPAID), payment_mode: choice(text(r, "ZPAYMENTMODERAW"), splitTypes),
+      amount_paid: legacyMoney(r.ZAMOUNTPAID, text(expense, "ZCURRENCY")), payment_mode: choice(text(r, "ZPAYMENTMODERAW"), splitTypes),
       created_at: legacyTimestamp(expense.ZCREATEDAT), updated_at: legacyTimestamp(r.ZUPDATEDAT), write_id: legacyUUID(r.ZWRITEID),
     } });
   }
@@ -182,7 +188,7 @@ export function convertLegacyRows(rows: LegacyRows, userId: string, options: Con
     const expense = referenced(expenses, r, "ZEXPENSE");
     ops.push({ table: "expense_splits", row: {
       expense_id: legacyUUID(expense.ZID), trip_person_id: legacyUUID(r.ZTRIPPERSONID),
-      amount_owed: legacyDecimal(r.ZAMOUNTOWED), split_type: choice(text(r, "ZSPLITTYPERAW"), splitTypes),
+      amount_owed: legacyMoney(r.ZAMOUNTOWED, text(expense, "ZCURRENCY")), split_type: choice(text(r, "ZSPLITTYPERAW"), splitTypes),
       share_units: optionalDecimal(r.ZSHAREUNITS), percentage: optionalDecimal(r.ZPERCENTAGE),
       created_at: legacyTimestamp(expense.ZCREATEDAT), updated_at: legacyTimestamp(r.ZUPDATEDAT), write_id: legacyUUID(r.ZWRITEID),
     } });
@@ -191,7 +197,7 @@ export function convertLegacyRows(rows: LegacyRows, userId: string, options: Con
     ops.push({ table: "settlements", row: {
       id: legacyUUID(r.ZID), trip_id: legacyUUID(referenced(trips, r, "ZTRIP").ZID),
       from_person_id: legacyUUID(r.ZFROMPERSONID), to_person_id: legacyUUID(r.ZTOPERSONID),
-      amount: legacyDecimal(r.ZAMOUNT), currency: text(r, "ZCURRENCY"), note: optionalText(r, "ZNOTE"),
+      amount: legacyMoney(r.ZAMOUNT, text(r, "ZCURRENCY")), currency: text(r, "ZCURRENCY"), note: optionalText(r, "ZNOTE"),
       settled_at: legacyTimestamp(r.ZSETTLEDAT), created_by: legacyUUID(r.ZCREATEDBYID),
       created_at: legacyTimestamp(r.ZCREATEDAT), deleted_at: optionalTimestamp(r.ZDELETEDAT), ...stamp(r),
     } });

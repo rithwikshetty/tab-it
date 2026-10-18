@@ -135,6 +135,7 @@ async function runImport(store: Store, userId: string, options: LegacyImportOpti
     try {
       await store.commit([...ops, marker]);
       await store.flush();
+      if (store.getState().meta.get(IMPORT_MARKER) !== marker.value) throw new Error("The destination store closed during import");
     } catch {
       failedStores.add(store);
       throw new Error("Legacy data could not be persisted; restart before retrying");

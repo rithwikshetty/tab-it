@@ -8,7 +8,7 @@ import { useAppState, useSignedIn } from "@/data/session";
 import { formatMoney, friendsList } from "@/domain";
 import { SyncBanner } from "@/features/sync/sync-banner";
 import { Avatar } from "@/ui/avatar";
-import { Button, Card, Divider, EmptyState, Fab, Icon, LargeTitle, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, EmptyState, Fab, Icon, LargeTitle, SectionHeader, useTabBarClearance } from "@/ui/primitives";
 import { colors, PAGE } from "@/ui/theme";
 import { Pressable } from "react-native";
 
@@ -18,12 +18,13 @@ export default function Friends() {
   const ctx = useSignedIn();
   const state = useAppState();
   const [refreshing, setRefreshing] = useState(false);
+  const clearance = useTabBarClearance();
   const list = useMemo(() => friendsList(allTripRows(state), ctx.user.id), [state, ctx.user.id]);
 
   return (
     <SafeAreaView style={styles.fill} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: clearance + 90 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -92,7 +93,7 @@ export default function Friends() {
           </>
         )}
       </ScrollView>
-      <Fab label="Add expense" onPress={() => router.push("/new-expense")} />
+      <Fab label="Add expense" bottom={clearance + 12} onPress={() => router.push("/new-expense")} />
     </SafeAreaView>
   );
 }

@@ -15,7 +15,7 @@ import { rememberCurrency, savedCurrency } from "@/features/currency/defaults";
 import { JoinByLink } from "@/features/settings/join-by-link";
 import { PRIVACY_URL } from "@/lib/config";
 import { haptics } from "@/ui/haptics";
-import { Button, Card, Divider, Icon, LargeTitle, Row, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, Icon, LargeTitle, Row, SectionHeader, useTabBarClearance } from "@/ui/primitives";
 import { colors, PAGE } from "@/ui/theme";
 
 const SUPPORT_EMAIL = "support@tab-it.app";
@@ -48,6 +48,7 @@ export default function Settings() {
   const [busy, setBusy] = useState<"signout" | "delete" | null>(null);
   const [syncing, setSyncing] = useState(false);
   const currency = savedCurrency(state);
+  const clearance = useTabBarClearance();
 
   useFocusEffect(
     useCallback(() => {
@@ -149,7 +150,7 @@ export default function Settings() {
 
   return (
     <SafeAreaView style={styles.fill} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: clearance + 24 }} keyboardShouldPersistTaps="handled">
         <LargeTitle title="Settings" />
 
         <Card>

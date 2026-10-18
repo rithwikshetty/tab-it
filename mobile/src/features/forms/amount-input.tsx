@@ -24,6 +24,10 @@ export function AmountInput({
   tone?: string;
 }) {
   const symbol = displayMetadata(currency).symbol;
+  const shown = value || plainAmountString(0n, currency);
+  // A single-line input doesn't grow with its text, so size it from the
+  // characters shown (light digits are about 0.58em wide, separators 0.3em).
+  const width = [...shown].reduce((w, ch) => w + (/[0-9]/.test(ch) ? 31 : 17), 12);
   return (
     <View style={styles.row}>
       <Text style={[styles.symbol, { color: tone }]} numberOfLines={1}>
@@ -38,7 +42,7 @@ export function AmountInput({
         keyboardType="decimal-pad"
         autoFocus={autoFocus}
         selectionColor={colors.accent}
-        style={[styles.input, { color: tone }]}
+        style={[styles.input, { color: tone, width }]}
         accessibilityLabel={`Amount in ${currency}`}
         maxLength={16}
       />
@@ -49,5 +53,5 @@ export function AmountInput({
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4 },
   symbol: { fontSize: 34, fontWeight: "300", maxWidth: 110 },
-  input: { fontSize: 52, fontWeight: "300", minWidth: 80, textAlign: "left", fontVariant: ["tabular-nums"], paddingVertical: 0 },
+  input: { fontSize: 52, fontWeight: "300", maxWidth: 300, textAlign: "left", fontVariant: ["tabular-nums"], paddingVertical: 0 },
 });

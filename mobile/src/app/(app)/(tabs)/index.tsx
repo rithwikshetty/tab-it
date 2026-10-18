@@ -11,7 +11,7 @@ import { tripCard, type TripCardStatus } from "@/domain";
 import { SyncBanner } from "@/features/sync/sync-banner";
 import { AvatarGroup } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
-import { Button, Card, Divider, EmptyState, Fab, IconButton, LargeTitle, Row, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, EmptyState, Fab, IconButton, LargeTitle, Row, SectionHeader, useTabBarClearance } from "@/ui/primitives";
 import { SwipeToDelete } from "@/ui/swipe-row";
 import { colors } from "@/ui/theme";
 
@@ -19,6 +19,7 @@ export default function TripsScreen() {
   const ctx = useSignedIn();
   const state = useAppState();
   const [refreshing, setRefreshing] = useState(false);
+  const clearance = useTabBarClearance();
 
   const cards = useMemo(() => {
     const mine = myPeopleByTrip(state, ctx.user.id);
@@ -87,7 +88,7 @@ export default function TripsScreen() {
   return (
     <SafeAreaView style={styles.fill} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={{ paddingBottom: clearance + 90 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -117,7 +118,7 @@ export default function TripsScreen() {
           </>
         )}
       </ScrollView>
-      <Fab label="Add expense" onPress={() => router.push("/new-expense")} />
+      <Fab label="Add expense" bottom={clearance + 12} onPress={() => router.push("/new-expense")} />
     </SafeAreaView>
   );
 }

@@ -40,6 +40,7 @@ export const META_ACTIVITY_SEEN_PUSHED = "activity.seenAtPushed";
 type PushTable = "trips" | "expenses" | "settlements" | "trip_mute_prefs" | "profiles" | "trip_people";
 
 const RETRY_DELAYS = [2_000, 5_000, 15_000, 30_000, 60_000];
+const POLL_INTERVAL = 5 * 60_000;
 
 export class SyncEngine {
   private status: SyncStatus = { phase: "idle", pending: 0, failed: 0, lastSyncedAt: null, message: null };
@@ -62,10 +63,17 @@ export class SyncEngine {
   start() {
     this.disposers.push(
       this.store.subscribe(() => {
-        this.refreshCounts();
-        if (this.status.pending > 0) this.schedulePush();
+        // Rows the server already refused wait for the next full run rather
+        // than being retried on every unrelated change.
+        if (this.refreshCounts() > 0) this.schedulePush();
       }),
     );
+    // Other trips only update in the background through pulls, so pull
+    // regularly while the app is open.
+    const poll = setInterval(() => {
+      if (AppState.currentState === "active") void this.request({ pull: true });
+    }, POLL_INTERVAL);
+    this.disposers.push(() => clearInterval(poll));
     const appState = AppState.addEventListener("change", (s) => {
       if (s === "active") this.request({ pull: true });
     });
@@ -173,7 +181,8 @@ export class SyncEngine {
     }, delay);
   }
 
-  private refreshCounts() {
+  /** Updates the pending and failed counts; returns how many changes are ready to push. */
+  private refreshCounts(): number {
     const s = this.store.getState().tables;
     let pending = 0;
     let failed = 0;
@@ -187,6 +196,7 @@ export class SyncEngine {
     }
     for (const e of s.expenses.values()) if (e._receipt === "pending" && !isDirty(e)) pending += 1;
     if (pending !== this.status.pending || failed !== this.status.failed) this.setStatus({ pending, failed });
+    return pending - failed;
   }
 
   private setStatus(patch: Partial<SyncStatus>) {

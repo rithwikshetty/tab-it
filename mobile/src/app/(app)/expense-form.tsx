@@ -150,6 +150,7 @@ export default function ExpenseForm() {
     if (!canSave || !payments || !splits) {
       setShowErrors(true);
       haptics.warning();
+      if (firstProblem) Alert.alert("Can't save yet", firstProblem);
       return;
     }
     setSaving(true);
@@ -330,7 +331,7 @@ export default function ExpenseForm() {
                 <View key={id}>
                   <Divider inset={16} />
                   <View style={styles.lineRow}>
-                    <Text style={styles.lineName} numberOfLines={1}>
+                    <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
                       {nameOf(id)}
                     </Text>
                     {draft.payerMode === "exact" ? (
@@ -355,6 +356,7 @@ export default function ExpenseForm() {
           )}
           {payerFooter && <Footer text={payerFooter.text} warn={payerFooter.warn} />}
         </Card>
+        {showErrors && problems.payers && <Text style={styles.error}>{problems.payers}</Text>}
 
         <SectionHeader
           title="Split"
@@ -432,7 +434,7 @@ export default function ExpenseForm() {
           })}
           {splitFooter(draft, totalString, currency, totalOk) && <Footer {...splitFooter(draft, totalString, currency, totalOk)!} />}
         </Card>
-        {showErrors && (problems.payers || problems.split) && <Text style={styles.error}>{problems.payers ?? problems.split}</Text>}
+        {showErrors && problems.split && <Text style={styles.error}>{problems.split}</Text>}
 
         <SectionHeader title="Details" />
         <Card>
@@ -492,7 +494,6 @@ export default function ExpenseForm() {
             </View>
           )}
         </Card>
-        {showErrors && firstProblem && <Text style={[styles.error, { textAlign: "center", marginTop: 12 }]}>{firstProblem}</Text>}
       </ScrollView>
       <CurrencyPicker
         visible={pickingCurrency}

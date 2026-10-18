@@ -1,7 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps, ComponentRef, ReactNode, Ref } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -221,7 +223,26 @@ export function IconButton({
   );
 }
 
-export function Fab({ label, icon = "add", onPress }: { label?: string; icon?: IconName; onPress: () => void }) {
+/**
+ * Space to keep above the bottom edge on a tab screen. On iOS the tab bar
+ * floats over content; on Android the navigation bar sits below the screen.
+ */
+export function useTabBarClearance(): number {
+  const insets = useSafeAreaInsets();
+  return Platform.OS === "ios" ? insets.bottom + 62 : 16;
+}
+
+export function Fab({
+  label,
+  icon = "add",
+  onPress,
+  bottom = 20,
+}: {
+  label?: string;
+  icon?: IconName;
+  onPress: () => void;
+  bottom?: number;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -230,7 +251,12 @@ export function Fab({ label, icon = "add", onPress }: { label?: string; icon?: I
         haptics.medium();
         onPress();
       }}
-      style={({ pressed }) => [styles.fab, label ? styles.fabWide : styles.fabRound, pressed && { transform: [{ scale: 0.95 }] }]}
+      style={({ pressed }) => [
+        styles.fab,
+        { bottom },
+        label ? styles.fabWide : styles.fabRound,
+        pressed && { transform: [{ scale: 0.95 }] },
+      ]}
     >
       <Icon name={icon} size={label ? 20 : 26} color="#fff" />
       {label && <Text style={styles.fabText}>{label}</Text>}

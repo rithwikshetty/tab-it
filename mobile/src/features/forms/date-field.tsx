@@ -17,7 +17,7 @@ export function DateField({ label, day, onChange }: { label: string; day: string
             mode="date"
             display="compact"
             accentColor={colors.accentStrong}
-            onChange={(_e, date) => date && onChange(dayOf(date))}
+            onValueChange={(_e, date) => onChange(dayOf(date))}
           />
         }
       />
@@ -34,7 +34,7 @@ export function DateField({ label, day, onChange }: { label: string; day: string
             DateTimePickerAndroid.open({
               value: dayToDate(day),
               mode: "date",
-              onChange: (event, date) => event.type === "set" && date && onChange(dayOf(date)),
+              onValueChange: (_event, date) => onChange(dayOf(date)),
             })
           }
           style={styles.chip}
