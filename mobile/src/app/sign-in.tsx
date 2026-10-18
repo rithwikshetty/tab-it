@@ -125,7 +125,7 @@ export default function SignIn() {
                   textContentType="oneTimeCode"
                   autoComplete="one-time-code"
                   autoFocus
-                  style={styles.codeField}
+                  style={code ? styles.codeField : styles.codeFieldEmpty}
                   accessibilityLabel="Verification code"
                 />
                 <Button
@@ -262,6 +262,7 @@ const styles = StyleSheet.create({
   googleText: { fontSize: 16, fontWeight: "600", color: colors.text },
   orRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   orLine: { flex: 1, height: 1, backgroundColor: colors.rowDivider },
+  codeFieldEmpty: { textAlign: "center", fontSize: 17 },
   codeField: { textAlign: "center", fontSize: 22, letterSpacing: 6, fontVariant: ["tabular-nums"] },
   links: { flexDirection: "row", justifyContent: "center", gap: 24, paddingTop: 4 },
   link: { color: colors.accentStrong, fontWeight: "500", fontSize: 14 },
