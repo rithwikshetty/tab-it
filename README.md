@@ -1,43 +1,30 @@
 # tab
 
-tab is an iOS-first expense tracker for group trips. It is a small Splitwise-style app focused on expenses, balances, settlements, receipt storage, and offline-first sync.
+tab (tab-it.app) is an expense tracker for group trips: a small Splitwise-style app for expenses, balances, settlements, receipt photos and offline-first sync, with no ads or paywall.
 
 ## Stack
 
-- iOS 18+, Swift 6, SwiftUI, Observation, SwiftData
-- TabCore Swift package for pure money/splitting/balance logic
-- Supabase Postgres/Auth/Realtime/Storage for the backend
-- Swift Testing and pgTAP
+- One Expo / React Native app for iOS and Android in `mobile/` (TypeScript, Expo Router)
+- Pure money, splitting and balance logic in `mobile/src/domain`, tested with vitest
+- Supabase Postgres, Auth, Realtime, Storage and Edge Functions for the backend (`supabase/`)
 
-## Local Configuration
-
-The repository does not include live Supabase credentials or project defaults.
-
-1. Copy `Apps/Tab/Config/Secrets.xcconfig.example` to `Apps/Tab/Config/Secrets.xcconfig`.
-2. Set `TAB_BUNDLE_ID`, `TAB_AUTH_CALLBACK_SCHEME`, `TAB_SUPABASE_URL`, and `TAB_SUPABASE_PUBLISHABLE_KEY`. For on-device builds, also set `TAB_DEVELOPMENT_TEAM` to your Apple Developer team ID (leave it blank for simulator-only work).
-3. Copy `.env.example` to `.env.local` if you need the Supabase scripts, then fill only the variables needed for your workflow.
-
-`Secrets.xcconfig` and `.env.local` are ignored by git.
-
-## Build
-
-Generate the Xcode project from `Apps/Tab/project.yml` with XcodeGen, then open `Apps/Tab/Tab.xcodeproj`.
-
-For simulator testing, use mock auth because Apple Sign-In is unavailable in the simulator:
+## Getting started
 
 ```bash
-SIMCTL_CHILD_TAB_MOCK_AUTH=1 xcrun simctl launch <SIMULATOR_UDID> <BUNDLE_ID>
+bash supabase/scripts/start_local.sh            # local Supabase in Docker, fictional seed data
+bash supabase/scripts/configure_mobile_local.sh # points development builds at it
+
+cd mobile
+npm install
+npx expo run:ios       # or: npx expo run:android
 ```
 
-For on-device builds, use a unique `TAB_BUNDLE_ID` you can register and set `TAB_DEVELOPMENT_TEAM`; signing is automatic. Sign In with Apple needs a paid Apple Developer Program membership — the simulator's mock auth needs neither.
+`mobile/README.md` covers the app's structure, data flow, checks and releasing. `CLAUDE.md` holds the project rules, including the production-safety rules for the database.
 
 ## Tests
 
 ```bash
-cd Packages/TabCore
-swift test
-
-cd ../..
+cd mobile && npm run typecheck && npm test
 bash supabase/tests/00_sql_assembly.sh
 ```
 

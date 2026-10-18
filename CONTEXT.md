@@ -1,8 +1,8 @@
 # Context — tab
 
-A multi-user, multi-currency group expense tracker for trips. iOS-first, offline-first, private friend-group use; no monetisation.
+A multi-user, multi-currency group expense tracker for trips. One app for iOS and Android, offline-first, private friend-group use; no monetisation.
 
-The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, [[Simplified debt|simplified trip debts]], settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. The native Kotlin/Compose Android client is being implemented in phases at `Apps/TabAndroid` alongside the existing iOS app. Not in scope: itinerary, cross-trip *spend* analytics, payment-app links, currency conversion, or percentage/share split UI.
+The current model covers trips, members, expenses (trip-bound and [[Non-group expense|non-group]]), multi-payer payment ledgers, split ledgers, pairwise balances, [[Simplified debt|simplified trip debts]], settlements, categories, receipt photos, trip export, a per-trip spend [[Overview]], and a cross-trip per-person debt view ([[Friends]]). The server contract also includes an activity log, push devices, and trip mute preferences. Not in scope: itinerary, cross-trip *spend* analytics, payment-app links, or currency conversion.
 
 This file is the project's domain glossary. Only terms meaningful to a domain expert (someone reasoning about expenses, balances, and trips) belong here — implementation specifics live in code.
 
@@ -63,7 +63,9 @@ A trip person with ≥ 1 Split on a given Expense. May or may not also be a Paye
 ### Payment mode / Split mode
 - `equal` — total auto-divided across selected users. 1-cent remainders are distributed to lex-lowest UUIDs (deterministic, see `SplitCalculator` / `PaymentCalculator`).
 - `exact` — user enters per-user amount directly. Sum must equal total.
-- Additional enum values (`percentage`, `shares`, `adjustment`) exist in the schema but are not yet supported by the UI or TabCore calculators.
+- `shares` — each participant carries a positive weight; the total divides in proportion, remainders by the same lowest-UUID rule.
+- `percentage` — each participant carries a percentage; they must total 100.
+- `adjustment` exists in the schema and is treated as exact amounts.
 
 ### Net per trip person per expense
 `net = sum(payments by trip person) - sum(splits owed by trip person)`.

@@ -87,3 +87,6 @@ node_modules/
 Thumbs.db
 .vercel/
 .playwright-mcp/
+
+# Local credentials (APNs key, old Xcode secrets). Never commit.
+.secrets/
