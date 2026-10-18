@@ -17,14 +17,18 @@ export function friendTone(claim: ClaimIdentity) {
 function friendsContext(trips: readonly TripRows[], currentUserID: string) {
   const me = resolveIdentity(currentUserID, ""),
     myKey = identityKey(me);
-  const active = trips.filter(
-    (t) => !t.trip.deleted_at && t.people.some((p) => identityKey(resolveIdentity(p.user_id, p.email)) === myKey),
-  );
+  // Claims match people by email, so a pending email that already belongs to
+  // a joined person anywhere is that same person: show them once.
+  const userByEmail = new Map<string, string>();
+  for (const t of trips) for (const p of t.people) if (p.user_id) userByEmail.set(p.email.toLowerCase(), p.user_id);
+  const claimOf = (p: { user_id: string | null; email: string }) =>
+    resolveIdentity(p.user_id ?? userByEmail.get(p.email.toLowerCase()) ?? null, p.email);
+  const active = trips.filter((t) => !t.trip.deleted_at && t.people.some((p) => identityKey(claimOf(p)) === myKey));
   const identityMap: Record<string, ClaimIdentity> = {},
     activeClaims = new Map<string, ClaimIdentity>();
   for (const t of active)
     for (const p of t.people) {
-      const claim = resolveIdentity(p.user_id, p.email);
+      const claim = claimOf(p);
       identityMap[p.id] = claim;
       if (!p.removed_at) activeClaims.set(identityKey(claim), claim);
     }
@@ -34,15 +38,12 @@ function friendsContext(trips: readonly TripRows[], currentUserID: string) {
   }));
   const overall = aggregateBalances(containers, identityMap);
   const displayName = (claim: ClaimIdentity) =>
-    active
-      .flatMap((t) => t.people)
-      .find((p) => identityKey(resolveIdentity(p.user_id, p.email)) === identityKey(claim) && p.display_name.trim())?.display_name ??
+    active.flatMap((t) => t.people).find((p) => identityKey(claimOf(p)) === identityKey(claim) && p.display_name.trim())?.display_name ??
     (claim.type === "email" ? claim.email : "Member");
-  const personID = (trip: TripRows, claim: ClaimIdentity) =>
-    trip.people.find((p) => identityKey(resolveIdentity(p.user_id, p.email)) === identityKey(claim))?.id;
+  const personID = (trip: TripRows, claim: ClaimIdentity) => trip.people.find((p) => identityKey(claimOf(p)) === identityKey(claim))?.id;
   const sourceName = (trip: TripRows) => (trip.trip.kind === "non_group" ? "Non-group" : trip.trip.name);
   const sourceSummary = (claim: ClaimIdentity) => {
-    const shared = active.filter((t) => t.people.some((p) => identityKey(resolveIdentity(p.user_id, p.email)) === identityKey(claim))),
+    const shared = active.filter((t) => t.people.some((p) => identityKey(claimOf(p)) === identityKey(claim))),
       names = shared.filter((t) => t.trip.kind !== "non_group").map((t) => t.trip.name),
       parts: string[] = [];
     if (shared.some((t) => t.trip.kind === "non_group")) parts.push("Non-group");

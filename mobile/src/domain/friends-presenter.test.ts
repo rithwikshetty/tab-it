@@ -107,3 +107,20 @@ test("removed settled members leave the friends list, outstanding members remain
   expect(friendsList([{ ...r, people, expenses: [] }], a).isEmpty).toBe(true);
   expect(friendDetail([r], a, I.user(a))).toBeNull();
 });
+test("a pending email that belongs to a joined person elsewhere is the same friend", () => {
+  // Bob joined Goa; in a non-group container he is still pending under the same email.
+  const pending = addExpense(
+    tripRows("ng2", "", [person("an2", "Me", "ng2", a), { ...person("bp", "Bob", "ng2", null), joined_at: null }]),
+    "coffee",
+    { an2: "10" },
+    { an2: "5", bp: "5" },
+    "10",
+    "GBP",
+  );
+  const list = friendsList([goa(), pending], a);
+  const bobs = [...list.active, ...list.settled].filter((f) => f.displayName === "Bob");
+  expect(bobs).toHaveLength(1);
+  expect(bobs[0]!.friend).toEqual(I.user(b));
+  expect(bobs[0]!.isPending).toBe(false);
+  expect(bobs[0]!.lines[0]?.amount).toBe("£25.00");
+});
