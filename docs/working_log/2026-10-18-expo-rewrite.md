@@ -76,3 +76,10 @@ Two findings on the new store rule, both confirmed and fixed.
 - If reloading from disk also failed, the store logged it and kept accepting writes on top of unsaved memory. It now refuses further writes until the app restarts.
 - The generation was bumped after listeners were notified of the reload, so a listener's write was wrongly rejected. It's now bumped first, and notifying happens outside the reload's error handling.
 - 418 tests pass, typecheck and Prettier are clean. Nothing new to review: both changes are what the review asked for.
+
+### 11:35: production config for TestFlight
+
+- Google sign-in: the old Google Cloud project (`tab-it-498309`) sat under a closed billing account and couldn't be opened, so the user had it shut down (deleted after 17 Nov 2026). A new project `tab-it-512005` (rithwikshetty96@gmail.com) has an External consent screen published to production (basic scopes, no logo, so no verification needed) and a Web OAuth client "Supabase auth". Its redirects are the production and local Supabase callbacks. The ID and secret are in git-ignored `.secrets/google-oauth-client.json`.
+- Production Supabase, changed with the user's explicit approval: the Google provider was already enabled, but pointed at the old client, so it was broken. It now uses the new client, confirmed by reading it back and by `/auth/v1/authorize?provider=google` redirecting to the new client ID. The `com.rithwikshetty.tab://auth-callback` redirect was already allowed, so that setting was left alone. The Supabase MCP has no Auth config tools, so these changes went through the dashboard.
+- The Google button sits behind `EXPO_PUBLIC_GOOGLE_SIGN_IN` (`ff19a92`).
+- `mobile/.env.production.local` (git-ignored) holds the production values. The publishable key and Turnstile site key match the Info.plist of the live 1.3.0 (16) Xcode archive. The email OTP length is 8.
