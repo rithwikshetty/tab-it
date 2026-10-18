@@ -4,6 +4,7 @@ import { nowISO, uuid } from "@/lib/ids";
 
 import { discardStagedReceipt, receiptPath, stageReceipt } from "./receipts";
 import type { LocalExpense, LocalMute, LocalPerson, LocalSettlement, LocalTrip, Op } from "./schema";
+import type { UnsyncedChange } from "./selectors";
 import type { CurrentUser } from "./session";
 import { META_ACTIVITY_SEEN } from "./sync";
 import type { Store } from "./store";
@@ -16,6 +17,23 @@ import type { Store } from "./store";
 export interface Ctx {
   store: Store;
   user: CurrentUser;
+}
+
+/**
+ * People added offline can come back from the server under an existing id.
+ * A form opened before that still holds the old id; this maps it forward.
+ */
+export const PERSON_ALIAS = "alias.person.";
+
+function resolvePerson(store: Store, id: string): string {
+  const meta = store.getState().meta;
+  let current = id;
+  for (let hops = 0; hops < 5; hops++) {
+    const next = meta.get(PERSON_ALIAS + current);
+    if (!next) break;
+    current = next;
+  }
+  return current;
 }
 
 function stamp() {
@@ -143,13 +161,16 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
 
   let receipt_storage_path = existing?.receipt_storage_path ?? null;
   let _receipt = existing?._receipt ?? null;
+  let _receiptFile = existing?._receiptFile ?? null;
   if (input.receipt?.action === "remove") {
-    if (receipt_storage_path) discardStagedReceipt(receipt_storage_path);
+    if (receipt_storage_path) discardStagedReceipt(receipt_storage_path, _receiptFile);
     receipt_storage_path = null;
     _receipt = null;
+    _receiptFile = null;
   } else if (input.receipt?.action === "set") {
     const path = receiptPath(input.tripId, id);
-    await stageReceipt(input.receipt, path);
+    if (receipt_storage_path && _receiptFile) discardStagedReceipt(receipt_storage_path, _receiptFile);
+    _receiptFile = await stageReceipt(input.receipt, path, s.write_id);
     receipt_storage_path = path;
     _receipt = "pending";
   }
@@ -172,6 +193,7 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
     _pushed: existing?._pushed ?? null,
     _error: null,
     _receipt,
+    _receiptFile,
   };
 
   const ops: Op[] = [{ table: "expenses", row: expense }];
@@ -181,7 +203,7 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
   for (const p of input.payments) {
     const row: ExpensePayment = {
       expense_id: id,
-      trip_person_id: p.personId,
+      trip_person_id: resolvePerson(store, p.personId),
       amount_paid: p.amount,
       payment_mode: p.mode,
       created_at: now,
@@ -192,7 +214,7 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
   for (const sp of input.splits) {
     const row: ExpenseSplit = {
       expense_id: id,
-      trip_person_id: sp.personId,
+      trip_person_id: resolvePerson(store, sp.personId),
       amount_owed: sp.amount,
       split_type: sp.type,
       share_units: sp.type === "shares" ? (sp.shareUnits ?? null) : null,
@@ -234,8 +256,8 @@ export async function saveSettlement({ store, user }: Ctx, input: SettlementInpu
   const row: LocalSettlement = {
     id: existing?.id ?? input.id ?? uuid(),
     trip_id: input.tripId,
-    from_person_id: input.fromPersonId,
-    to_person_id: input.toPersonId,
+    from_person_id: resolvePerson(store, input.fromPersonId),
+    to_person_id: resolvePerson(store, input.toPersonId),
     amount: input.amount,
     currency: input.currency,
     note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
@@ -274,10 +296,6 @@ export async function setTripMuted({ store, user }: Ctx, tripId: string, muted: 
     _pushed: existing?._pushed ?? null,
     _deleted: !muted,
   };
-  if (!muted && existing && existing._pushed === null) {
-    await store.commit([{ table: "trip_mute_prefs", key, remove: true }]);
-    return;
-  }
   await store.commit([{ table: "trip_mute_prefs", row }]);
 }
 
@@ -328,11 +346,22 @@ export function setPreference({ store }: Ctx, key: string, value: string | null)
  * never reached the server is deleted with its children; otherwise it's marked
  * acknowledged so the next pull restores the server's copy (or removes it).
  */
-export async function discardLocalChange({ store }: Ctx, table: "trips" | "expenses" | "settlements" | "trip_people", key: string) {
+export async function discardLocalChange({ store }: Ctx, table: UnsyncedChange["table"], key: string) {
   const t = store.getState().tables;
+  if (table === "receipts") {
+    const e = t.expenses.get(key);
+    if (!e) return;
+    if (e.receipt_storage_path) discardStagedReceipt(e.receipt_storage_path, e._receiptFile);
+    await store.commit([{ table: "expenses", row: { ...e, _receipt: null, _receiptFile: null } }]);
+    return;
+  }
   const row = t[table].get(key);
   if (!row) return;
-  if (row._pushed !== null) {
+  if (row._pushed !== null || table === "profiles" || table === "trip_mute_prefs") {
+    if (table === "trip_mute_prefs" && row._pushed === null) {
+      await store.commit([{ table, key, remove: true }]);
+      return;
+    }
     await store.commit([{ table, row: { ...row, _pushed: row.write_id, _error: null } } as Op]);
     return;
   }

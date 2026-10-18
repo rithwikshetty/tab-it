@@ -5,7 +5,8 @@
 //   has never reached the server. A row is dirty while `_pushed !== write_id`.
 // - `_error`: why the server last refused this row, shown to the user.
 // - `_receipt`: "pending" while a receipt photo still needs uploading,
-//   "failed" when the server refused the upload.
+//   "failed" when the server refused the upload; `_receiptFile` names the
+//   on-device photo waiting to go up.
 // - `_deleted`: a pending hard delete (unmuting a trip removes its mute row).
 // - `_readAt` / `_dismissedAt`: activity rows the user read or swiped away here.
 
@@ -29,7 +30,7 @@ export interface LocalMeta {
 
 export type LocalTrip = Trip & LocalMeta;
 export type LocalPerson = TripPerson & LocalMeta;
-export type LocalExpense = Expense & LocalMeta & { _receipt?: "pending" | "failed" | null };
+export type LocalExpense = Expense & LocalMeta & { _receipt?: "pending" | "failed" | null; _receiptFile?: string | null };
 export type LocalSettlement = Settlement & LocalMeta;
 export type LocalMute = TripMutePref & LocalMeta & { _deleted?: boolean };
 export type LocalProfile = Profile & LocalMeta;

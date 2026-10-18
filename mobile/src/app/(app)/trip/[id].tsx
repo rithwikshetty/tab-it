@@ -171,16 +171,9 @@ export default function TripScreen() {
           {title}
         </Text>
         <SyncBanner />
-        {derived.summaries.length > 0 ? (
-          derived.summaries.map((s) => <BalanceCard key={s.label + s.amount} summary={s} />)
-        ) : (
-          <SettledCard
-            title={rows.expenses.some((e) => !e.deleted_at) ? "All settled" : "No expenses yet"}
-            message={
-              rows.expenses.some((e) => !e.deleted_at) ? "Nobody owes anything right now." : "Add the first expense to start tracking."
-            }
-          />
-        )}
+        {derived.summaries.length > 0
+          ? derived.summaries.map((s) => <BalanceCard key={s.label + s.amount} summary={s} />)
+          : rows.expenses.some((e) => !e.deleted_at) && <SettledCard title="All settled" message="Nobody owes anything right now." />}
         <Segmented
           style={{ marginTop: 2, marginBottom: 6 }}
           value={segment}

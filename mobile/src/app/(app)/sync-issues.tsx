@@ -45,9 +45,11 @@ export default function SyncIssues() {
               ) : undefined
             }
             onPress={
-              c.table === "expenses"
+              c.table === "expenses" || c.table === "receipts"
                 ? () => router.push({ pathname: "/expense/[id]", params: { id: c.key } })
-                : () => router.push({ pathname: "/trip/[id]", params: { id: c.tripId } })
+                : c.tripId
+                  ? () => router.push({ pathname: "/trip/[id]", params: { id: c.tripId } })
+                  : undefined
             }
           />
         </View>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeRemote, resolveConflict, type RemoteExpense } from "./merge";
+import { adoptServerPerson, mergeRemote, resolveConflict, type RemoteExpense } from "./merge";
 import { rowKey, TABLE_NAMES, type Op, type State, type TableName, type Tables } from "./schema";
 import { compareTimestamps, toMicros } from "./timestamps";
 
@@ -244,5 +244,87 @@ describe("mergeRemote", () => {
     });
     const next = apply(state, mergeRemote(state, { trips: [trip()], activity_log: [] }, ctx));
     expect(next.tables.activity_log.size).toBe(0);
+  });
+
+  it("keeps a person an unsent expense still names", () => {
+    const edited = expense({ write_id: "00000000-0000-0000-0000-0000000000e9" });
+    const person: Tables["trip_people"] = {
+      id: OTHER,
+      trip_id: TRIP,
+      user_id: null,
+      email: "o@x.y",
+      display_name: "Other",
+      invited_by: USER,
+      joined_at: null,
+      removed_at: null,
+      created_at: "x",
+      updated_at: "x",
+      write_id: "p1",
+      _pushed: "p1",
+    };
+    const state = withRows(emptyState(), {
+      trips: [trip()],
+      expenses: [edited],
+      trip_people: [person],
+      expense_splits: [
+        {
+          expense_id: edited.id,
+          trip_person_id: OTHER,
+          amount_owed: "30",
+          split_type: "equal",
+          share_units: null,
+          percentage: null,
+          created_at: "x",
+          updated_at: "x",
+          write_id: "x",
+        },
+      ],
+    });
+    const next = apply(state, mergeRemote(state, { trips: [trip()], trip_people: [], expenses: [] }, ctx));
+    expect(next.tables.trip_people.get(OTHER)).toBeDefined();
+  });
+});
+
+describe("adoptServerPerson", () => {
+  it("moves ledger references to the server id and records an alias", () => {
+    const e = expense({ _pushed: null });
+    const local: Tables["trip_people"] = {
+      id: "local-id",
+      trip_id: TRIP,
+      user_id: null,
+      email: "a@b.c",
+      display_name: "A",
+      invited_by: USER,
+      joined_at: null,
+      removed_at: null,
+      created_at: "x",
+      updated_at: "x",
+      write_id: "w",
+      _pushed: null,
+    };
+    const state = withRows(emptyState(), {
+      expenses: [e],
+      trip_people: [local],
+      expense_splits: [
+        {
+          expense_id: e.id,
+          trip_person_id: "local-id",
+          amount_owed: "30",
+          split_type: "equal",
+          share_units: null,
+          percentage: null,
+          created_at: "x",
+          updated_at: "x",
+          write_id: "x",
+        },
+      ],
+    });
+    const { _pushed, ...server } = { ...local, id: "server-id", write_id: "sw" };
+    void _pushed;
+    const ops = adoptServerPerson(state, "local-id", server, () => "new-write");
+    const next = apply(state, ops);
+    expect([...next.tables.expense_splits.values()].map((r) => r.trip_person_id)).toEqual(["server-id"]);
+    expect(next.tables.trip_people.has("local-id")).toBe(false);
+    expect(ops.some((op) => "meta" in op && op.meta === "alias.person.local-id" && op.value === "server-id")).toBe(true);
   });
 });

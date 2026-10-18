@@ -132,7 +132,11 @@ export default function ExpenseForm() {
   const isCreator = !editing || editing.created_by === ctx.user.id;
   const existingPath = editing?.receipt_storage_path ?? null;
   const receiptPreview =
-    receipt.action === "set" ? receipt.uri : receipt.action === "keep" && existingPath ? localReceiptUri(existingPath) : null;
+    receipt.action === "set"
+      ? receipt.uri
+      : receipt.action === "keep" && existingPath
+        ? localReceiptUri(existingPath, editing?._receiptFile)
+        : null;
   const hasReceipt = receipt.action === "set" || (receipt.action === "keep" && !!existingPath);
 
   const problems = {

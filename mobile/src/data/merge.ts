@@ -107,6 +107,19 @@ export function mergeRemote(state: State, remote: RemoteSnapshot, ctx: MergeCont
   const removedTrips = new Set<string>();
   const removedExpenses = new Set<string>();
 
+  /** A person an unsent expense or payment still names must stay so the edit stays whole. */
+  function referencedByUnsent(personId: string): boolean {
+    for (const r of [...t.expense_payments.values(), ...t.expense_splits.values()]) {
+      if (r.trip_person_id !== personId) continue;
+      const e = t.expenses.get(r.expense_id);
+      if (e && isDirty(e) && !e.deleted_at) return true;
+    }
+    for (const s of t.settlements.values()) {
+      if ((s.from_person_id === personId || s.to_person_id === personId) && isDirty(s) && !s.deleted_at) return true;
+    }
+    return false;
+  }
+
   /**
    * A row the server no longer returns was deleted there or is no longer
    * visible to this account. A clean copy goes. An unsent edit stays, marked
@@ -117,8 +130,9 @@ export function mergeRemote(state: State, remote: RemoteSnapshot, ctx: MergeCont
     const row = t[table].get(key) as (Tables[K] & { deleted_at?: string | null }) | undefined;
     if (!row) return false;
     const holdsUnsent =
-      table === "trips" &&
-      [...t.expenses.values(), ...t.settlements.values()].some((r) => r.trip_id === key && isDirty(r) && !r.deleted_at);
+      (table === "trips" &&
+        [...t.expenses.values(), ...t.settlements.values()].some((r) => r.trip_id === key && isDirty(r) && !r.deleted_at)) ||
+      (table === "trip_people" && referencedByUnsent(key));
     if ((isDirty(row) && !row.deleted_at) || holdsUnsent) {
       ops.push({ table, row: { ...row, _error: GONE } } as Op);
       return false;
@@ -193,7 +207,9 @@ export function mergeRemote(state: State, remote: RemoteSnapshot, ctx: MergeCont
       const { expense_payments, expense_splits, ...row } = e;
       const expense: Expense = { ...row, amount: ctx.normalizeAmount(row.amount, row.currency) };
       const matches = mergeRow("expenses", { ...expense, _pushed: expense.write_id } as Tables["expenses"], (local) =>
-        local?._receipt && local.receipt_storage_path === expense.receipt_storage_path ? { _receipt: local._receipt } : { _receipt: null },
+        local?._receipt && local.receipt_storage_path === expense.receipt_storage_path
+          ? { _receipt: local._receipt, _receiptFile: local._receiptFile ?? null }
+          : { _receipt: null, _receiptFile: null },
       );
       if (!matches) continue;
       replaceLedger(
@@ -295,6 +311,7 @@ export function adoptServerPerson(state: State, localId: string, server: TripPer
   if (server.id !== localId) ops.push({ table: "trip_people", key: localId, remove: true });
   ops.push({ table: "trip_people", row: { ...server, _pushed: server.write_id, _error: null } });
   if (server.id === localId) return ops;
+  ops.push({ meta: `alias.person.${localId}`, value: server.id });
 
   const now = new Date().toISOString();
   const touched = new Set<string>();

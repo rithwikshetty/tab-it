@@ -61,9 +61,10 @@ export async function openStore(userId: string): Promise<Store> {
     if (closed || ops.length === 0) return writes;
     const nextTables: Partial<Record<TableName, Map<string, unknown>>> = {};
     let nextMeta: Map<string, string> | null = null;
-    const upserts: [string, string, string][] = [];
-    const removals: [string, string][] = [];
-    const metaWrites: [string, string | null][] = [];
+    // The final state of every touched key, so a remove followed by a re-add
+    // of the same key lands on disk exactly as it does in memory.
+    const rowWrites = new Map<string, { tbl: string; key: string; json: string | null }>();
+    const metaWrites = new Map<string, string | null>();
 
     const tableFor = (t: TableName) => (nextTables[t] ??= new Map(state.tables[t] as Map<string, unknown>));
 
@@ -72,22 +73,22 @@ export async function openStore(userId: string): Promise<Store> {
         nextMeta ??= new Map(state.meta);
         if (op.value === null) nextMeta.delete(op.meta);
         else nextMeta.set(op.meta, op.value);
-        metaWrites.push([op.meta, op.value]);
+        metaWrites.set(op.meta, op.value);
       } else if ("remove" in op) {
         if (!(nextTables[op.table] ?? state.tables[op.table]).has(op.key)) continue;
         tableFor(op.table).delete(op.key);
-        removals.push([op.table, op.key]);
+        rowWrites.set(`${op.table}\u0000${op.key}`, { tbl: op.table, key: op.key, json: null });
       } else {
         const key = rowKey(op.table, op.row as never);
         const json = JSON.stringify(op.row);
         const current = (nextTables[op.table] ?? state.tables[op.table]).get(key);
         if (current !== undefined && JSON.stringify(current) === json) continue;
         tableFor(op.table).set(key, op.row);
-        upserts.push([op.table, key, json]);
+        rowWrites.set(`${op.table}\u0000${key}`, { tbl: op.table, key, json });
       }
     }
 
-    if (upserts.length === 0 && removals.length === 0 && metaWrites.length === 0) return writes;
+    if (rowWrites.size === 0 && metaWrites.size === 0) return writes;
     state = {
       tables: { ...state.tables, ...nextTables } as TableMaps,
       meta: nextMeta ?? state.meta,
@@ -96,11 +97,9 @@ export async function openStore(userId: string): Promise<Store> {
 
     writes = writes.then(() =>
       db.withExclusiveTransactionAsync(async (tx) => {
-        for (const [tbl, key, json] of upserts) {
-          await tx.runAsync("INSERT OR REPLACE INTO rows (tbl, key, json) VALUES (?, ?, ?)", tbl, key, json);
-        }
-        for (const [tbl, key] of removals) {
-          await tx.runAsync("DELETE FROM rows WHERE tbl = ? AND key = ?", tbl, key);
+        for (const { tbl, key, json } of rowWrites.values()) {
+          if (json === null) await tx.runAsync("DELETE FROM rows WHERE tbl = ? AND key = ?", tbl, key);
+          else await tx.runAsync("INSERT OR REPLACE INTO rows (tbl, key, json) VALUES (?, ?, ?)", tbl, key, json);
         }
         for (const [key, value] of metaWrites) {
           if (value === null) await tx.runAsync("DELETE FROM meta WHERE key = ?", key);

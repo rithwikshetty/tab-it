@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 import type { TripPerson } from "@/domain/records";
 
-import { adoptServerPerson, mergeRemote } from "./merge";
+import { adoptServerPerson, GONE, mergeRemote } from "./merge";
 import { compareTimestamps } from "./timestamps";
 import { call, fetchSnapshot, RemoteError, toRemoteError } from "./remote";
 import { uploadPendingReceipts } from "./receipts";
@@ -195,8 +195,10 @@ export class SyncEngine {
       }
     }
     for (const e of s.expenses.values()) if (e._receipt === "pending" && !isDirty(e)) pending += 1;
+    const meta = this.store.getState().meta;
+    const cursorWaiting = meta.has(META_ACTIVITY_SEEN) && meta.get(META_ACTIVITY_SEEN) !== meta.get(META_ACTIVITY_SEEN_PUSHED);
     if (pending !== this.status.pending || failed !== this.status.failed) this.setStatus({ pending, failed });
-    return pending - failed;
+    return pending - failed + (cursorWaiting ? 1 : 0);
   }
 
   private setStatus(patch: Partial<SyncStatus>) {
@@ -249,7 +251,7 @@ export class SyncEngine {
 
   private async reject(table: PushTable, key: string, error: RemoteError) {
     const row = this.state.tables[table].get(key);
-    if (!row) return;
+    if (!row || this.stopped) return;
     await this.store.commit([{ table, row: { ...row, _error: error.message } } as Op]);
   }
 
@@ -266,15 +268,58 @@ export class SyncEngine {
     }
   }
 
+  /** Stops a run that outlived its session, before it touches the server again. */
+  private alive() {
+    if (this.stopped) throw new RemoteError("Signed out", true);
+  }
+
   private async push() {
-    await this.pushProfile();
-    await this.pushTrips();
-    await this.pushPeople();
-    await this.pushExpenses();
-    await this.pushSettlements();
-    await uploadPendingReceipts(this.store);
-    await this.pushMutes();
-    await this.pushActivitySeen();
+    for (const step of [
+      () => this.pushProfile(),
+      () => this.pushTrips(),
+      () => this.pushPeople(),
+      () => this.pushExpenses(),
+      () => this.pushSettlements(),
+      () => uploadPendingReceipts(this.store, () => this.alive()),
+      () => this.pushMutes(),
+      () => this.pushActivitySeen(),
+    ]) {
+      this.alive();
+      await step();
+    }
+  }
+
+  /**
+   * Updates one row and confirms the server wrote it. Row-level security makes
+   * an update the user may no longer perform affect zero rows without an
+   * error; that must not count as saved.
+   */
+  private async updateOne(table: "trips" | "expenses" | "settlements", id: string, values: Record<string, unknown>) {
+    this.alive();
+    const rows = (await call(
+      (supabase.from(table) as unknown as { update: (v: unknown) => { eq: (c: string, v: string) => { select: (c: string) => never } } })
+        .update(values)
+        .eq("id", id)
+        .select("id"),
+    )) as { id: string }[] | null;
+    if (!rows || rows.length === 0) throw new RemoteError(GONE, false);
+  }
+
+  /** Best-effort delete of a row the server may or may not have (an unacknowledged create). */
+  private async deleteIfPresent(
+    table: "trips" | "expenses" | "settlements",
+    id: string,
+    deletedAt: string,
+    updatedAt: string,
+    writeId: string,
+  ) {
+    this.alive();
+    try {
+      await call(supabase.from(table).update({ deleted_at: deletedAt, updated_at: updatedAt, write_id: writeId }).eq("id", id));
+    } catch (error) {
+      const e = toRemoteError(error);
+      if (e.transient) throw e;
+    }
   }
 
   private async pushProfile() {
@@ -296,7 +341,9 @@ export class SyncEngine {
     const trips = [...this.state.tables.trips.values()].filter((t) => t.kind === "trip" && isDirty(t));
     for (const trip of trips) {
       if (trip._pushed === null && trip.deleted_at) {
-        // Created and deleted before it ever reached the server.
+        // Deleted before the server acknowledged it. Its creation may still
+        // have landed, so send the delete too, then forget it here.
+        await this.deleteIfPresent("trips", trip.id, trip.deleted_at, trip.updated_at, trip.write_id);
         await this.store.commit(this.removeTripOps(trip.id));
         continue;
       }
@@ -322,12 +369,12 @@ export class SyncEngine {
       await this.ack("trips", trip.id, writeId);
       return;
     }
-    await call(
-      supabase
-        .from("trips")
-        .update({ name: trip.name, deleted_at: trip.deleted_at, updated_at: trip.updated_at, write_id: writeId })
-        .eq("id", trip.id),
-    );
+    await this.updateOne("trips", trip.id, {
+      name: trip.name,
+      deleted_at: trip.deleted_at,
+      updated_at: trip.updated_at,
+      write_id: writeId,
+    });
     await this.ack("trips", trip.id, writeId);
   }
 
@@ -369,15 +416,25 @@ export class SyncEngine {
             p_person_id: person.id,
           }),
         )) as unknown as TripPerson;
+        this.alive();
+        if (!this.state.tables.trip_people.has(person.id)) {
+          // Removed here while the add was in flight: remove it on the server too.
+          const removed = (await call(supabase.rpc("remove_trip_person", { p_person_id: row.id }))) as unknown as TripPerson;
+          await this.store.commit([{ table: "trip_people", row: { ...removed, _pushed: removed.write_id, _error: null } }]);
+          return;
+        }
         await this.store.commit(adoptServerPerson(this.state, person.id, row, uuid));
       });
     }
   }
 
-  /** Whether every person a ledger row names already exists on the server. */
+  /** Whether every person a ledger row names exists here and on the server. */
   private peopleReady(ids: Iterable<string>): boolean {
     const people = this.state.tables.trip_people;
-    for (const id of ids) if (people.get(id)?._pushed === null) return false;
+    for (const id of ids) {
+      const person = people.get(id);
+      if (!person || person._pushed === null) return false;
+    }
     return true;
   }
 
@@ -396,18 +453,19 @@ export class SyncEngine {
       const ready = this.tripReady(expense.trip_id);
       if (expense.deleted_at) {
         if (expense._pushed === null) {
+          if (ready === "ready")
+            await this.deleteIfPresent("expenses", expense.id, expense.deleted_at, expense.updated_at, expense.write_id);
           await this.store.commit(this.removeExpenseOps(expense.id));
         } else if (ready === "deleted") {
           // The trip's own delete carries it; the server refuses writes under a deleted trip.
           await this.ack("expenses", expense.id, expense.write_id);
         } else {
           await this.attempt("expenses", expense.id, async () => {
-            await call(
-              supabase
-                .from("expenses")
-                .update({ deleted_at: expense.deleted_at, updated_at: expense.updated_at, write_id: expense.write_id })
-                .eq("id", expense.id),
-            );
+            await this.updateOne("expenses", expense.id, {
+              deleted_at: expense.deleted_at,
+              updated_at: expense.updated_at,
+              write_id: expense.write_id,
+            });
             await this.ack("expenses", expense.id, expense.write_id);
           });
         }
@@ -479,6 +537,7 @@ export class SyncEngine {
     for (const s of dirty) {
       const ready = this.tripReady(s.trip_id);
       if (s.deleted_at && s._pushed === null) {
+        if (ready === "ready") await this.deleteIfPresent("settlements", s.id, s.deleted_at, s.updated_at, s.write_id);
         await this.store.commit([{ table: "settlements", key: s.id, remove: true }]);
         continue;
       }
@@ -493,10 +552,22 @@ export class SyncEngine {
 
   private async pushSettlement(s: LocalSettlement) {
     if (s.deleted_at) {
-      await call(
-        supabase.from("settlements").update({ deleted_at: s.deleted_at, updated_at: s.updated_at, write_id: s.write_id }).eq("id", s.id),
-      );
+      await this.updateOne("settlements", s.id, { deleted_at: s.deleted_at, updated_at: s.updated_at, write_id: s.write_id });
+    } else if (s._pushed !== null) {
+      // An existing payment, possibly someone else's: insert policies require
+      // created_by to be the current user, so edits go through UPDATE.
+      await this.updateOne("settlements", s.id, {
+        from_person_id: s.from_person_id,
+        to_person_id: s.to_person_id,
+        amount: s.amount,
+        currency: s.currency,
+        note: s.note,
+        settled_at: s.settled_at,
+        updated_at: s.updated_at,
+        write_id: s.write_id,
+      });
     } else {
+      // A new payment. Upsert so a retry after a lost response doesn't fail.
       await call(
         supabase.from("settlements").upsert(
           {
@@ -549,7 +620,9 @@ export class SyncEngine {
     const meta = this.state.meta;
     const seen = meta.get(META_ACTIVITY_SEEN);
     if (!seen || seen === meta.get(META_ACTIVITY_SEEN_PUSHED)) return;
+    this.alive();
     const serverSeenAt = await call(supabase.rpc("mark_activity_seen", { p_seen_at: seen }));
+    this.alive();
     const ops: Op[] = [{ meta: META_ACTIVITY_SEEN_PUSHED, value: seen }];
     if (typeof serverSeenAt === "string" && compareTimestamps(serverSeenAt, seen) > 0) ops.push(...this.seenCursorOps(serverSeenAt));
     await this.store.commit(ops);

@@ -204,7 +204,13 @@ export default function ExpenseDetail() {
       {expense.receipt_storage_path && (
         <>
           <SectionHeader title="Receipt" />
-          <Receipt path={expense.receipt_storage_path} status={expense._receipt ?? null} isCreator={isCreator} />
+          <Receipt
+            path={expense.receipt_storage_path}
+            file={expense._receiptFile}
+            version={expense.write_id}
+            status={expense._receipt ?? null}
+            isCreator={isCreator}
+          />
         </>
       )}
     </ScrollView>
@@ -240,7 +246,19 @@ function PersonAmount({
   );
 }
 
-function Receipt({ path, status, isCreator }: { path: string; status: "pending" | "failed" | null; isCreator: boolean }) {
+function Receipt({
+  path,
+  file,
+  version,
+  status,
+  isCreator,
+}: {
+  path: string;
+  file?: string | null;
+  version: string;
+  status: "pending" | "failed" | null;
+  isCreator: boolean;
+}) {
   const [source, setSource] = useState<{ uri: string; cacheKey: string } | null>(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -248,14 +266,14 @@ function Receipt({ path, status, isCreator }: { path: string; status: "pending" 
   useEffect(() => {
     let live = true;
     setError(false);
-    receiptSource(path).then(
+    receiptSource(path, file, version).then(
       (s) => live && setSource(s),
       () => live && setError(true),
     );
     return () => {
       live = false;
     };
-  }, [path, attempt]);
+  }, [path, file, version, attempt]);
   return (
     <Card>
       {status === "failed" && (

@@ -54,7 +54,7 @@ export function activityOptions(state: State, userId: string): ActivityOptions {
 }
 
 export interface UnsyncedChange {
-  table: "trips" | "expenses" | "settlements" | "trip_people";
+  table: "trips" | "expenses" | "settlements" | "trip_people" | "receipts" | "profiles" | "trip_mute_prefs";
   key: string;
   tripId: string;
   label: string;
