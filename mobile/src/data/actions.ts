@@ -160,12 +160,12 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
   // as it is now, so a sync that ran meanwhile (say, renaming a person) isn't
   // undone by a stale copy.
   const newPath = receiptPath(input.tripId, id);
-  const staged = input.receipt?.action === "set" ? await stageReceipt(input.receipt, newPath, s.write_id) : null;
+  const staged = input.receipt?.action === "set" ? await stageReceipt(user.id, input.receipt, newPath, s.write_id) : null;
 
   const t = store.getState().tables;
   const existing = t.expenses.get(id);
   if (existing?.deleted_at) {
-    if (staged) discardStagedReceipt(newPath, staged);
+    if (staged) discardStagedReceipt(user.id, newPath, staged);
     throw new Error("This expense was deleted.");
   }
 
@@ -238,10 +238,10 @@ export async function saveExpense({ store, user }: Ctx, input: ExpenseInput): Pr
   try {
     await store.commit(ops);
   } catch (error) {
-    if (staged) discardStagedReceipt(newPath, staged);
+    if (staged) discardStagedReceipt(user.id, newPath, staged);
     throw error;
   }
-  if (superseded) discardStagedReceipt(superseded.path, superseded.file);
+  if (superseded) discardStagedReceipt(user.id, superseded.path, superseded.file);
   return id;
 }
 
@@ -368,8 +368,8 @@ export async function discardLocalChange({ store }: Ctx, table: UnsyncedChange["
   if (table === "receipts") {
     const e = t.expenses.get(key);
     if (!e) return;
-    if (e.receipt_storage_path) discardStagedReceipt(e.receipt_storage_path, e._receiptFile);
     await store.commit([{ table: "expenses", row: { ...e, _receipt: null, _receiptFile: null } }]);
+    if (e.receipt_storage_path) discardStagedReceipt(store.userId, e.receipt_storage_path, e._receiptFile);
     return;
   }
   const row = t[table].get(key);

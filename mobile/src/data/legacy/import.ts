@@ -28,7 +28,6 @@ function locations() {
     support,
     source: new File(support, "default.store"),
     receiptSource: new Directory(support, "ReceiptUploads"),
-    receiptTarget: new Directory(Paths.document, "receipts"),
     preferences: new File(Paths.document.parentDirectory, "Library", "Preferences", "com.rithwikshetty.tab.plist"),
   };
 }
@@ -95,6 +94,8 @@ async function runImport(store: Store, userId: string, options: LegacyImportOpti
   if (options.legacyUserId && legacyUUID(options.legacyUserId) !== legacyUUID(userId)) return result("account-mismatch");
   if (failedStores.has(store)) return result("failed");
   const paths = locations();
+  // The waiting-photo folder data/receipts.ts uploads from.
+  const receiptTarget = new Directory(Paths.document, "receipts", userId);
   if (store.getState().meta.has(IMPORT_MARKER)) {
     let archived = false;
     try { archived = await archiveStore(paths.source); } catch { console.warn("[legacy] Import is saved; the legacy store could not be archived."); }
@@ -133,8 +134,8 @@ async function runImport(store: Store, userId: string, options: LegacyImportOpti
       const path = op.row.receipt_storage_path;
       const source = path ? pending.get(path) : undefined;
       if (!source) throw new Error("Missing legacy receipt");
-      paths.receiptTarget.create({ intermediates: true, idempotent: true });
-      const target = new File(paths.receiptTarget, path!.replace("/", "__"));
+      receiptTarget.create({ intermediates: true, idempotent: true });
+      const target = new File(receiptTarget, path!.replace("/", "__"));
       if (!target.exists) {
         const temporary = new File(`${target.uri}.legacy-v1`);
         await source.copy(temporary, { overwrite: true });

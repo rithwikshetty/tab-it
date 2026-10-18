@@ -10,8 +10,10 @@ import type { Store } from "./store";
 // Receipt photos live in the private `receipts` bucket at
 // `<trip_id>/<expense_id>.jpg`. Storage policies only let the expense's
 // creator write that object, and only once the expense row exists on the
-// server, so a new receipt waits on this phone (documents/receipts) until its
-// expense has been pushed, then uploads.
+// server, so a new receipt waits on this phone until its expense has been
+// pushed, then uploads. Waiting photos sit in documents/receipts/<user id>
+// (legacy/import.ts writes there too), so one account's photos survive
+// another account signing in on the same phone.
 
 const BUCKET = "receipts";
 const MAX_EDGE = 2048;
@@ -22,8 +24,12 @@ export function receiptPath(tripId: string, expenseId: string): string {
   return `${tripId}/${expenseId}.jpg`;
 }
 
-function pendingDir(): Directory {
-  const dir = new Directory(Paths.document, "receipts");
+export function pendingReceiptsDir(userId: string): Directory {
+  return new Directory(Paths.document, "receipts", userId);
+}
+
+function pendingDir(userId: string): Directory {
+  const dir = pendingReceiptsDir(userId);
   if (!dir.exists) dir.create({ intermediates: true });
   return dir;
 }
@@ -35,8 +41,8 @@ function fileNameFor(path: string, version?: string | null): string {
 }
 
 /** The on-device copy of a receipt that hasn't finished uploading. */
-export function localReceiptUri(path: string, file?: string | null): string | null {
-  const f = new File(pendingDir(), file ?? fileNameFor(path));
+export function localReceiptUri(userId: string, path: string, file?: string | null): string | null {
+  const f = new File(pendingDir(userId), file ?? fileNameFor(path));
   return f.exists ? f.uri : null;
 }
 
@@ -46,7 +52,12 @@ export function localReceiptUri(path: string, file?: string | null): string | nu
  * `path`. Each photo gets its own file name, so replacing a photo while an
  * older one uploads can't overwrite or lose the newer one. Returns that name.
  */
-export async function stageReceipt(source: { uri: string; width: number; height: number }, path: string, version: string): Promise<string> {
+export async function stageReceipt(
+  userId: string,
+  source: { uri: string; width: number; height: number },
+  path: string,
+  version: string,
+): Promise<string> {
   let edge = Math.min(MAX_EDGE, Math.max(source.width, source.height));
   for (;;) {
     const context = ImageManipulator.manipulate(source.uri);
@@ -58,7 +69,7 @@ export async function stageReceipt(source: { uri: string; width: number; height:
     const file = new File(saved.uri);
     if ((file.size ?? 0) <= MAX_BYTES) {
       const name = fileNameFor(path, version);
-      const target = new File(pendingDir(), name);
+      const target = new File(pendingDir(userId), name);
       if (target.exists) target.delete();
       await file.move(target);
       return name;
@@ -74,7 +85,7 @@ export async function stageReceipt(source: { uri: string; width: number; height:
  * save. Runs when the store opens, before anything can stage a new one.
  */
 export function pruneStagedReceipts(store: Store): void {
-  const dir = new Directory(Paths.document, "receipts");
+  const dir = pendingReceiptsDir(store.userId);
   if (!dir.exists) return;
   const wanted = new Set<string>();
   for (const e of store.getState().tables.expenses.values()) {
@@ -85,8 +96,8 @@ export function pruneStagedReceipts(store: Store): void {
   }
 }
 
-export function discardStagedReceipt(path: string, file?: string | null) {
-  const f = new File(pendingDir(), file ?? fileNameFor(path));
+export function discardStagedReceipt(userId: string, path: string, file?: string | null) {
+  const f = new File(pendingDir(userId), file ?? fileNameFor(path));
   if (f.exists) f.delete();
 }
 
@@ -97,7 +108,7 @@ export async function uploadPendingReceipts(store: Store, alive: () => void): Pr
     alive();
     const path = expense.receipt_storage_path;
     const name = expense._receiptFile ?? fileNameFor(path);
-    const file = new File(pendingDir(), name);
+    const file = new File(pendingDir(store.userId), name);
     // A pending photo whose file is gone can't be sent; mark it failed so the
     // expense shows it needs a new photo instead of claiming one was saved.
     let outcome: "done" | "failed" = "failed";
@@ -106,7 +117,6 @@ export async function uploadPendingReceipts(store: Store, alive: () => void): Pr
         const bytes = await file.bytes();
         alive();
         await call(supabase.storage.from(BUCKET).upload(path, bytes, { contentType: "image/jpeg", upsert: true }) as never);
-        file.delete();
         outcome = "done";
       } catch (error) {
         const e = toRemoteError(error);
@@ -115,7 +125,9 @@ export async function uploadPendingReceipts(store: Store, alive: () => void): Pr
       }
     }
     alive();
-    // Only settle the photo that was uploaded; a newer one stays pending.
+    // Only settle the photo that was uploaded; a newer one stays pending. The
+    // local copy goes once that is saved, so a failed save can retry the
+    // upload. A replaced photo's copy is the replacing save's to remove.
     const current = store.getState().tables.expenses.get(expense.id);
     if (current && current.receipt_storage_path === path && (current._receiptFile ?? fileNameFor(path)) === name) {
       await store.commit([
@@ -124,6 +136,7 @@ export async function uploadPendingReceipts(store: Store, alive: () => void): Pr
           row: { ...current, _receipt: outcome === "done" ? null : "failed", _receiptFile: outcome === "done" ? null : name },
         } as Op,
       ]);
+      if (outcome === "done" && file.exists) file.delete();
     }
   }
 }
@@ -136,11 +149,12 @@ const signed = new Map<string, { url: string; expires: number }>();
  * same storage path isn't served from the image cache.
  */
 export async function receiptSource(
+  userId: string,
   path: string,
   file: string | null | undefined,
   version: string,
 ): Promise<{ uri: string; cacheKey: string }> {
-  const local = localReceiptUri(path, file);
+  const local = localReceiptUri(userId, path, file);
   if (local) return { uri: local, cacheKey: `local:${local}` };
   const hit = signed.get(path);
   if (hit && hit.expires > Date.now()) return { uri: hit.url, cacheKey: `${path}#${version}` };

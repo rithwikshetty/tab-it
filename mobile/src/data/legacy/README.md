@@ -49,7 +49,7 @@ UUIDs are 16-byte blobs in UUID order. Timestamps are seconds since 2001-01-01 U
 
 All model rows are imported, including clean rows. IDs, acknowledged write IDs, soft deletes, people, complete expense ledgers, settlements, profiles, categories, mute/unmute state, and activity state are preserved. Newer Expo edits retain their ledgers. Missing native creation timestamps use `updatedAt` for profiles/categories, the expense creation time for payment/split rows, and `mutedAt` for mutes.
 
-Pending JPEGs come from `Library/Application Support/ReceiptUploads/<trip>__<expense>.jpg`, `ReceiptStorage.swift:110-120`. Referenced bytes are copied to `Documents/receipts`, matching `../receipts.ts:26-34`, before commit; expenses get `_receipt: "pending"`. Conflicting destination bytes fail import and preserve both copies. Unreferenced files stay untouched.
+Pending JPEGs come from `Library/Application Support/ReceiptUploads/<trip>__<expense>.jpg`, `ReceiptStorage.swift:110-120`. Referenced bytes are copied to `Documents/receipts/<user id>`, the folder `pendingReceiptsDir` in `../receipts.ts` uploads from, before commit; expenses get `_receipt: "pending"`. Conflicting destination bytes fail import and preserve both copies. Unreferenced files stay untouched.
 
 The importer copies the store and WAL to cache, omits SHM, checks integrity, and reads a query-only transaction. SQLite never opens the original store. Expo exposes no read-only open flag, `expo-sqlite/src/NativeDatabase.ts:40`, and uses `sqlite3_open`, `expo-sqlite/ios/SQLiteModule.swift:138`. The copy therefore has a read/write handle with `PRAGMA query_only = ON`; a strict `SQLITE_OPEN_READONLY` handle needs a native SQLite bridge.
 

@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 
 import { discardImportedLegacyFiles, forgetLegacySession, IMPORT_MARKER } from "./legacy";
 import { unregisterPushDevice } from "./push";
+import { pendingReceiptsDir } from "./receipts";
 import type { Store } from "./store";
 import { deleteStore } from "./store";
 import type { SyncEngine } from "./sync";
@@ -181,7 +182,7 @@ async function wipeLocal({ userId, store, sync }: { userId: string; store: Store
   const imported = store.getState().meta.has(IMPORT_MARKER);
   await store.close();
   await deleteStore(userId);
-  const receipts = new Directory(Paths.document, "receipts");
+  const receipts = pendingReceiptsDir(userId);
   if (receipts.exists) receipts.delete();
   await forgetLegacySession();
   if (imported) {

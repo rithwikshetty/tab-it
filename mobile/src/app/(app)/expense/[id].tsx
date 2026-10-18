@@ -259,6 +259,7 @@ function Receipt({
   status: "pending" | "failed" | null;
   isCreator: boolean;
 }) {
+  const { user } = useSignedIn();
   const [source, setSource] = useState<{ uri: string; cacheKey: string } | null>(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -266,14 +267,14 @@ function Receipt({
   useEffect(() => {
     let live = true;
     setError(false);
-    receiptSource(path, file, version).then(
+    receiptSource(user.id, path, file, version).then(
       (s) => live && setSource(s),
       () => live && setError(true),
     );
     return () => {
       live = false;
     };
-  }, [path, file, version, attempt]);
+  }, [user.id, path, file, version, attempt]);
   return (
     <Card>
       {status === "failed" && (

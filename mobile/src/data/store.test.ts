@@ -98,14 +98,42 @@ test("a failed write puts memory back to what is on disk", async () => {
   expect(state.meta.get("cursor")).toBe("1");
 });
 
-test("a key changed again after the failed write keeps its newer value", async () => {
+test("commits queued behind a failed one fail too and leave nothing behind", async () => {
+  await store.commit([
+    { table: "trips", row: trip("a", "Saved") },
+    { meta: "cursor", value: "1" },
+  ]);
   runtime.failTransactions = 1;
-  const failed = store.commit([{ table: "trips", row: trip("a", "First") }]);
-  const later = store.commit([{ table: "trips", row: trip("a", "Second") }]);
-  await expect(failed).rejects.toThrow();
-  await later;
-  expect(store.getState().tables.trips.get("a")?.name).toBe("Second");
+  const failed = store.commit([{ table: "trips", key: "a", remove: true }]);
+  const readd = store.commit([{ table: "trips", row: trip("a", "Readded") }]);
+  const removeAgain = store.commit([{ table: "trips", key: "a", remove: true }]);
+  const cursor = store.commit([{ meta: "cursor", value: "2" }]);
+  const sameCursor = store.commit([{ meta: "cursor", value: "2" }]);
+  const nothing = store.commit([]);
+  for (const p of [failed, readd, removeAgain, cursor, sameCursor, nothing]) await expect(p).rejects.toThrow();
+  expect(store.getState().tables.trips.get("a")?.name).toBe("Saved");
+  expect(store.getState().meta.get("cursor")).toBe("1");
   await store.close();
   store = await openStore(userId);
-  expect(store.getState().tables.trips.get("a")?.name).toBe("Second");
+  expect(store.getState().tables.trips.get("a")?.name).toBe("Saved");
+  expect(store.getState().meta.get("cursor")).toBe("1");
+});
+
+test("an identical write queued behind a failed insert doesn't report success", async () => {
+  runtime.failTransactions = 1;
+  const failed = store.commit([{ table: "trips", row: trip("a", "New") }]);
+  const same = store.commit([{ table: "trips", row: trip("a", "New") }]);
+  await expect(failed).rejects.toThrow();
+  await expect(same).rejects.toThrow();
+  expect(store.getState().tables.trips.has("a")).toBe(false);
+});
+
+test("commits after the reload save normally", async () => {
+  runtime.failTransactions = 1;
+  await expect(store.commit([{ table: "trips", row: trip("a", "Lost") }])).rejects.toThrow();
+  await store.commit([{ table: "trips", row: trip("b", "Kept") }]);
+  await store.close();
+  store = await openStore(userId);
+  expect(store.getState().tables.trips.has("a")).toBe(false);
+  expect(store.getState().tables.trips.get("b")?.name).toBe("Kept");
 });

@@ -135,7 +135,7 @@ export default function ExpenseForm() {
     receipt.action === "set"
       ? receipt.uri
       : receipt.action === "keep" && existingPath
-        ? localReceiptUri(existingPath, editing?._receiptFile)
+        ? localReceiptUri(ctx.user.id, existingPath, editing?._receiptFile)
         : null;
   const hasReceipt = receipt.action === "set" || (receipt.action === "keep" && !!existingPath);
 

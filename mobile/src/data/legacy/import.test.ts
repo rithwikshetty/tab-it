@@ -143,7 +143,7 @@ describe("in-place upgrade import", () => {
     expect([...state.tables.activity_log.values()].filter((a) => a._readAt || a._dismissedAt)).toHaveLength(2);
     const receipt = [...state.tables.expenses.values()].find((e) => e._receipt === "pending")!;
     const filename = receipt.receipt_storage_path!.replace("/", "__");
-    expect(readFileSync(join(runtime.root, "Documents", "receipts", filename))).toEqual(readFileSync(join(fixtures, filename)));
+    expect(readFileSync(join(runtime.root, "Documents", "receipts", userId, filename))).toEqual(readFileSync(join(fixtures, filename)));
     expect(existsSync(join(runtime.root, "Library", "Application Support", "ReceiptUploads.expo-imported-v1", filename))).toBe(true);
     await store.close();
     store = await openStore(userId);
@@ -241,8 +241,8 @@ describe("in-place upgrade import", () => {
   it("keeps both receipts when a different Expo receipt occupies the same path", async () => {
     installFixture();
     const filename = readdirSync(fixtures).find((name) => name.endsWith(".jpg"))!;
-    const dir = join(runtime.root, "Documents", "receipts");
-    mkdirSync(dir);
+    const dir = join(runtime.root, "Documents", "receipts", userId);
+    mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, filename), "A different pending receipt");
     store = await openStore(userId);
     expect((await importLegacyData(store, userId)).status).toBe("failed");

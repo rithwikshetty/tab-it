@@ -6,9 +6,12 @@ import { rowKey, TABLE_NAMES, type Op, type State, type TableMaps, type TableNam
 // shows. Every row lives in memory (a signed-in user's data is small) and is
 // mirrored to a per-user SQLite file so the app opens instantly and works
 // offline. A commit updates memory synchronously, notifies subscribers, and
-// persists in one SQLite transaction. If that transaction fails, memory goes
-// back to what is on disk, so nothing can sync or build on a change the phone
-// never saved.
+// persists in one SQLite transaction, in commit order.
+//
+// If a transaction fails, memory is reloaded from disk, and every commit made
+// before that reload finished fails too: any of them may build on the change
+// that wasn't saved. So nothing can sync, or be partly saved, on top of a
+// change the phone never stored.
 
 export interface Store {
   readonly userId: string;
@@ -34,14 +37,18 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 `;
 
+/** Rejects a commit that was queued behind one that failed to save. */
+class EarlierWriteFailed extends Error {
+  constructor() {
+    super("An earlier change couldn't be saved on this phone.");
+  }
+}
+
 export function databaseName(userId: string): string {
   return `tab-${userId}.db`;
 }
 
-export async function openStore(userId: string): Promise<Store> {
-  const db = await SQLite.openDatabaseAsync(databaseName(userId));
-  await db.execAsync(SCHEMA);
-
+async function load(db: SQLite.SQLiteDatabase): Promise<State> {
   const maps = Object.fromEntries(TABLE_NAMES.map((t) => [t, new Map()])) as {
     [K in TableName]: Map<string, Tables[K]>;
   };
@@ -53,19 +60,29 @@ export async function openStore(userId: string): Promise<Store> {
   for (const r of await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM meta")) {
     meta.set(r.key, r.value);
   }
+  return { tables: maps, meta };
+}
 
-  let state: State = { tables: maps, meta };
+export async function openStore(userId: string): Promise<Store> {
+  const db = await SQLite.openDatabaseAsync(databaseName(userId));
+  await db.execAsync(SCHEMA);
+
+  let state = await load(db);
   const listeners = new Set<() => void>();
   let writes: Promise<void> = Promise.resolve();
   let closed = false;
+  // Bumped when a write fails and again once memory is reloaded; a commit from
+  // an older generation was made before the reload and must not save.
+  let generation = 0;
 
   function commit(ops: readonly Op[]): Promise<void> {
-    if (closed || ops.length === 0) return writes;
+    if (closed) return writes;
+    const gen = generation;
     const nextTables: Partial<Record<TableName, Map<string, unknown>>> = {};
     let nextMeta: Map<string, string> | null = null;
     // The final state of every touched key, so a remove followed by a re-add
     // of the same key lands on disk exactly as it does in memory.
-    const rowWrites = new Map<string, { tbl: TableName; key: string; json: string | null; value: unknown }>();
+    const rowWrites = new Map<string, { tbl: TableName; key: string; json: string | null }>();
     const metaWrites = new Map<string, string | null>();
 
     const tableFor = (t: TableName) => (nextTables[t] ??= new Map(state.tables[t] as Map<string, unknown>));
@@ -79,26 +96,31 @@ export async function openStore(userId: string): Promise<Store> {
       } else if ("remove" in op) {
         if (!(nextTables[op.table] ?? state.tables[op.table]).has(op.key)) continue;
         tableFor(op.table).delete(op.key);
-        rowWrites.set(`${op.table}\u0000${op.key}`, { tbl: op.table, key: op.key, json: null, value: undefined });
+        rowWrites.set(`${op.table}\u0000${op.key}`, { tbl: op.table, key: op.key, json: null });
       } else {
         const key = rowKey(op.table, op.row as never);
         const json = JSON.stringify(op.row);
         const current = (nextTables[op.table] ?? state.tables[op.table]).get(key);
         if (current !== undefined && JSON.stringify(current) === json) continue;
         tableFor(op.table).set(key, op.row);
-        rowWrites.set(`${op.table}\u0000${key}`, { tbl: op.table, key, json, value: op.row });
+        rowWrites.set(`${op.table}\u0000${key}`, { tbl: op.table, key, json });
       }
     }
 
-    if (rowWrites.size === 0 && metaWrites.size === 0) return writes;
-    state = {
-      tables: { ...state.tables, ...nextTables } as TableMaps,
-      meta: nextMeta ?? state.meta,
-    };
-    for (const listener of listeners) listener();
+    if (rowWrites.size > 0 || metaWrites.size > 0) {
+      state = {
+        tables: { ...state.tables, ...nextTables } as TableMaps,
+        meta: nextMeta ?? state.meta,
+      };
+      for (const listener of listeners) listener();
+    }
 
-    const persisted = writes.then(() =>
-      db.withExclusiveTransactionAsync(async (tx) => {
+    // Even a commit that changed nothing waits its turn: what it saw may rest
+    // on an earlier change that hasn't saved yet.
+    const persisted = writes.then(async () => {
+      if (gen !== generation) throw new EarlierWriteFailed();
+      if (rowWrites.size === 0 && metaWrites.size === 0) return;
+      await db.withExclusiveTransactionAsync(async (tx) => {
         for (const { tbl, key, json } of rowWrites.values()) {
           if (json === null) await tx.runAsync("DELETE FROM rows WHERE tbl = ? AND key = ?", tbl, key);
           else await tx.runAsync("INSERT OR REPLACE INTO rows (tbl, key, json) VALUES (?, ?, ?)", tbl, key, json);
@@ -107,51 +129,26 @@ export async function openStore(userId: string): Promise<Store> {
           if (value === null) await tx.runAsync("DELETE FROM meta WHERE key = ?", key);
           else await tx.runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", key, value);
         }
-      }),
-    );
-    // A failed write rejects this commit's promise so the caller can say so,
-    // but doesn't poison the queue for later commits.
+      });
+    });
     const result = persisted.catch(async (error: unknown) => {
-      console.error("[store] persist failed", error);
-      await restoreFromDisk(rowWrites.values(), metaWrites).catch((e: unknown) => console.error("[store] restore failed", e));
+      if (!(error instanceof EarlierWriteFailed)) {
+        console.error("[store] persist failed", error);
+        generation++;
+        try {
+          state = await load(db);
+          for (const listener of listeners) listener();
+        } catch (e) {
+          console.error("[store] reload failed", e);
+        }
+        generation++;
+      }
       throw error;
     });
+    // A failure rejects its own commit and those queued behind it, then the
+    // queue carries on for later commits.
     writes = result.catch(() => undefined);
     return result;
-  }
-
-  /**
-   * Puts the keys a failed commit touched back to their saved values. A key a
-   * later commit has changed again is left alone; that commit saves it.
-   */
-  async function restoreFromDisk(rows: Iterable<{ tbl: TableName; key: string; value: unknown }>, metas: Map<string, string | null>) {
-    const saved: { tbl: TableName; key: string; value: unknown; disk: unknown }[] = [];
-    for (const w of rows) {
-      const r = await db.getFirstAsync<{ json: string }>("SELECT json FROM rows WHERE tbl = ? AND key = ?", w.tbl, w.key);
-      saved.push({ ...w, disk: r ? JSON.parse(r.json) : undefined });
-    }
-    const savedMeta: { key: string; value: string | null; disk: string | null }[] = [];
-    for (const [key, value] of metas) {
-      const r = await db.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", key);
-      savedMeta.push({ key, value, disk: r?.value ?? null });
-    }
-    const nextTables: Partial<Record<TableName, Map<string, unknown>>> = {};
-    let nextMeta: Map<string, string> | null = null;
-    for (const w of saved) {
-      if ((state.tables[w.tbl] as Map<string, unknown>).get(w.key) !== w.value) continue;
-      const map = (nextTables[w.tbl] ??= new Map(state.tables[w.tbl] as Map<string, unknown>));
-      if (w.disk === undefined) map.delete(w.key);
-      else map.set(w.key, w.disk);
-    }
-    for (const m of savedMeta) {
-      if ((state.meta.get(m.key) ?? null) !== m.value) continue;
-      nextMeta ??= new Map(state.meta);
-      if (m.disk === null) nextMeta.delete(m.key);
-      else nextMeta.set(m.key, m.disk);
-    }
-    if (Object.keys(nextTables).length === 0 && !nextMeta) return;
-    state = { tables: { ...state.tables, ...nextTables } as TableMaps, meta: nextMeta ?? state.meta };
-    for (const listener of listeners) listener();
   }
 
   return {
