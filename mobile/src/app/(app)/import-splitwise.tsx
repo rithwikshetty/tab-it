@@ -110,7 +110,9 @@ export default function ImportSplitwise() {
             </Card>
             <Card style={{ padding: 16, gap: 4 }}>
               <Text style={styles.summary}>
-                {parsed.people.length} people · {parsed.expenses.length} expenses · {parsed.settlements.length} payments
+                {parsed.people.length} {parsed.people.length === 1 ? "person" : "people"} · {parsed.expenses.length}{" "}
+                {parsed.expenses.length === 1 ? "expense" : "expenses"} · {parsed.settlements.length}{" "}
+                {parsed.settlements.length === 1 ? "payment" : "payments"}
               </Text>
               <Text style={styles.small}>
                 Everyone except you is added by name. Add their emails later from the trip's People screen so they can claim their spot.
