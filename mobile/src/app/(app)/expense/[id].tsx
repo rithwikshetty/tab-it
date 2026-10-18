@@ -65,7 +65,7 @@ export default function ExpenseDetail() {
   if (!expense || expense.deleted_at || !view) {
     return (
       <>
-        <Stack.Screen options={{ title: "" }} />
+        <Stack.Screen options={{ title: "", headerRight: () => null }} />
         <EmptyState
           icon="help-circle-outline"
           title="Expense not found"

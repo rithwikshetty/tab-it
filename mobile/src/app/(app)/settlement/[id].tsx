@@ -21,7 +21,7 @@ export default function SettlementDetail() {
   if (!s || s.deleted_at) {
     return (
       <>
-        <Stack.Screen options={{ title: "" }} />
+        <Stack.Screen options={{ title: "", headerRight: () => null }} />
         <EmptyState
           icon="help-circle-outline"
           title="Payment not found"

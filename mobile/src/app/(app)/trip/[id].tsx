@@ -63,7 +63,7 @@ export default function TripScreen() {
   if (!trip || trip.deleted_at || !rows || !me || !derived) {
     return (
       <>
-        <Stack.Screen options={{ title: "" }} />
+        <Stack.Screen options={{ title: "", headerTitle: "", headerRight: () => null }} />
         <EmptyState
           icon="help-circle-outline"
           title="Trip not found"
