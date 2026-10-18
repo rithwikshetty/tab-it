@@ -1,9 +1,19 @@
 import { createClient, type SupportedStorage } from "@supabase/supabase-js";
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { AppState } from "react-native";
 
 import { config } from "./config";
 import type { Database } from "./database.types";
+
+// Hermes has no WebCrypto. Auth hashes the PKCE challenge with
+// crypto.subtle.digest and sends a plain challenge without it, so the native
+// digest stands in for it.
+const webCrypto = ((globalThis as { crypto?: { getRandomValues?: unknown; subtle?: unknown } }).crypto ??= {});
+webCrypto.getRandomValues ??= Crypto.getRandomValues;
+webCrypto.subtle ??= {
+  digest: (algorithm: string, data: BufferSource) => Crypto.digest(algorithm as Crypto.CryptoDigestAlgorithm, data),
+};
 
 // The session (access + refresh token) lives in the iOS Keychain / Android
 // Keystore. SecureStore values are kept small, so long values are split
