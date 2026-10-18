@@ -6,7 +6,9 @@ import { supabase } from "@/lib/supabase";
 import { useSignedIn } from "./session";
 
 // Live updates for the trip on screen: any change another member makes to its
-// expenses, payments, people or name pulls that trip again.
+// expenses, payments, people or name pulls that trip again. Each subscription
+// also pulls once when it connects, covering changes made while nothing was
+// listening.
 
 const TABLES = [
   { table: "expenses", filter: (id: string) => `trip_id=eq.${id}` },
@@ -32,7 +34,9 @@ export function useTripRealtime(tripId: string | undefined) {
       for (const t of TABLES) {
         ch.on("postgres_changes", { event: "*", schema: "public", table: t.table, filter: t.filter(tripId!) }, refresh);
       }
-      ch.subscribe();
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
       return ch;
     }
     // Sockets drop in the background; reconnect and catch up on return.
@@ -40,7 +44,6 @@ export function useTripRealtime(tripId: string | undefined) {
       if (s === "active") {
         void supabase.removeChannel(channel);
         channel = subscribe();
-        refresh();
       }
     });
     return () => {
