@@ -43,20 +43,12 @@ export function hasValidPrecision(amount: string, currency: string): boolean {
 }
 export function normalizedAmount(amount: string, currency: string): string {
   const r = decimalRational(amount);
-  return scaledString(
-    roundDivide(r.numerator * minorUnitMultiplier(currency), r.denominator),
-    fractionDigits(currency),
-  );
+  return scaledString(roundDivide(r.numerator * minorUnitMultiplier(currency), r.denominator), fractionDigits(currency));
 }
-const fold = (s: string) =>
-  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 export function searchCurrencies(query: string): readonly CurrencyMetadata[] {
   const q = fold(query.trim());
-  return q
-    ? supportedCurrencies.filter((c) =>
-        [c.code, c.symbol, c.name].some((s) => fold(s).includes(q)),
-      )
-    : supportedCurrencies;
+  return q ? supportedCurrencies.filter((c) => [c.code, c.symbol, c.name].some((s) => fold(s).includes(q))) : supportedCurrencies;
 }
 export const CurrencyCatalog = {
   defaultCode: defaultCurrencyCode,

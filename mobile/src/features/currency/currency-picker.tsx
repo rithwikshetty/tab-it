@@ -77,7 +77,12 @@ export function CurrencyPicker({
 /** The tappable currency pill shown next to an amount. */
 export function CurrencyPill({ code, onPress }: { code: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Currency ${code}. Change`} onPress={onPress} style={({ pressed }) => [styles.pill, pressed && { opacity: 0.7 }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Currency ${code}. Change`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.pill, pressed && { opacity: 0.7 }]}
+    >
       <Text style={styles.pillText}>{code}</Text>
       <Icon name="chevron-down" size={12} color={colors.accentStrong} />
     </Pressable>
@@ -86,7 +91,14 @@ export function CurrencyPill({ code, onPress }: { code: string; onPress: () => v
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: PAGE, paddingTop: 18, paddingBottom: 8 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: PAGE,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
   title: { fontSize: 18, fontWeight: "600", color: colors.text },
   search: {
     flexDirection: "row",

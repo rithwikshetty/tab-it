@@ -1,19 +1,8 @@
 import type { SplitType, UUID } from "./records";
 import type { CalculatedSplit } from "./models";
-import {
-  hasValidPrecision,
-  fractionDigits,
-  normalizedCode,
-} from "./currency-catalog";
+import { hasValidPrecision, fractionDigits, normalizedCode } from "./currency-catalog";
 import { toMinor } from "./money";
-import {
-  addDecimals,
-  allocateMinor,
-  decimalRational,
-  floorDivide,
-  normalizeDecimal,
-  scaledString,
-} from "./decimal";
+import { addDecimals, allocateMinor, decimalRational, floorDivide, normalizeDecimal, scaledString } from "./decimal";
 export class CalculationError extends Error {
   constructor(
     public readonly code: string,
@@ -41,10 +30,7 @@ export function calculateSplits({
   shares,
   percentages,
 }: SplitOptions): CalculatedSplit[] {
-  const fail = (
-    code: string,
-    details?: Record<string, string | number>,
-  ): never => {
+  const fail = (code: string, details?: Record<string, string | number>): never => {
     throw new CalculationError(code, details);
   };
   if (!participants.length) fail("emptyParticipants");
@@ -67,43 +53,15 @@ export function calculateSplits({
     const n = BigInt(participants.length),
       base = floorDivide(total, n),
       remainder = total - base * n;
-    const bonuses = new Set(
-      [...participants].sort().filter((_, i) => BigInt(i) < remainder),
-    );
-    amounts = Object.fromEntries(
-      participants.map((id) => [id, base + (bonuses.has(id) ? 1n : 0n)]),
-    );
-  } else if (
-    splitType === "exact" ||
-    splitType === "shares" ||
-    splitType === "percentage"
-  ) {
-    const values =
-      splitType === "exact"
-        ? exactAmounts
-        : splitType === "shares"
-          ? shares
-          : percentages;
-    const unit =
-      splitType === "exact"
-        ? "Amount"
-        : splitType === "shares"
-          ? "Share"
-          : "Percentage";
-    if (!values)
-      fail(
-        splitType === "exact"
-          ? "exactAmountsRequired"
-          : splitType === "shares"
-            ? "sharesRequired"
-            : "percentagesRequired",
-      );
+    const bonuses = new Set([...participants].sort().filter((_, i) => BigInt(i) < remainder));
+    amounts = Object.fromEntries(participants.map((id) => [id, base + (bonuses.has(id) ? 1n : 0n)]));
+  } else if (splitType === "exact" || splitType === "shares" || splitType === "percentage") {
+    const values = splitType === "exact" ? exactAmounts : splitType === "shares" ? shares : percentages;
+    const unit = splitType === "exact" ? "Amount" : splitType === "shares" ? "Share" : "Percentage";
+    if (!values) fail(splitType === "exact" ? "exactAmountsRequired" : splitType === "shares" ? "sharesRequired" : "percentagesRequired");
     const entries = values!;
-    for (const id of Object.keys(entries))
-      if (!seen.has(id)) fail(`extra${unit}ForNonParticipant`, { id });
-    for (const id of participants)
-      if (entries[id] === undefined)
-        fail(`missing${unit}ForParticipant`, { id });
+    for (const id of Object.keys(entries)) if (!seen.has(id)) fail(`extra${unit}ForNonParticipant`, { id });
+    for (const id of participants) if (entries[id] === undefined) fail(`missing${unit}ForParticipant`, { id });
     if (splitType === "exact") {
       Object.values(entries).forEach(validate);
       const actual = addDecimals(Object.values(entries));
@@ -112,16 +70,11 @@ export function calculateSplits({
           expected: normalizeDecimal(totalAmount),
           actual,
         });
-      amounts = Object.fromEntries(
-        participants.map((id) => [id, toMinor(entries[id]!, currency)]),
-      );
+      amounts = Object.fromEntries(participants.map((id) => [id, toMinor(entries[id]!, currency)]));
     } else {
-      for (const id of [...participants].sort())
-        if (decimalRational(entries[id]!).numerator <= 0n)
-          fail(`nonPositive${unit}`, { id });
+      for (const id of [...participants].sort()) if (decimalRational(entries[id]!).numerator <= 0n) fail(`nonPositive${unit}`, { id });
       const actual = addDecimals(participants.map((id) => entries[id]!));
-      if (splitType === "percentage" && actual !== "100")
-        fail("percentagesDoNotSumTo100", { actual });
+      if (splitType === "percentage" && actual !== "100") fail("percentagesDoNotSumTo100", { actual });
       amounts = allocateMinor(total, participants, entries);
     }
   } else return fail("unsupportedSplitType", { splitType });
@@ -130,24 +83,14 @@ export function calculateSplits({
     amountOwed: amounts[id]!,
     splitType,
     shareUnits: splitType === "shares" ? normalizeDecimal(shares![id]!) : null,
-    percentage:
-      splitType === "percentage" ? normalizeDecimal(percentages![id]!) : null,
+    percentage: splitType === "percentage" ? normalizeDecimal(percentages![id]!) : null,
   }));
 }
-export function equalPercentages(
-  participants: readonly UUID[],
-): Record<UUID, string> {
+export function equalPercentages(participants: readonly UUID[]): Record<UUID, string> {
   if (!participants.length) return {};
   const n = BigInt(participants.length),
     base = 10000n / n,
     remainder = 10000n % n;
-  return Object.fromEntries(
-    [...participants]
-      .sort()
-      .map((id, i) => [
-        id,
-        scaledString(base + (BigInt(i) < remainder ? 1n : 0n), 2),
-      ]),
-  );
+  return Object.fromEntries([...participants].sort().map((id, i) => [id, scaledString(base + (BigInt(i) < remainder ? 1n : 0n), 2)]));
 }
 export const SplitCalculator = { calculate: calculateSplits, equalPercentages };

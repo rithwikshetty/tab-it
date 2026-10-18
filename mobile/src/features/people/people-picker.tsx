@@ -44,7 +44,8 @@ export function PeoplePicker({
     .filter((p) => !q || p.email.includes(q) || p.displayName.toLowerCase().includes(q))
     .slice(0, q ? 12 : 8);
   const typedEmail = normalizedEmail(query);
-  const canInvite = isValidEmail(typedEmail) && typedEmail !== selfEmail && !chosen.has(typedEmail) && !known.some((k) => k.email === typedEmail);
+  const canInvite =
+    isValidEmail(typedEmail) && typedEmail !== selfEmail && !chosen.has(typedEmail) && !known.some((k) => k.email === typedEmail);
 
   function add(person: PickedPerson) {
     haptics.light();
@@ -93,7 +94,12 @@ export function PeoplePicker({
             {selected.map((p, i) => (
               <View key={p.email}>
                 {i > 0 && <Divider inset={62} />}
-                <PersonRow person={p} trailing={<Icon name="close-circle" size={22} color={colors.textTertiary} />} label={`Remove ${p.displayName}`} onPress={() => onChange(selected.filter((s) => s.email !== p.email))} />
+                <PersonRow
+                  person={p}
+                  trailing={<Icon name="close-circle" size={22} color={colors.textTertiary} />}
+                  label={`Remove ${p.displayName}`}
+                  onPress={() => onChange(selected.filter((s) => s.email !== p.email))}
+                />
               </View>
             ))}
           </Card>
@@ -130,7 +136,9 @@ export function PeoplePicker({
 
       {results.length === 0 && !canInvite && selected.length === 0 && (
         <Text style={styles.hint}>
-          {q ? "Type their full email address to add someone new." : "Type an email to add someone. People you've split with before show up here."}
+          {q
+            ? "Type their full email address to add someone new."
+            : "Type an email to add someone. People you've split with before show up here."}
         </Text>
       )}
     </View>
@@ -151,7 +159,12 @@ function PersonRow({
   invite?: boolean;
 }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}
+    >
       {invite ? (
         <View style={styles.inviteIcon}>
           <Icon name="mail-outline" size={16} color={colors.textSecondary} />

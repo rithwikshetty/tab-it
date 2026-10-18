@@ -14,20 +14,8 @@ describe("Swift PaymentCalculatorTests", () => {
   test.each([
     ["singlePayerEqual", "50", "EUR", [a], ["50"]],
     ["equalTwoPayers", "30", "EUR", [a, b], ["15", "15"]],
-    [
-      "equalThreeWayWithRemainder",
-      "10",
-      "USD",
-      [b, c, a],
-      ["3.33", "3.33", "3.34"],
-    ],
-    [
-      "equalTwoCentRemainder",
-      "0.05",
-      "USD",
-      [a, b, c],
-      ["0.02", "0.02", "0.01"],
-    ],
+    ["equalThreeWayWithRemainder", "10", "USD", [b, c, a], ["3.33", "3.33", "3.34"]],
+    ["equalTwoCentRemainder", "0.05", "USD", [a, b, c], ["0.02", "0.02", "0.01"]],
     ["equalZeroAmount", "0", "EUR", [a, b, c], ["0", "0", "0"]],
     ["equalJPYUsesWholeUnits", "101", "JPY", [b, a], ["50", "51"]],
   ] as const)("%s", (_name, totalAmount, currency, payers, expected) => {
@@ -35,9 +23,7 @@ describe("Swift PaymentCalculatorTests", () => {
     expect(r.map((p) => fromMinor(p.amountPaid, currency))).toEqual(expected);
     expect(r.map((p) => p.payerID)).toEqual(payers);
     expect(r.every((p) => p.paymentMode === "equal")).toBe(true);
-    expect(r.reduce((n, p) => n + p.amountPaid, 0n)).toBe(
-      toMinor(totalAmount, currency),
-    );
+    expect(r.reduce((n, p) => n + p.amountPaid, 0n)).toBe(toMinor(totalAmount, currency));
   });
   test.each<{
     name: string;
@@ -90,9 +76,7 @@ describe("Swift PaymentCalculatorTests", () => {
       o: { paymentMode: "exact" },
       code: "exactAmountsRequired",
     },
-  ])("$name", ({ o, code }) =>
-    expect(() => calc(o)).toThrowError(expect.objectContaining({ code })),
-  );
+  ])("$name", ({ o, code }) => expect(() => calc(o)).toThrowError(expect.objectContaining({ code })));
   test("exactValid", () => {
     const r = calc({
       totalAmount: "250",
@@ -112,15 +96,9 @@ describe("Swift PaymentCalculatorTests", () => {
         exactAmounts: { [a]: "99" },
       }),
     ).toEqual([{ payerID: a, amountPaid: 9900n, paymentMode: "exact" }]));
-  test.each(["percentage", "shares", "adjustment"] as const)(
-    "unsupportedModes %s",
-    (paymentMode) =>
-      expect(() => calc({ paymentMode })).toThrowError(
-        expect.objectContaining({ code: "unsupportedPaymentMode" }),
-      ),
+  test.each(["percentage", "shares", "adjustment"] as const)("unsupportedModes %s", (paymentMode) =>
+    expect(() => calc({ paymentMode })).toThrowError(expect.objectContaining({ code: "unsupportedPaymentMode" })),
   );
   test("duplicate payers are mapped", () =>
-    expect(() => calc({ payers: [a, a] })).toThrowError(
-      expect.objectContaining({ code: "duplicatePayer", details: { id: a } }),
-    ));
+    expect(() => calc({ payers: [a, a] })).toThrowError(expect.objectContaining({ code: "duplicatePayer", details: { id: a } })));
 });

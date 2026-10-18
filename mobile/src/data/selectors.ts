@@ -38,8 +38,14 @@ export function activityOptions(state: State, userId: string): ActivityOptions {
     myTripPersonIDs.add(p.id);
     if (p.joined_at) joinedAtByTrip[p.trip_id] = p.joined_at;
   }
+  const localState: Record<string, { readAt?: string | null; dismissedAt?: string | null }> = {};
+  for (const a of state.tables.activity_log.values()) {
+    if (a._readAt || a._dismissedAt) localState[a.id] = { readAt: a._readAt, dismissedAt: a._dismissedAt };
+  }
   return {
     currentUserID: userId,
+    localState,
+    utcOffsetMinutes: (d: Date) => -d.getTimezoneOffset(),
     lastSeenAt: state.meta.get(META_ACTIVITY_SEEN) ?? null,
     mutedTripIDs: mutedTripIds(state, userId),
     myTripPersonIDs,
@@ -66,17 +72,48 @@ export function unsyncedChanges(state: State): UnsyncedChange[] {
   const rows: UnsyncedChange[] = [];
   for (const trip of t.trips.values()) {
     if (trip.kind === "trip" && isDirty(trip)) {
-      rows.push({ table: "trips", key: trip.id, tripId: trip.id, label: trip.name, detail: trip.deleted_at ? "Delete trip" : trip._pushed ? "Trip changes" : "New trip", error: trip._error ?? null });
+      rows.push({
+        table: "trips",
+        key: trip.id,
+        tripId: trip.id,
+        label: trip.name,
+        detail: trip.deleted_at ? "Delete trip" : trip._pushed ? "Trip changes" : "New trip",
+        error: trip._error ?? null,
+      });
     }
   }
   for (const p of t.trip_people.values()) {
-    if (isDirty(p) && p.user_id === null) rows.push({ table: "trip_people", key: p.id, tripId: p.trip_id, label: p.display_name, detail: `Person in ${tripName(p.trip_id)}`, error: p._error ?? null });
+    if (isDirty(p) && p.user_id === null)
+      rows.push({
+        table: "trip_people",
+        key: p.id,
+        tripId: p.trip_id,
+        label: p.display_name,
+        detail: `Person in ${tripName(p.trip_id)}`,
+        error: p._error ?? null,
+      });
   }
   for (const e of t.expenses.values()) {
-    if (isDirty(e)) rows.push({ table: "expenses", key: e.id, tripId: e.trip_id, label: e.description, detail: `${e.deleted_at ? "Delete expense" : "Expense"} in ${tripName(e.trip_id)}`, error: e._error ?? null });
+    if (isDirty(e))
+      rows.push({
+        table: "expenses",
+        key: e.id,
+        tripId: e.trip_id,
+        label: e.description,
+        detail: `${e.deleted_at ? "Delete expense" : "Expense"} in ${tripName(e.trip_id)}`,
+        error: e._error ?? null,
+      });
   }
   for (const s of t.settlements.values()) {
-    if (isDirty(s)) rows.push({ table: "settlements", key: s.id, tripId: s.trip_id, label: "Payment", detail: `${s.deleted_at ? "Delete payment" : "Payment"} in ${tripName(s.trip_id)}`, error: s._error ?? null });
+    if (isDirty(s))
+      rows.push({
+        table: "settlements",
+        key: s.id,
+        tripId: s.trip_id,
+        label: "Payment",
+        detail: `${s.deleted_at ? "Delete payment" : "Payment"} in ${tripName(s.trip_id)}`,
+        error: s._error ?? null,
+      });
   }
   return rows;
 }
@@ -145,9 +182,22 @@ export function knownPeople(state: State, userId: string, selfEmail: string | nu
   for (const p of state.tables.trip_people.values()) if (p.user_id === userId && p.joined_at && !p.removed_at) myTrips.add(p.trip_id);
   const byEmail = new Map<string, KnownPerson & { updated: string }>();
   for (const p of state.tables.trip_people.values()) {
-    if (!myTrips.has(p.trip_id) || p.removed_at || p.user_id === userId || p.email === selfEmail) continue;
+    if (!myTrips.has(p.trip_id) || p.removed_at || p.user_id === userId || p.email === selfEmail || p.email.endsWith("@users.tab"))
+      continue;
     const known = byEmail.get(p.email);
-    if (!known || known.updated < p.updated_at) byEmail.set(p.email, { email: p.email, displayName: p.display_name, userId: p.user_id, updated: p.updated_at });
+    if (!known || known.updated < p.updated_at)
+      byEmail.set(p.email, { email: p.email, displayName: p.display_name, userId: p.user_id, updated: p.updated_at });
   }
   return [...byEmail.values()].sort((a, b) => a.displayName.localeCompare(b.displayName)).map(({ updated: _u, ...rest }) => rest);
+}
+
+/** Every live container (trips and hidden non-group ones) as presenter rows. */
+export function allTripRows(state: State): TripRows[] {
+  const out: TripRows[] = [];
+  for (const trip of state.tables.trips.values()) {
+    if (trip.deleted_at) continue;
+    const rows = tripRows(state, trip.id);
+    if (rows) out.push(rows);
+  }
+  return out;
 }

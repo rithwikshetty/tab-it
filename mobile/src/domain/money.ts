@@ -1,38 +1,21 @@
 import type { DecimalString } from "./records";
 import { fractionDigits, minorUnitMultiplier } from "./currency-catalog";
-import {
-  decimalRational,
-  roundDivide,
-  scaledString,
-  normalizeDecimal,
-} from "./decimal";
-export {
-  fractionDigits,
-  minorUnitMultiplier,
-  hasValidPrecision,
-  normalizedAmount,
-} from "./currency-catalog";
+import { decimalRational, roundDivide, scaledString, normalizeDecimal } from "./decimal";
+export { fractionDigits, minorUnitMultiplier, hasValidPrecision, normalizedAmount } from "./currency-catalog";
 export interface Money {
   amount: bigint;
   currency: string;
 }
-export function toMinor(
-  decimalString: DecimalString,
-  currency: string,
-): bigint {
+export function toMinor(decimalString: DecimalString, currency: string): bigint {
   const r = decimalRational(decimalString);
-  return roundDivide(
-    r.numerator * minorUnitMultiplier(currency),
-    r.denominator,
-  );
+  return roundDivide(r.numerator * minorUnitMultiplier(currency), r.denominator);
 }
 export function fromMinor(amount: bigint, currency: string): DecimalString {
   return scaledString(amount, fractionDigits(currency));
 }
 export function parseMoney(amount: DecimalString, currency: string): Money {
   const code = currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(code))
-    throw new Error("Currency must be a three-letter uppercase code.");
+  if (!/^[A-Z]{3}$/.test(code)) throw new Error("Currency must be a three-letter uppercase code.");
   return { amount: toMinor(amount, code), currency: code };
 }
 export function sanitizeAmountInput(input: string, currency: string): string {
@@ -40,10 +23,7 @@ export function sanitizeAmountInput(input: string, currency: string): string {
   const dots = (kept.match(/\./g) ?? []).length,
     commas = (kept.match(/,/g) ?? []).length;
   let normalized = kept;
-  if (dots && commas)
-    normalized = kept
-      .replace(kept.lastIndexOf(".") > kept.lastIndexOf(",") ? /,/g : /\./g, "")
-      .replace(/,/g, ".");
+  if (dots && commas) normalized = kept.replace(kept.lastIndexOf(".") > kept.lastIndexOf(",") ? /,/g : /\./g, "").replace(/,/g, ".");
   else if (dots > 1) normalized = kept.replace(/\./g, "");
   else if (commas > 1) normalized = kept.replace(/,/g, "");
   else normalized = kept.replace(/,/g, ".");
@@ -72,14 +52,10 @@ export function decimalFromInput(input: string): DecimalString | null {
     exponent = BigInt(match[2]);
   if (exponent > 128n || exponent < -128n) return null;
   const numerator = exponent > 0n ? r.numerator * 10n ** exponent : r.numerator;
-  const denominator =
-    exponent < 0n ? r.denominator * 10n ** -exponent : r.denominator;
+  const denominator = exponent < 0n ? r.denominator * 10n ** -exponent : r.denominator;
   return scaledString(numerator, denominator.toString().length - 1);
 }
-export function parseAmountInput(
-  input: string,
-  currency: string,
-): bigint | null {
+export function parseAmountInput(input: string, currency: string): bigint | null {
   const value = decimalFromInput(sanitizeAmountInput(input, currency));
   return value === null ? null : toMinor(value, currency);
 }
@@ -104,7 +80,6 @@ export function shareString(value: string): string {
   return scaledString(roundDivide(r.numerator * 100n, r.denominator), 2);
 }
 export function addMoney(a: Money, b: Money): Money {
-  if (a.currency !== b.currency)
-    throw new Error("Cannot add different currencies.");
+  if (a.currency !== b.currency) throw new Error("Cannot add different currencies.");
   return { amount: a.amount + b.amount, currency: a.currency };
 }

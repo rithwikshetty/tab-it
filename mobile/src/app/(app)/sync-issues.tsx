@@ -20,7 +20,11 @@ export default function SyncIssues() {
   function confirmDiscard(change: UnsyncedChange) {
     Alert.alert("Discard this change?", "It will be removed from this phone. The server's version stays as it is.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => discardLocalChange(ctx, change.table, change.key).then(() => ctx.sync.refresh()) },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => discardLocalChange(ctx, change.table, change.key).then(() => ctx.sync.refresh()),
+      },
     ]);
   }
 
@@ -33,8 +37,18 @@ export default function SyncIssues() {
             title={c.label}
             subtitle={c.error ?? c.detail}
             titleLines={1}
-            right={c.error ? <Text style={styles.discard} onPress={() => confirmDiscard(c)}>Discard</Text> : undefined}
-            onPress={c.table === "expenses" ? () => router.push({ pathname: "/expense/[id]", params: { id: c.key } }) : () => router.push({ pathname: "/trip/[id]", params: { id: c.tripId } })}
+            right={
+              c.error ? (
+                <Text style={styles.discard} onPress={() => confirmDiscard(c)}>
+                  Discard
+                </Text>
+              ) : undefined
+            }
+            onPress={
+              c.table === "expenses"
+                ? () => router.push({ pathname: "/expense/[id]", params: { id: c.key } })
+                : () => router.push({ pathname: "/trip/[id]", params: { id: c.tripId } })
+            }
           />
         </View>
       ))}
@@ -43,7 +57,9 @@ export default function SyncIssues() {
 
   return (
     <ScrollView style={styles.fill} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Stack.Screen options={{ title: "Unsynced changes", headerRight: () => <HeaderButton title="Done" bold onPress={() => router.back()} /> }} />
+      <Stack.Screen
+        options={{ title: "Unsynced changes", headerRight: () => <HeaderButton title="Done" bold onPress={() => router.back()} /> }}
+      />
       {changes.length === 0 ? (
         <EmptyState icon="cloud-done-outline" title="Everything is synced" message="All your changes are saved on the server." />
       ) : (
@@ -52,14 +68,18 @@ export default function SyncIssues() {
             <>
               <SectionHeader title="Couldn't be saved" first />
               {list(failed)}
-              <Text style={styles.hint}>The server refused these. Usually the trip was deleted or you were removed from it. Discard them, or fix and save again.</Text>
+              <Text style={styles.hint}>
+                The server refused these. Usually the trip was deleted or you were removed from it. Discard them, or fix and save again.
+              </Text>
             </>
           )}
           {waiting.length > 0 && (
             <>
               <SectionHeader title="Waiting to sync" first={failed.length === 0} />
               {list(waiting)}
-              <Text style={styles.hint}>{status.phase === "offline" ? "These will sync when you're back online." : "These are on their way."}</Text>
+              <Text style={styles.hint}>
+                {status.phase === "offline" ? "These will sync when you're back online." : "These are on their way."}
+              </Text>
             </>
           )}
           <View style={{ paddingHorizontal: PAGE, paddingTop: 16 }}>

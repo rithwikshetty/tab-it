@@ -83,7 +83,11 @@ export function mergeRemote(state: State, remote: RemoteSnapshot, ctx: MergeCont
   const inScope = (tripId: string | null | undefined) => !ctx.tripId || tripId === ctx.tripId;
 
   /** Merges one row; returns true when the local row now matches the server. */
-  function mergeRow<K extends TableName>(table: K, incoming: Tables[K] & Stamp, extra?: (local: Tables[K] | undefined) => Partial<Tables[K]>): boolean {
+  function mergeRow<K extends TableName>(
+    table: K,
+    incoming: Tables[K] & Stamp,
+    extra?: (local: Tables[K] | undefined) => Partial<Tables[K]>,
+  ): boolean {
     const key = rowKey(table, incoming);
     const local = t[table].get(key) as (Tables[K] & Stamp & { _pushed?: string | null }) | undefined;
     const accept = () => {

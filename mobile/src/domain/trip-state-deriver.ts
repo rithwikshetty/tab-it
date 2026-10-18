@@ -9,8 +9,7 @@ export function deriveTripState(
   inactivityThreshold = defaultInactivityThreshold,
 ): TripState {
   if (balances.some((b) => b.amount !== 0n)) return "active";
-  return timestampUnits(now) - timestampUnits(lastActivityAt) >=
-    BigInt(Math.round(inactivityThreshold * 1000000000))
+  return timestampUnits(now) - timestampUnits(lastActivityAt) >= BigInt(Math.round(inactivityThreshold * 1000000000))
     ? "completed"
     : "active";
 }

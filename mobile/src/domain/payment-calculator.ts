@@ -14,8 +14,7 @@ export function calculatePayments(options: PaymentOptions): Payment[] {
     throw new CalculationError("unsupportedPaymentMode", {
       paymentMode: options.paymentMode,
     });
-  if (options.paymentMode === "exact" && !options.exactAmounts)
-    throw new CalculationError("exactAmountsRequired");
+  if (options.paymentMode === "exact" && !options.exactAmounts) throw new CalculationError("exactAmountsRequired");
   try {
     return calculateSplits({
       ...options,

@@ -1,14 +1,6 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import type {
-  ActivityLogEntry,
-  Category,
-  Profile,
-  Settlement,
-  Trip,
-  TripMutePref,
-  TripPerson,
-} from "@/domain/records";
+import type { ActivityLogEntry, Category, Profile, Settlement, Trip, TripMutePref, TripPerson } from "@/domain/records";
 import { supabase } from "@/lib/supabase";
 
 import { ACTIVITY_WINDOW_DAYS, type RemoteExpense, type RemoteSnapshot } from "./merge";
@@ -43,7 +35,11 @@ export function toRemoteError(error: unknown, status?: number): RemoteError {
   const code = e?.code || undefined;
   const network =
     !code &&
-    (status === undefined || status === 0 || status >= 500 || status === 408 || status === 429 ||
+    (status === undefined ||
+      status === 0 ||
+      status >= 500 ||
+      status === 408 ||
+      status === 429 ||
       /network|fetch|timeout|abort|connection|offline/i.test(message));
   const transient = network || (code !== undefined && TRANSIENT_CODES.has(code)) || (status !== undefined && status >= 500);
   return new RemoteError(message, transient, code);

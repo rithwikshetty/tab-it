@@ -67,7 +67,10 @@ export default function TripsScreen() {
                     subtitle={card.status.text ? <StatusText status={card.status} /> : undefined}
                     right={
                       <AvatarGroup
-                        people={card.members.map((m) => ({ id: m.id, name: m.displayName === "You" ? ctx.user.displayName : m.displayName }))}
+                        people={card.members.map((m) => ({
+                          id: m.id,
+                          name: m.displayName === "You" ? ctx.user.displayName : m.displayName,
+                        }))}
                         size={30}
                         max={4}
                       />

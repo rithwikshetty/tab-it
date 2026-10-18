@@ -5,23 +5,13 @@ const food = "00000000-0000-0000-0000-0000000000f0",
   lodging = "00000000-0000-0000-0000-0000000000f1";
 test("empty", () => expect(summarizeSpend([])).toEqual([]));
 test("singleExpenseTotal", () => {
-  const r = summarizeSpend([
-    e({ [a]: "30" }, { [a]: "15", [b]: "15" }, "EUR", "30", food),
-  ]);
+  const r = summarizeSpend([e({ [a]: "30" }, { [a]: "15", [b]: "15" }, "EUR", "30", food)]);
   expect(r).toHaveLength(1);
   expect(r[0]?.currency).toBe("EUR");
   expect(r[0]?.total).toBe(3000n);
 });
 test("perPersonPaidAndShare", () => {
-  const s = summarizeSpend([
-    e(
-      { [a]: "70", [b]: "50" },
-      { [a]: "40", [b]: "40", [c]: "40" },
-      "EUR",
-      "120",
-      food,
-    ),
-  ])[0]!;
+  const s = summarizeSpend([e({ [a]: "70", [b]: "50" }, { [a]: "40", [b]: "40", [c]: "40" }, "EUR", "120", food)])[0]!;
   expect(s.perPerson.find((p) => p.personID === a)).toEqual({
     personID: a,
     paid: 7000n,
@@ -71,10 +61,7 @@ test("perCategoryAggregated", () => {
 });
 test("perCategoryTieUncategorizedLast", () =>
   expect(
-    summarizeSpend([
-      e({ [a]: "50" }, { [a]: "50" }, "EUR", "50"),
-      e({ [a]: "50" }, { [a]: "50" }, "EUR", "50", food),
-    ])[0]?.perCategory,
+    summarizeSpend([e({ [a]: "50" }, { [a]: "50" }, "EUR", "50"), e({ [a]: "50" }, { [a]: "50" }, "EUR", "50", food)])[0]?.perCategory,
   ).toEqual([
     { categoryID: food, total: 5000n },
     { categoryID: null, total: 5000n },

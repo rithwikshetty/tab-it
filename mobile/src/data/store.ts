@@ -43,9 +43,7 @@ export async function openStore(userId: string): Promise<Store> {
   const maps = Object.fromEntries(TABLE_NAMES.map((t) => [t, new Map()])) as {
     [K in TableName]: Map<string, Tables[K]>;
   };
-  for (const r of await db.getAllAsync<{ tbl: string; key: string; json: string }>(
-    "SELECT tbl, key, json FROM rows",
-  )) {
+  for (const r of await db.getAllAsync<{ tbl: string; key: string; json: string }>("SELECT tbl, key, json FROM rows")) {
     const map = maps[r.tbl as TableName] as Map<string, unknown> | undefined;
     map?.set(r.key, JSON.parse(r.json));
   }
@@ -67,8 +65,7 @@ export async function openStore(userId: string): Promise<Store> {
     const removals: [string, string][] = [];
     const metaWrites: [string, string | null][] = [];
 
-    const tableFor = (t: TableName) =>
-      (nextTables[t] ??= new Map(state.tables[t] as Map<string, unknown>));
+    const tableFor = (t: TableName) => (nextTables[t] ??= new Map(state.tables[t] as Map<string, unknown>));
 
     for (const op of ops) {
       if ("meta" in op) {
@@ -98,19 +95,18 @@ export async function openStore(userId: string): Promise<Store> {
     for (const listener of listeners) listener();
 
     writes = writes.then(() =>
-      db
-        .withExclusiveTransactionAsync(async (tx) => {
-          for (const [tbl, key, json] of upserts) {
-            await tx.runAsync("INSERT OR REPLACE INTO rows (tbl, key, json) VALUES (?, ?, ?)", tbl, key, json);
-          }
-          for (const [tbl, key] of removals) {
-            await tx.runAsync("DELETE FROM rows WHERE tbl = ? AND key = ?", tbl, key);
-          }
-          for (const [key, value] of metaWrites) {
-            if (value === null) await tx.runAsync("DELETE FROM meta WHERE key = ?", key);
-            else await tx.runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", key, value);
-          }
-        })
+      db.withExclusiveTransactionAsync(async (tx) => {
+        for (const [tbl, key, json] of upserts) {
+          await tx.runAsync("INSERT OR REPLACE INTO rows (tbl, key, json) VALUES (?, ?, ?)", tbl, key, json);
+        }
+        for (const [tbl, key] of removals) {
+          await tx.runAsync("DELETE FROM rows WHERE tbl = ? AND key = ?", tbl, key);
+        }
+        for (const [key, value] of metaWrites) {
+          if (value === null) await tx.runAsync("DELETE FROM meta WHERE key = ?", key);
+          else await tx.runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", key, value);
+        }
+      }),
     );
     // A failed write rejects this commit's promise so the caller can say so,
     // but doesn't poison the queue for later commits.

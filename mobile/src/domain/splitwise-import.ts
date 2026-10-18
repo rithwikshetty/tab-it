@@ -1,12 +1,5 @@
 import { normalizedCode } from "./currency-catalog";
-import {
-  abs,
-  addDecimals,
-  allocateMinor,
-  decimalRational,
-  normalizeDecimal,
-  scaledString,
-} from "./decimal";
+import { abs, addDecimals, allocateMinor, decimalRational, normalizeDecimal, scaledString } from "./decimal";
 import { fromMinor, toMinor } from "./money";
 export interface ImportShare {
   person: string;
@@ -45,8 +38,7 @@ export interface ImportResult {
 }
 export class ImportParseError extends Error {
   constructor(
-    public readonly code:
-      "empty" | "missingHeader" | "unexpectedHeader" | "noPeople",
+    public readonly code: "empty" | "missingHeader" | "unexpectedHeader" | "noPeople",
     public readonly found?: string[],
   ) {
     super(code);
@@ -83,15 +75,11 @@ export function splitCSVRecords(text: string): {
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .split("\n")
-    .flatMap((line, i) =>
-      line ? [{ line: i + 1, fields: parseCSVFields(line) }] : [],
-    );
+    .flatMap((line, i) => (line ? [{ line: i + 1, fields: parseCSVFields(line) }] : []));
 }
 export function parseImportDecimal(text: string): string | null {
   const value = text.trim();
-  return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)
-    ? normalizeDecimal(value)
-    : null;
+  return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value) ? normalizeDecimal(value) : null;
 }
 export function parseImportDate(text: string): string | null {
   const parts = text.trim().split("-").filter(Boolean);
@@ -137,9 +125,7 @@ export function reconstructImport(
     warn("Row doesn't balance (debts exceed the amount); skipped.");
     return null;
   }
-  const sorted = [...payers].sort((a, b) =>
-    a.person < b.person ? -1 : a.person > b.person ? 1 : 0,
-  );
+  const sorted = [...payers].sort((a, b) => (a.person < b.person ? -1 : a.person > b.person ? 1 : 0));
   const shares = allocateMinor(
     payersOwed,
     sorted.map((p) => p.person),
@@ -154,14 +140,9 @@ export function reconstructImport(
   }
   const drift = total - payments.reduce((n, p) => n + p.amount, 0n);
   if (drift !== 0n) {
-    const largest = payments.reduce((best, p) =>
-      p.amount > best.amount ? p : best,
-    );
+    const largest = payments.reduce((best, p) => (p.amount > best.amount ? p : best));
     largest.amount += drift;
-    if (abs(drift) > 2n)
-      warn(
-        `Row's amounts didn't sum cleanly; adjusted by ${fromMinor(drift, currency)} to balance.`,
-      );
+    if (abs(drift) > 2n) warn(`Row's amounts didn't sum cleanly; adjusted by ${fromMinor(drift, currency)} to balance.`);
   }
   if (
     payments.reduce((n, p) => n + p.amount, 0n) !== total ||
@@ -183,8 +164,7 @@ export function parseSplitwise(text: string): ImportResult {
   const expected = ["Date", "Description", "Category", "Cost", "Currency"],
     leading = header.fields.slice(0, 5).map((s) => s.trim());
   if (leading.length !== 5) throw new ImportParseError("missingHeader");
-  if (leading.some((v, i) => v.toLowerCase() !== expected[i]!.toLowerCase()))
-    throw new ImportParseError("unexpectedHeader", leading);
+  if (leading.some((v, i) => v.toLowerCase() !== expected[i]!.toLowerCase())) throw new ImportParseError("unexpectedHeader", leading);
   const columnNames = header.fields
       .slice(5)
       .map((s) => s.trim())
@@ -196,8 +176,7 @@ export function parseSplitwise(text: string): ImportResult {
   if (people.length !== columnNames.length)
     warnings.push({
       line: header.line,
-      message:
-        "Duplicate person names in the header are merged into one person.",
+      message: "Duplicate person names in the header are merged into one person.",
     });
   for (const record of records.slice(1)) {
     const field = (i: number) => record.fields[i]?.trim() ?? "",
@@ -238,16 +217,9 @@ export function parseSplitwise(text: string): ImportResult {
       }))
       .filter((n) => n.net !== "0");
     const total = toMinor(cost, currency);
-    if (
-      category.toLowerCase() === "payment" ||
-      description.toLowerCase() === "settle all balances"
-    ) {
-      const positive = netDecimals.filter(
-          (n) => decimalRational(n.net).numerator > 0n,
-        ),
-        negative = netDecimals.filter(
-          (n) => decimalRational(n.net).numerator < 0n,
-        );
+    if (category.toLowerCase() === "payment" || description.toLowerCase() === "settle all balances") {
+      const positive = netDecimals.filter((n) => decimalRational(n.net).numerator > 0n),
+        negative = netDecimals.filter((n) => decimalRational(n.net).numerator < 0n);
       if (positive.length === 1 && negative.length === 1) {
         rows.push({
           type: "settlement",
@@ -260,9 +232,7 @@ export function parseSplitwise(text: string): ImportResult {
         });
         continue;
       }
-      warn(
-        `Payment row "${description}" wasn't a two-person transfer; imported as an expense.`,
-      );
+      warn(`Payment row "${description}" wasn't a two-person transfer; imported as an expense.`);
     }
     const reconstructed = reconstructImport(
       total,
@@ -291,9 +261,7 @@ export function parseSplitwise(text: string): ImportResult {
     rows,
     warnings,
     expenses: rows.filter((r): r is ImportExpense => r.type === "expense"),
-    settlements: rows.filter(
-      (r): r is ImportSettlement => r.type === "settlement",
-    ),
+    settlements: rows.filter((r): r is ImportSettlement => r.type === "settlement"),
   };
 }
 export const SplitwiseImport = {

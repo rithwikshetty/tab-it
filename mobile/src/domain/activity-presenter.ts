@@ -1,11 +1,6 @@
 import type { ActivityLogEntry } from "./records";
 import type { CalendarOptions } from "./expense-dates";
-import {
-  calendarDay,
-  displayExpenseDate,
-  formatClockTime,
-  calendarOffset,
-} from "./expense-dates";
+import { calendarDay, displayExpenseDate, formatClockTime, calendarOffset } from "./expense-dates";
 import { decimalFromInput } from "./money";
 import { formatMoney } from "./money-formatter";
 import { timestampUnits } from "./conflict-resolver";
@@ -36,36 +31,24 @@ export interface ActivityOptions extends CalendarOptions {
   joinedAtByTrip?: Readonly<Record<string, string>>;
   localState?: Readonly<Record<string, ActivityLocalState>>;
 }
-export function isActivityUnread(
-  a: ActivityLogEntry,
-  options: ActivityOptions,
-): boolean {
+export function isActivityUnread(a: ActivityLogEntry, options: ActivityOptions): boolean {
   const local = options.localState?.[a.id];
   return (
     a.actor_id !== options.currentUserID &&
     !options.mutedTripIDs.has(a.trip_id) &&
     !local?.readAt &&
     !local?.dismissedAt &&
-    (options.lastSeenAt === null ||
-      timestampUnits(a.timestamp) > timestampUnits(options.lastSeenAt)) &&
-    (!options.joinedAtByTrip?.[a.trip_id] ||
-      timestampUnits(a.timestamp) >=
-        timestampUnits(options.joinedAtByTrip[a.trip_id]!))
+    (options.lastSeenAt === null || timestampUnits(a.timestamp) > timestampUnits(options.lastSeenAt)) &&
+    (!options.joinedAtByTrip?.[a.trip_id] || timestampUnits(a.timestamp) >= timestampUnits(options.joinedAtByTrip[a.trip_id]!))
   );
 }
-export function unreadActivityCount(
-  activities: readonly ActivityLogEntry[],
-  options: ActivityOptions,
-): number {
+export function unreadActivityCount(activities: readonly ActivityLogEntry[], options: ActivityOptions): number {
   return activities.filter((a) => isActivityUnread(a, options)).length;
 }
 export function activityRow(a: ActivityLogEntry, options: ActivityOptions) {
   const snapshot = a.snapshot_json ?? {};
-  const s = Object.values(snapshot).every((value) => typeof value === "string")
-    ? snapshot
-    : {};
-  const get = (key: string) =>
-    typeof s[key] === "string" ? (s[key] as string) : undefined;
+  const s = Object.values(snapshot).every((value) => typeof value === "string") ? snapshot : {};
+  const get = (key: string) => (typeof s[key] === "string" ? (s[key] as string) : undefined);
   const actor = get("actor_name") ?? "Someone",
     trip = get("trip_name") ?? "a trip",
     description = get("description") ?? "an expense";
@@ -96,10 +79,7 @@ export function activityRow(a: ActivityLogEntry, options: ActivityOptions) {
       icon = "arrow.left.arrow.right.circle.fill";
       isNegative = a.action === "settlement_deleted";
       title = `${actor} ${a.action === "settlement_created" ? "recorded" : a.action === "settlement_updated" ? "edited" : "removed"} a payment`;
-      detail =
-        get("from_name") !== undefined && get("to_name") !== undefined
-          ? `${get("from_name")} → ${get("to_name")}`
-          : null;
+      detail = get("from_name") !== undefined && get("to_name") !== undefined ? `${get("from_name")} → ${get("to_name")}` : null;
       if (!isNegative)
         target = {
           type: "settlement",
@@ -109,9 +89,7 @@ export function activityRow(a: ActivityLogEntry, options: ActivityOptions) {
       break;
     case "member_joined":
       icon = "person.crop.circle.badge.plus";
-      title = options.myTripPersonIDs?.has(a.entity_id)
-        ? `You were added to ${trip}`
-        : `${actor} added ${get("member_name") ?? "someone"}`;
+      title = options.myTripPersonIDs?.has(a.entity_id) ? `You were added to ${trip}` : `${actor} added ${get("member_name") ?? "someone"}`;
       break;
     case "member_left":
       icon = "person.crop.circle.badge.minus";
@@ -127,12 +105,8 @@ export function activityRow(a: ActivityLogEntry, options: ActivityOptions) {
       title = `${actor} renamed the trip to ${trip}`;
       break;
   }
-  const amount =
-    get("amount") !== undefined ? decimalFromInput(get("amount")!) : null;
-  const trailing =
-    amount !== null && get("currency") !== undefined
-      ? formatMoney(amount, get("currency")!, options.locale)
-      : null;
+  const amount = get("amount") !== undefined ? decimalFromInput(get("amount")!) : null;
+  const trailing = amount !== null && get("currency") !== undefined ? formatMoney(amount, get("currency")!, options.locale) : null;
   return {
     id: a.id,
     icon,
@@ -146,11 +120,7 @@ export function activityRow(a: ActivityLogEntry, options: ActivityOptions) {
     target,
   };
 }
-export function activitySections(
-  activities: readonly ActivityLogEntry[],
-  options: ActivityOptions,
-  now: string,
-) {
+export function activitySections(activities: readonly ActivityLogEntry[], options: ActivityOptions, now: string) {
   const { locale = "en-US" } = options;
   const timeZone = calendarOffset(options);
   const today = calendarDay(now, timeZone),
@@ -161,31 +131,17 @@ export function activitySections(
       .filter((a) => !options.localState?.[a.id]?.dismissedAt)
       .slice()
       .sort((a, b) =>
-        timestampUnits(a.timestamp) > timestampUnits(b.timestamp)
-          ? -1
-          : timestampUnits(a.timestamp) < timestampUnits(b.timestamp)
-            ? 1
-            : 0,
+        timestampUnits(a.timestamp) > timestampUnits(b.timestamp) ? -1 : timestampUnits(a.timestamp) < timestampUnits(b.timestamp) ? 1 : 0,
       );
-  return [
-    ...new Set(sorted.map((a) => calendarDay(a.timestamp, timeZone))),
-  ].map((id) => ({
+  return [...new Set(sorted.map((a) => calendarDay(a.timestamp, timeZone)))].map((id) => ({
     id,
     dateLabel:
       id === today
         ? "Today"
         : id === yesterdayKey
           ? "Yesterday"
-          : displayExpenseDate(
-              id,
-              id.slice(0, 4) === today.slice(0, 4)
-                ? "EEEE, MMM d"
-                : "MMM d, yyyy",
-              locale,
-            ),
-    rows: sorted
-      .filter((a) => calendarDay(a.timestamp, timeZone) === id)
-      .map((a) => activityRow(a, options)),
+          : displayExpenseDate(id, id.slice(0, 4) === today.slice(0, 4) ? "EEEE, MMM d" : "MMM d, yyyy", locale),
+    rows: sorted.filter((a) => calendarDay(a.timestamp, timeZone) === id).map((a) => activityRow(a, options)),
   }));
 }
 export function activityNavigation(
@@ -196,10 +152,8 @@ export function activityNavigation(
   type: "trip" | "expense" | "settlement";
   id: string;
 }[] {
-  if (target.type === "expense" && expenseIsOpenable(target.expenseID))
-    return [{ type: "expense", id: target.expenseID }];
-  if (target.type === "settlement" && settlementIsOpenable(target.settlementID))
-    return [{ type: "settlement", id: target.settlementID }];
+  if (target.type === "expense" && expenseIsOpenable(target.expenseID)) return [{ type: "expense", id: target.expenseID }];
+  if (target.type === "settlement" && settlementIsOpenable(target.settlementID)) return [{ type: "settlement", id: target.settlementID }];
   return [{ type: "trip", id: target.tripID }];
 }
 export const ActivityPresenter = {

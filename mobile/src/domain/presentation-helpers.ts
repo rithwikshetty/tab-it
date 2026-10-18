@@ -17,18 +17,8 @@ export function nameCharacters(value: string): string[] {
   for (const point of points) {
     const code = point.codePointAt(0)!;
     const regional = code >= 0x1f1e6 && code <= 0x1f1ff;
-    const extender =
-      /\p{M}/u.test(point) ||
-      code === 0xfe0e ||
-      code === 0xfe0f ||
-      (code >= 0x1f3fb && code <= 0x1f3ff);
-    if (
-      result.length &&
-      (extender ||
-        joinNext ||
-        point === "\u200d" ||
-        (regional && regionalCount % 2 === 1))
-    )
+    const extender = /\p{M}/u.test(point) || code === 0xfe0e || code === 0xfe0f || (code >= 0x1f3fb && code <= 0x1f3ff);
+    if (result.length && (extender || joinNext || point === "\u200d" || (regional && regionalCount % 2 === 1)))
       result[result.length - 1] += point;
     else result.push(point);
     joinNext = point === "\u200d";
@@ -44,20 +34,9 @@ export function compareNames(a: string, b: string): number {
     rhs = b.toLowerCase().normalize("NFD");
   const baseA = lhs.replace(/\p{M}/gu, ""),
     baseB = rhs.replace(/\p{M}/gu, "");
-  return baseA < baseB
-    ? -1
-    : baseA > baseB
-      ? 1
-      : lhs < rhs
-        ? -1
-        : lhs > rhs
-          ? 1
-          : 0;
+  return baseA < baseB ? -1 : baseA > baseB ? 1 : lhs < rhs ? -1 : lhs > rhs ? 1 : 0;
 }
-export function sortedPeople(
-  people: readonly TripPerson[],
-  currentPersonID: string | null = null,
-): TripPerson[] {
+export function sortedPeople(people: readonly TripPerson[], currentPersonID: string | null = null): TripPerson[] {
   return [...people].sort((a, b) =>
     a.id === b.id
       ? 0
@@ -79,12 +58,7 @@ export function isValidEmail(value: string): boolean {
   const email = normalizedEmail(value),
     at = email.indexOf("@"),
     domain = email.slice(at + 1);
-  return (
-    !email.includes("|") &&
-    at > 0 &&
-    domain.includes(".") &&
-    !domain.endsWith(".")
-  );
+  return !email.includes("|") && at > 0 && domain.includes(".") && !domain.endsWith(".");
 }
 export function inviteJoinErrorMessage(code: string | null): string | null {
   return code === "22023"
@@ -139,9 +113,7 @@ export const defaultCategories = Object.values(DefaultCategories);
 export function activePeople(people: readonly TripPerson[]): TripPerson[] {
   return people.filter((p) => p.removed_at === null);
 }
-export function hasPlaceholderEmail(
-  person: Pick<TripPerson, "email">,
-): boolean {
+export function hasPlaceholderEmail(person: Pick<TripPerson, "email">): boolean {
   return person.email.endsWith("@users.tab");
 }
 export function isNonGroup(trip: { kind: string }): boolean {
@@ -154,25 +126,13 @@ export function primaryPayerID(
 ): string | null {
   return payments.map((p) => p.trip_person_id).sort()[0] ?? null;
 }
-export function effectiveSplitType(
-  value: string,
-): import("./records").SplitType {
-  return ["equal", "exact", "percentage", "shares", "adjustment"].includes(
-    value,
-  )
-    ? (value as import("./records").SplitType)
-    : "equal";
+export function effectiveSplitType(value: string): import("./records").SplitType {
+  return ["equal", "exact", "percentage", "shares", "adjustment"].includes(value) ? (value as import("./records").SplitType) : "equal";
 }
-export function effectivePaymentMethod(
-  value: string,
-): import("./records").PaymentMethod {
+export function effectivePaymentMethod(value: string): import("./records").PaymentMethod {
   return value === "cash" || value === "bank_transfer" ? value : "card";
 }
-export function categoryOption(category: {
-  id: string;
-  icon: string;
-  name: string;
-}): {
+export function categoryOption(category: { id: string; icon: string; name: string }): {
   id: string;
   icon: string;
   name: string;

@@ -2,13 +2,7 @@ import { expect, test } from "vitest";
 import { ledgerFromRows, paymentMethodDisplayName } from "./models";
 import { addExpense, tripRows, rowSettlement, a, b } from "./test-support";
 test("pulledMoneyIsNormalized at the pure row-to-ledger boundary", () => {
-  let rows = addExpense(
-    tripRows(),
-    "e",
-    { [a]: "10.005" },
-    { [b]: "10.004" },
-    "10.005",
-  );
+  let rows = addExpense(tripRows(), "e", { [a]: "10.005" }, { [b]: "10.004" }, "10.005");
   rows = rowSettlement(rows, a, b, "0.4", "JPY");
   const inserted = ledgerFromRows(rows);
   expect(inserted.expenses[0]?.amount.amount).toBe(1001n);

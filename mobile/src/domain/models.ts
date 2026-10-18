@@ -1,14 +1,4 @@
-import type {
-  Expense,
-  ExpensePayment,
-  ExpenseSplit,
-  Settlement,
-  Trip,
-  TripPerson,
-  Category,
-  SplitType,
-  UUID,
-} from "./records";
+import type { Expense, ExpensePayment, ExpenseSplit, Settlement, Trip, TripPerson, Category, SplitType, UUID } from "./records";
 import type { Money } from "./money";
 import { toMinor } from "./money";
 export type PaymentMode = SplitType;
@@ -50,11 +40,7 @@ export interface TripRows extends LedgerRows {
   people: readonly TripPerson[];
   categories?: readonly Category[];
 }
-export function toLedgerExpense(
-  expense: Expense,
-  payments: readonly ExpensePayment[],
-  splits: readonly ExpenseSplit[],
-): LedgerExpense {
+export function toLedgerExpense(expense: Expense, payments: readonly ExpensePayment[], splits: readonly ExpenseSplit[]): LedgerExpense {
   return {
     id: expense.id,
     tripID: expense.trip_id,
@@ -92,22 +78,10 @@ export function toLedgerSettlement(s: Settlement): LedgerSettlement {
 }
 export function ledgerFromRows(rows: LedgerRows) {
   return {
-    expenses: rows.expenses.map((e) =>
-      toLedgerExpense(e, rows.payments, rows.splits),
-    ),
+    expenses: rows.expenses.map((e) => toLedgerExpense(e, rows.payments, rows.splits)),
     settlements: rows.settlements.map(toLedgerSettlement),
   };
 }
 export const paymentMethodDisplayName = (method: string): string =>
-  method === "cash"
-    ? "Cash"
-    : method === "bank_transfer"
-      ? "Bank transfer"
-      : "Card";
-export const splitTypes: readonly SplitType[] = [
-  "equal",
-  "exact",
-  "percentage",
-  "shares",
-  "adjustment",
-];
+  method === "cash" ? "Cash" : method === "bank_transfer" ? "Bank transfer" : "Card";
+export const splitTypes: readonly SplitType[] = ["equal", "exact", "percentage", "shares", "adjustment"];

@@ -6,9 +6,8 @@ import { addPeople } from "@/data/actions";
 import { onlineMessage, removeTripPerson, tripInviteUrl, updateTripPersonEmail } from "@/data/online";
 import { peopleInTrip } from "@/data/selectors";
 import { useAppState, useSignedIn } from "@/data/session";
-import { isValidEmail, normalizedEmail, sortedPeople } from "@/domain";
+import { hasPlaceholderEmail, isValidEmail, normalizedEmail, sortedPeople } from "@/domain";
 import type { LocalPerson } from "@/data/schema";
-import { hasPlaceholderEmail } from "@/features/people/email";
 import { PeoplePicker, type PickedPerson } from "@/features/people/people-picker";
 import { Avatar } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
@@ -38,7 +37,8 @@ export default function TripPeople() {
   function personActions(person: LocalPerson) {
     if (person.user_id === ctx.user.id) return;
     const buttons: { text: string; style?: "destructive" | "cancel"; onPress?: () => void }[] = [];
-    if (!person.user_id) buttons.push({ text: hasPlaceholderEmail(person.email) ? "Add their email" : "Change email", onPress: () => setEditing(person) });
+    if (!person.user_id)
+      buttons.push({ text: hasPlaceholderEmail(person) ? "Add their email" : "Change email", onPress: () => setEditing(person) });
     buttons.push({
       text: "Remove from trip",
       style: "destructive",
@@ -57,7 +57,7 @@ export default function TripPeople() {
         ),
     });
     buttons.push({ text: "Cancel", style: "cancel" });
-    Alert.alert(person.display_name, hasPlaceholderEmail(person.email) ? "No email yet" : person.email, buttons);
+    Alert.alert(person.display_name, hasPlaceholderEmail(person) ? "No email yet" : person.email, buttons);
   }
 
   async function shareInvite() {
@@ -82,7 +82,7 @@ export default function TripPeople() {
         <Card>
           {people.map((p, i) => {
             const isMe = p.user_id === ctx.user.id;
-            const status = p.joined_at ? null : p._pushed === null ? "Not synced yet" : hasPlaceholderEmail(p.email) ? "No email" : "Pending";
+            const status = p.joined_at ? null : p._pushed === null ? "Not synced yet" : hasPlaceholderEmail(p) ? "No email" : "Pending";
             return (
               <View key={p.id}>
                 {i > 0 && <Divider inset={62} />}
@@ -93,13 +93,17 @@ export default function TripPeople() {
                   onPress={() => personActions(p)}
                   style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}
                 >
-                  <Avatar person={{ id: p.id, name: isMe ? ctx.user.displayName : p.display_name, email: p.email, pending: !p.user_id }} size={36} ring={0} />
+                  <Avatar
+                    person={{ id: p.id, name: isMe ? ctx.user.displayName : p.display_name, email: p.email, pending: !p.user_id }}
+                    size={36}
+                    ring={0}
+                  />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.name} numberOfLines={1}>
                       {isMe ? `${p.display_name} (you)` : p.display_name}
                     </Text>
                     <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
-                      {hasPlaceholderEmail(p.email) ? "No email yet" : p.email}
+                      {hasPlaceholderEmail(p) ? "No email yet" : p.email}
                     </Text>
                   </View>
                   {status && (
@@ -112,7 +116,9 @@ export default function TripPeople() {
             );
           })}
         </Card>
-        <Text style={styles.hint}>Pending people join when they sign in with that email. Tap someone to change their email or remove them.</Text>
+        <Text style={styles.hint}>
+          Pending people join when they sign in with that email. Tap someone to change their email or remove them.
+        </Text>
 
         {trip?.kind === "trip" && (
           <View style={{ paddingHorizontal: PAGE, paddingTop: 16 }}>
@@ -124,7 +130,11 @@ export default function TripPeople() {
         <PeoplePicker selected={adding} onChange={setAdding} exclude={people.map((p) => p.email)} />
         {adding.length > 0 && (
           <View style={{ paddingHorizontal: PAGE, paddingTop: 14 }}>
-            <Button title={adding.length === 1 ? `Add ${adding[0]!.displayName}` : `Add ${adding.length} people`} icon="person-add-outline" onPress={addSelected} />
+            <Button
+              title={adding.length === 1 ? `Add ${adding[0]!.displayName}` : `Add ${adding.length} people`}
+              icon="person-add-outline"
+              onPress={addSelected}
+            />
           </View>
         )}
       </ScrollView>
@@ -135,7 +145,7 @@ export default function TripPeople() {
 
 function EmailEditor({ person, onClose }: { person: LocalPerson; onClose: () => void }) {
   const ctx = useSignedIn();
-  const [email, setEmail] = useState(hasPlaceholderEmail(person.email) ? "" : person.email);
+  const [email, setEmail] = useState(hasPlaceholderEmail(person) ? "" : person.email);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = isValidEmail(normalizedEmail(email)) && normalizedEmail(email) !== person.email;

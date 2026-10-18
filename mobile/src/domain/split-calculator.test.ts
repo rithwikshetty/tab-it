@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  calculateSplits,
-  equalPercentages,
-  type SplitOptions,
-} from "./split-calculator";
+import { calculateSplits, equalPercentages, type SplitOptions } from "./split-calculator";
 import { fromMinor, toMinor } from "./money";
 import { a, b, c, d } from "./test-support";
 const calc = (o: Partial<SplitOptions> = {}) =>
@@ -14,40 +10,23 @@ const calc = (o: Partial<SplitOptions> = {}) =>
     splitType: "equal",
     ...o,
   });
-const amounts = (o: Partial<SplitOptions>) =>
-  calc(o).map((s) => fromMinor(s.amountOwed, o.currency ?? "EUR"));
+const amounts = (o: Partial<SplitOptions>) => calc(o).map((s) => fromMinor(s.amountOwed, o.currency ?? "EUR"));
 describe("Swift SplitCalculatorTests", () => {
   test.each([
     ["equalEvenTwoWay", "30", "EUR", [a, b], ["15", "15"]],
-    [
-      "equalThreeWayWithRemainder",
-      "10",
-      "USD",
-      [b, c, a],
-      ["3.33", "3.33", "3.34"],
-    ],
+    ["equalThreeWayWithRemainder", "10", "USD", [b, c, a], ["3.33", "3.33", "3.34"]],
     ["equalDollarThreeWay", "1", "USD", [a, b, c], ["0.34", "0.33", "0.33"]],
     ["equalSingleParticipant", "50", "EUR", [a], ["50"]],
     ["equalZeroAmount", "0", "EUR", [a, b, c], ["0", "0", "0"]],
-    [
-      "equalTwoCentRemainder",
-      "0.05",
-      "USD",
-      [a, b, c],
-      ["0.02", "0.02", "0.01"],
-    ],
+    ["equalTwoCentRemainder", "0.05", "USD", [a, b, c], ["0.02", "0.02", "0.01"]],
     ["equalJPYUsesWholeUnits", "101", "JPY", [b, a], ["50", "51"]],
     ["equalKWDUsesThreeDecimals", "1.001", "KWD", [a, b], ["0.501", "0.5"]],
   ] as const)("%s", (_name, totalAmount, currency, participants, expected) => {
     const result = calc({ totalAmount, currency, participants });
-    expect(result.map((s) => fromMinor(s.amountOwed, currency))).toEqual(
-      expected,
-    );
+    expect(result.map((s) => fromMinor(s.amountOwed, currency))).toEqual(expected);
     expect(result.map((s) => s.participantID)).toEqual(participants);
     expect(result.every((s) => s.splitType === "equal")).toBe(true);
-    expect(result.reduce((n, s) => n + s.amountOwed, 0n)).toBe(
-      toMinor(totalAmount, currency),
-    );
+    expect(result.reduce((n, s) => n + s.amountOwed, 0n)).toBe(toMinor(totalAmount, currency));
   });
   test.each<{
     name: string;
@@ -146,9 +125,7 @@ describe("Swift SplitCalculatorTests", () => {
       details: { actual: "99" },
     },
   ])("$name", ({ o, code, details }) => {
-    expect(() => calc(o)).toThrowError(
-      expect.objectContaining({ code, ...(details ? { details } : {}) }),
-    );
+    expect(() => calc(o)).toThrowError(expect.objectContaining({ code, ...(details ? { details } : {}) }));
   });
   test("exactValid", () => {
     const r = calc({
@@ -159,20 +136,11 @@ describe("Swift SplitCalculatorTests", () => {
     expect(r.map((s) => s.amountOwed)).toEqual([4000n, 3000n, 3000n]);
     expect(r.every((s) => s.splitType === "exact")).toBe(true);
   });
-  test.each(["percentage", "shares", "adjustment"] as const)(
-    "unsupportedTypes %s",
-    (splitType) =>
-      expect(() => calc({ participants: [a], splitType })).toThrow(),
+  test.each(["percentage", "shares", "adjustment"] as const)("unsupportedTypes %s", (splitType) =>
+    expect(() => calc({ participants: [a], splitType })).toThrow(),
   );
   test.each([
-    [
-      "sharesWholeProportional",
-      "30",
-      "EUR",
-      [a, b],
-      { [a]: "2", [b]: "1" },
-      ["20", "10"],
-    ],
+    ["sharesWholeProportional", "30", "EUR", [a, b], { [a]: "2", [b]: "1" }, ["20", "10"]],
     [
       "sharesFractional",
       "30",
@@ -186,45 +154,21 @@ describe("Swift SplitCalculatorTests", () => {
       },
       ["10", "10", "5", "5"],
     ],
-    [
-      "sharesRemainderLargestFraction",
-      "100",
-      "USD",
-      [a, b],
-      { [a]: "1", [b]: "2" },
-      ["33.33", "66.67"],
-    ],
-    [
-      "sharesTieBreakLowestUUID",
-      "10",
-      "USD",
-      [b, c, a],
-      { [a]: "1", [b]: "1", [c]: "1" },
-      ["3.33", "3.33", "3.34"],
-    ],
-    [
-      "sharesZeroDecimalCurrency",
-      "100",
-      "JPY",
-      [a, b],
-      { [a]: "1", [b]: "2" },
-      ["33", "67"],
-    ],
+    ["sharesRemainderLargestFraction", "100", "USD", [a, b], { [a]: "1", [b]: "2" }, ["33.33", "66.67"]],
+    ["sharesTieBreakLowestUUID", "10", "USD", [b, c, a], { [a]: "1", [b]: "1", [c]: "1" }, ["3.33", "3.33", "3.34"]],
+    ["sharesZeroDecimalCurrency", "100", "JPY", [a, b], { [a]: "1", [b]: "2" }, ["33", "67"]],
     ["sharesSingleParticipant", "12.34", "EUR", [a], { [a]: "0.5" }, ["12.34"]],
-  ] as const)(
-    "%s",
-    (_name, totalAmount, currency, participants, shares, expected) => {
-      const o = {
-        totalAmount,
-        currency,
-        participants,
-        shares,
-        splitType: "shares" as const,
-      };
-      expect(amounts(o)).toEqual(expected);
-      expect(calc(o).every((s) => s.splitType === "shares")).toBe(true);
-    },
-  );
+  ] as const)("%s", (_name, totalAmount, currency, participants, shares, expected) => {
+    const o = {
+      totalAmount,
+      currency,
+      participants,
+      shares,
+      splitType: "shares" as const,
+    };
+    expect(amounts(o)).toEqual(expected);
+    expect(calc(o).every((s) => s.splitType === "shares")).toBe(true);
+  });
   test("sharesCarriesWeights", () =>
     expect(
       calc({
@@ -293,9 +237,7 @@ describe("Swift SplitCalculatorTests", () => {
       [{ [a]: "50", [b]: "50", [c]: "1" }, "extraPercentageForNonParticipant"],
       [{ [a]: "0", [b]: "100" }, "nonPositivePercentage"],
     ] as const)
-      expect(() => calc({ splitType: "percentage", percentages })).toThrowError(
-        expect.objectContaining({ code }),
-      );
+      expect(() => calc({ splitType: "percentage", percentages })).toThrowError(expect.objectContaining({ code }));
   });
   test("equalPercentagesSeed", () => {
     expect(equalPercentages([b, c, a])).toEqual({

@@ -7,8 +7,5 @@ import { useAppState, useSignedIn } from "@/data/session";
 export function useUnreadActivityCount(): number {
   const { user } = useSignedIn();
   const state = useAppState();
-  return useMemo(
-    () => unreadActivityCount([...state.tables.activity_log.values()], activityOptions(state, user.id)),
-    [state, user.id],
-  );
+  return useMemo(() => unreadActivityCount([...state.tables.activity_log.values()], activityOptions(state, user.id)), [state, user.id]);
 }

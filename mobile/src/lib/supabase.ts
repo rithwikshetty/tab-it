@@ -38,19 +38,15 @@ const secureStorage: SupportedStorage = {
   },
 };
 
-export const supabase = createClient<Database>(
-  config.supabaseUrl || "http://127.0.0.1:54321",
-  config.supabaseKey || "unconfigured",
-  {
-    auth: {
-      storage: secureStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-      flowType: "pkce",
-    },
+export const supabase = createClient<Database>(config.supabaseUrl || "http://127.0.0.1:54321", config.supabaseKey || "unconfigured", {
+  auth: {
+    storage: secureStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+    flowType: "pkce",
   },
-);
+});
 
 // Token refresh only runs while the app is in the foreground.
 AppState.addEventListener("change", (state) => {

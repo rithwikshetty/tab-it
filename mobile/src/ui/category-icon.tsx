@@ -12,7 +12,15 @@ export function categoryTone(categoryId: string | null | undefined): string {
  * A category glyph. Built-in categories use their Phosphor icon; a custom
  * category's icon is an emoji or short text drawn as-is.
  */
-export function CategoryIcon({ icon, categoryId, size = 26 }: { icon: string | null | undefined; categoryId?: string | null; size?: number }) {
+export function CategoryIcon({
+  icon,
+  categoryId,
+  size = 26,
+}: {
+  icon: string | null | undefined;
+  categoryId?: string | null;
+  size?: number;
+}) {
   const xml = icon ? CATEGORY_ICON_XML[icon] : undefined;
   const color = categoryTone(categoryId);
   if (xml) return <SvgXml xml={xml} width={size} height={size} color={color} />;

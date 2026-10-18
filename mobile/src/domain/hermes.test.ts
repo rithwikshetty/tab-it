@@ -15,28 +15,19 @@ test("the whole domain works when Intl and browser text encoders are unavailable
     "30",
     "GBP",
   );
-  expect(domain.formatMoney(99999999999999999999n, "USD")).toBe(
-    "$999,999,999,999,999,999.99",
-  );
+  expect(domain.formatMoney(99999999999999999999n, "USD")).toBe("$999,999,999,999,999,999.99");
   expect(domain.formatMoney("-12.5", "GBP")).toBe("£-12.50");
   expect(domain.formatSigned("-12.5", "GBP")).toBe("-£12.50");
   expect(domain.formatMoney("12.5", "CHF")).toBe("CHF 12.50");
   expect(domain.formatMoney("123", "JPY")).toBe("¥123");
   expect(domain.formatMoney("1.234", "KWD")).toMatch(/1\.234$/);
   expect(domain.tripCard(rows, a, now).status.text).toBe("you're owed £15.00");
-  expect(
-    domain.tripCard(tripRows(), a, "2026-07-01T00:00:00Z").status.text,
-  ).toBe("settled · May 2026");
-  expect(
-    domain.timelineDays(rows, rows.people, [], a, { utcOffsetMinutes: 840 })[0]
-      ?.dateLabel,
-  ).toBe("May 22");
+  expect(domain.tripCard(tripRows(), a, "2026-07-01T00:00:00Z").status.text).toBe("settled · May 2026");
+  expect(domain.timelineDays(rows, rows.people, [], a, { utcOffsetMinutes: 840 })[0]?.dateLabel).toBe("May 22");
   expect(domain.friendsList([rows], a).active[0]?.displayName).toBe("Bob");
   expect(domain.avatarInitial("👩‍💻 Alex")).toBe("👩‍💻");
   expect(domain.normalizedDisplayName("  Émile  ")).toBe("Émile");
-  expect(domain.searchCurrencies("yen").some((c) => c.code === "JPY")).toBe(
-    true,
-  );
+  expect(domain.searchCurrencies("yen").some((c) => c.code === "JPY")).toBe(true);
   const activity: ActivityLogEntry = {
     id: "activity",
     trip_id: "trip",
@@ -59,15 +50,10 @@ test("the whole domain works when Intl and browser text encoders are unavailable
     utcOffsetMinutes: 330,
   };
   expect(domain.activityRow(activity, options).timeText).toBe("2:00 AM");
-  expect(
-    domain.activitySections([activity], options, "2026-05-23T00:00:00Z")[0]
-      ?.dateLabel,
-  ).toBe("Today");
+  expect(domain.activitySections([activity], options, "2026-05-23T00:00:00Z")[0]?.dateLabel).toBe("Today");
   const data = domain.extractExportData(rows, "en-US", 330);
   expect(data.expenses[0]?.createdAt).toBe("2026-05-23 02:00");
   const bytes = domain.workbookXLSX(domain.buildWorkbook(data));
   expect(Array.from(bytes.slice(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
-  expect(Array.from(domain.utf8Bytes("£👩‍💻"))).toEqual([
-    194, 163, 240, 159, 145, 169, 226, 128, 141, 240, 159, 146, 187,
-  ]);
+  expect(Array.from(domain.utf8Bytes("£👩‍💻"))).toEqual([194, 163, 240, 159, 145, 169, 226, 128, 141, 240, 159, 146, 187]);
 });

@@ -6,8 +6,7 @@ test("defaultCodeIsHardFallbackCurrency", () => {
 });
 test("includesCommonISOCodes", () => {
   expect(C.supported.length).toBeGreaterThan(100);
-  for (const code of ["EUR", "usd", "JPY", "KWD"])
-    expect(C.isSupported(code)).toBe(true);
+  for (const code of ["EUR", "usd", "JPY", "KWD"]) expect(C.isSupported(code)).toBe(true);
 });
 test("metadata", () => {
   expect(C.metadata("USD")?.symbol).toBeTruthy();
@@ -34,9 +33,7 @@ test("normalizationUsesCurrencyMinorUnits", () => {
     expect(C.normalizedAmount(value!, code!)).toBe(expected);
 });
 test("displaySymbolsAreUnique", () => {
-  const symbols = C.supported.map((c) =>
-    c.symbol.normalize("NFKC").toUpperCase(),
-  );
+  const symbols = C.supported.map((c) => c.symbol.normalize("NFKC").toUpperCase());
   expect(new Set(symbols).size).toBe(symbols.length);
 });
 test("sharedSymbolClaiming", () => {

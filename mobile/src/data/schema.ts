@@ -7,6 +7,7 @@
 // - `_receipt`: "pending" while a receipt photo still needs uploading,
 //   "failed" when the server refused the upload.
 // - `_deleted`: a pending hard delete (unmuting a trip removes its mute row).
+// - `_readAt` / `_dismissedAt`: activity rows the user read or swiped away here.
 
 import type {
   ActivityLogEntry,
@@ -33,6 +34,8 @@ export type LocalSettlement = Settlement & LocalMeta;
 export type LocalMute = TripMutePref & LocalMeta & { _deleted?: boolean };
 export type LocalProfile = Profile & LocalMeta;
 export type LocalCategory = Category & LocalMeta;
+/** Activity is read-only server data; read and dismissed marks are this phone's own. */
+export type LocalActivity = ActivityLogEntry & { _readAt?: string | null; _dismissedAt?: string | null };
 
 export interface Tables {
   profiles: LocalProfile;
@@ -43,7 +46,7 @@ export interface Tables {
   expense_payments: ExpensePayment;
   expense_splits: ExpenseSplit;
   settlements: LocalSettlement;
-  activity_log: ActivityLogEntry;
+  activity_log: LocalActivity;
   trip_mute_prefs: LocalMute;
 }
 

@@ -1,4 +1,4 @@
-import { normalizedEmail } from "@/domain";
+import { mapImportPeople, mapSplitwiseRows, normalizedEmail, type ImportResult } from "@/domain";
 import type { ExpensePayment, ExpenseSplit, PaymentMethod, SplitType } from "@/domain/records";
 import { nowISO, uuid } from "@/lib/ids";
 
@@ -307,8 +307,16 @@ export async function updateDisplayName({ store, user }: Ctx, name: string) {
   await store.commit(ops);
 }
 
+/** Moves the read cursor to now: every activity so far counts as read, here and on the server. */
 export async function markActivitySeen({ store }: Ctx) {
   await store.commit([{ meta: META_ACTIVITY_SEEN, value: nowISO() }]);
+}
+
+export async function markActivityRead({ store }: Ctx, id: string, dismiss = false) {
+  const row = store.getState().tables.activity_log.get(id);
+  if (!row) return;
+  const now = nowISO();
+  await store.commit([{ table: "activity_log", row: { ...row, _readAt: row._readAt ?? now, ...(dismiss ? { _dismissedAt: now } : {}) } }]);
 }
 
 export function setPreference({ store }: Ctx, key: string, value: string | null) {
@@ -339,4 +347,43 @@ export async function discardLocalChange({ store }: Ctx, table: "trips" | "expen
     for (const [k, r] of t[child]) if (expenseIds.has(r.expense_id)) ops.push({ table: child, key: k, remove: true });
   }
   await store.commit(ops);
+}
+
+/**
+ * Creates a trip from a parsed Splitwise export. Everyone except the chosen
+ * "you" joins as a pending person with a placeholder email that can be
+ * replaced later. It all lands locally in one commit and syncs like any other
+ * change, so importing works offline.
+ */
+export async function importSplitwise(ctx: Ctx, parsed: ImportResult, tripName: string, selfPerson: string | null): Promise<string> {
+  const tripId = await createTrip(ctx, tripName);
+  const t = ctx.store.getState().tables;
+  const creator = [...t.trip_people.values()].find((p) => p.trip_id === tripId && p.user_id === ctx.user.id)!;
+  const now = nowISO();
+  const { people, personIDs } = mapImportPeople({
+    names: parsed.people,
+    selfPerson,
+    tripID: tripId,
+    user: { id: ctx.user.id, email: ctx.user.email, displayName: creator.display_name },
+    creatorPersonID: creator.id,
+    newPersonIDs: Object.fromEntries(parsed.people.map((name) => [name, uuid()])),
+    now,
+    writeID: uuid(),
+  });
+  const rows = mapSplitwiseRows(parsed, {
+    tripID: tripId,
+    userID: ctx.user.id,
+    personIDs,
+    now,
+    rowIDs: parsed.rows.map(() => uuid()),
+    writeID: uuid(),
+  });
+  const ops: Op[] = [];
+  for (const p of people) if (p.id !== creator.id) ops.push({ table: "trip_people", row: { ...p, ...stamp(), _pushed: null } });
+  for (const e of rows.expenses) ops.push({ table: "expenses", row: { ...e, ...stamp(), _pushed: null } });
+  for (const p of rows.payments) ops.push({ table: "expense_payments", row: p });
+  for (const sp of rows.splits) ops.push({ table: "expense_splits", row: sp });
+  for (const st of rows.settlements) ops.push({ table: "settlements", row: { ...st, ...stamp(), _pushed: null } });
+  await ctx.store.commit(ops);
+  return tripId;
 }

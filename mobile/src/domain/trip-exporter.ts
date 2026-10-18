@@ -2,11 +2,7 @@ import { timestampUnits } from "./conflict-resolver";
 import type { TripRows } from "./models";
 import { balancesFromRows } from "./balance-engine";
 import { spendFromRows } from "./trip-analytics";
-import {
-  calendarDay,
-  formatClockTime,
-  type TimeZoneOffset,
-} from "./expense-dates";
+import { calendarDay, formatClockTime, type TimeZoneOffset } from "./expense-dates";
 import { formatMoney } from "./money-formatter";
 import { fromMinor } from "./money";
 import { compare, normalizeDecimal, subtractDecimals } from "./decimal";
@@ -97,22 +93,11 @@ export interface WorkbookSheet {
 export interface Workbook {
   sheets: WorkbookSheet[];
 }
-export function extractExportData(
-  rows: TripRows,
-  locale = "en-US",
-  timeZone: TimeZoneOffset = "UTC",
-): ExportData {
-  const name = (id: string) =>
-      rows.people.find((p) => p.id === id)?.display_name ?? "Unknown",
-    userName = (id: string) =>
-      rows.people.find((p) => p.user_id === id)?.display_name ??
-      id.toUpperCase();
-  const personKey = (id: string) =>
-    name(id).toLowerCase() + "|" + id.toUpperCase();
-  const timestamp = (instant: string) =>
-    calendarDay(instant, timeZone) +
-    " " +
-    formatClockTime(instant, timeZone, "24h");
+export function extractExportData(rows: TripRows, locale = "en-US", timeZone: TimeZoneOffset = "UTC"): ExportData {
+  const name = (id: string) => rows.people.find((p) => p.id === id)?.display_name ?? "Unknown",
+    userName = (id: string) => rows.people.find((p) => p.user_id === id)?.display_name ?? id.toUpperCase();
+  const personKey = (id: string) => name(id).toLowerCase() + "|" + id.toUpperCase();
+  const timestamp = (instant: string) => calendarDay(instant, timeZone) + " " + formatClockTime(instant, timeZone, "24h");
   const expensePayments: ExportPaymentRow[] = [],
     expenseSplits: ExportSplitRow[] = [];
   const expenses = rows.expenses
@@ -123,15 +108,11 @@ export function extractExportData(
       const payments = rows.payments
           .filter((p) => p.expense_id === e.id)
           .slice()
-          .sort((a, b) =>
-            compare(personKey(a.trip_person_id), personKey(b.trip_person_id)),
-          ),
+          .sort((a, b) => compare(personKey(a.trip_person_id), personKey(b.trip_person_id))),
         splits = rows.splits
           .filter((s) => s.expense_id === e.id)
           .slice()
-          .sort((a, b) =>
-            compare(personKey(a.trip_person_id), personKey(b.trip_person_id)),
-          );
+          .sort((a, b) => compare(personKey(a.trip_person_id), personKey(b.trip_person_id)));
       for (const p of payments)
         expensePayments.push({
           expenseID: e.id.toUpperCase(),
@@ -160,22 +141,11 @@ export function extractExportData(
         description: e.description,
         amount: normalizeDecimal(e.amount),
         currency: e.currency,
-        category:
-          rows.categories?.find((c) => c.id === e.category_id)?.name ?? "",
+        category: rows.categories?.find((c) => c.id === e.category_id)?.name ?? "",
         paidBy: payments.map((p) => name(p.trip_person_id)).join(", "),
-        paidByDetail: payments
-          .map(
-            (p) =>
-              `${name(p.trip_person_id)}: ${formatMoney(p.amount_paid, e.currency, locale)}`,
-          )
-          .join("; "),
+        paidByDetail: payments.map((p) => `${name(p.trip_person_id)}: ${formatMoney(p.amount_paid, e.currency, locale)}`).join("; "),
         splitBetween: splits.map((s) => name(s.trip_person_id)).join(", "),
-        splitDetail: splits
-          .map(
-            (s) =>
-              `${name(s.trip_person_id)}: ${formatMoney(s.amount_owed, e.currency, locale)}`,
-          )
-          .join("; "),
+        splitDetail: splits.map((s) => `${name(s.trip_person_id)}: ${formatMoney(s.amount_owed, e.currency, locale)}`).join("; "),
         paymentMethod: e.payment_method,
         createdBy: userName(e.created_by),
         createdAt: timestamp(e.created_at),
@@ -186,9 +156,7 @@ export function extractExportData(
   const settlements = rows.settlements
     .filter((s) => !s.deleted_at)
     .slice()
-    .sort((a, b) =>
-      compare(timestampUnits(a.settled_at), timestampUnits(b.settled_at)),
-    )
+    .sort((a, b) => compare(timestampUnits(a.settled_at), timestampUnits(b.settled_at)))
     .map((s) => ({
       date: calendarDay(s.settled_at, timeZone),
       from: name(s.from_person_id),
@@ -198,9 +166,7 @@ export function extractExportData(
       note: s.note ?? "",
     }));
   const summaries = spendFromRows(rows),
-    peopleIDs = [
-      ...new Set(summaries.flatMap((s) => s.perPerson.map((p) => p.personID))),
-    ].sort();
+    peopleIDs = [...new Set(summaries.flatMap((s) => s.perPerson.map((p) => p.personID)))].sort();
   const personSummaries = peopleIDs.flatMap((id) =>
     summaries.flatMap((s) => {
       const p = s.perPerson.find((p) => p.personID === id);
@@ -224,13 +190,7 @@ export function extractExportData(
       currency: b.currency,
       amount: fromMinor(b.amount, b.currency),
     }))
-    .sort(
-      (a, b) =>
-        compare(a.currency, b.currency) ||
-        compare(a.from, b.from) ||
-        compare(a.to, b.to) ||
-        compare(a.amount, b.amount),
-    );
+    .sort((a, b) => compare(a.currency, b.currency) || compare(a.from, b.from) || compare(a.to, b.to) || compare(a.amount, b.amount));
   return {
     tripName: rows.trip.name,
     expenses,
@@ -257,10 +217,7 @@ export function buildWorkbook(data: ExportData): Workbook {
   const summary: WorkbookCell[][] = [
     header(["Total Spent per Currency"]),
     header(["Currency", "Total"]),
-    ...data.summary.totalsByCurrency.map((t) => [
-      str(t.currency),
-      num(t.total),
-    ]),
+    ...data.summary.totalsByCurrency.map((t) => [str(t.currency), num(t.total)]),
     [],
     header(["Per-Person Breakdown"]),
     header(["Person", "Currency", "Total Paid", "Total Owed", "Net"]),
@@ -274,12 +231,7 @@ export function buildWorkbook(data: ExportData): Workbook {
     [],
     header(["Net Balances Between Pairs"]),
     header(["Owes (From)", "Owed To", "Currency", "Amount"]),
-    ...data.summary.pairBalances.map((p) => [
-      str(p.from),
-      str(p.to),
-      str(p.currency),
-      num(p.amount),
-    ]),
+    ...data.summary.pairBalances.map((p) => [str(p.from), str(p.to), str(p.currency), num(p.amount)]),
   ];
   return {
     sheets: [
@@ -325,16 +277,7 @@ export function buildWorkbook(data: ExportData): Workbook {
       {
         name: "Expense Payments",
         rows: [
-          header([
-            "Expense ID",
-            "Date",
-            "Description",
-            "Payer ID",
-            "Payer Name",
-            "Currency",
-            "Amount Paid",
-            "Payment Mode",
-          ]),
+          header(["Expense ID", "Date", "Description", "Payer ID", "Payer Name", "Currency", "Amount Paid", "Payment Mode"]),
           ...data.expensePayments.map((r) => [
             str(r.expenseID),
             str(r.date),
@@ -350,16 +293,7 @@ export function buildWorkbook(data: ExportData): Workbook {
       {
         name: "Expense Splits",
         rows: [
-          header([
-            "Expense ID",
-            "Date",
-            "Description",
-            "Participant ID",
-            "Participant Name",
-            "Currency",
-            "Amount Owed",
-            "Split Type",
-          ]),
+          header(["Expense ID", "Date", "Description", "Participant ID", "Participant Name", "Currency", "Amount Owed", "Split Type"]),
           ...data.expenseSplits.map((r) => [
             str(r.expenseID),
             str(r.date),
@@ -376,14 +310,7 @@ export function buildWorkbook(data: ExportData): Workbook {
         name: "Settlements",
         rows: [
           header(["Date", "From", "To", "Amount", "Currency", "Note"]),
-          ...data.settlements.map((r) => [
-            str(r.date),
-            str(r.from),
-            str(r.to),
-            num(r.amount),
-            str(r.currency),
-            str(r.note),
-          ]),
+          ...data.settlements.map((r) => [str(r.date), str(r.from), str(r.to), num(r.amount), str(r.currency), str(r.note)]),
         ],
       },
       { name: "Summary", rows: summary },
@@ -393,15 +320,7 @@ export function buildWorkbook(data: ExportData): Workbook {
 export function sheetCSV(sheet: WorkbookSheet): string {
   return (
     sheet.rows
-      .map((row) =>
-        row
-          .map((c) =>
-            /[",\r\n]/.test(c.value)
-              ? '"' + c.value.replace(/"/g, '""') + '"'
-              : c.value,
-          )
-          .join(","),
-      )
+      .map((row) => row.map((c) => (/[",\r\n]/.test(c.value) ? '"' + c.value.replace(/"/g, '""') + '"' : c.value)).join(","))
       .join("\r\n") + "\r\n"
   );
 }
@@ -416,12 +335,7 @@ export function exportCSVs(data: ExportData): {
 }
 export function exportText(data: ExportData): string {
   return buildWorkbook(data)
-    .sheets.map(
-      (s) =>
-        s.name +
-        "\n" +
-        s.rows.map((row) => row.map((c) => c.value).join("\t")).join("\n"),
-    )
+    .sheets.map((s) => s.name + "\n" + s.rows.map((row) => row.map((c) => c.value).join("\t")).join("\n"))
     .join("\n\n");
 }
 export const TripExporter = {

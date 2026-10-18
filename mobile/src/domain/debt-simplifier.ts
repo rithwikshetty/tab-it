@@ -6,9 +6,7 @@ export interface SimplifiedDebt {
   currency: string;
   amount: bigint;
 }
-export function simplifyDebts(
-  balances: readonly UserBalance[],
-): SimplifiedDebt[] {
+export function simplifyDebts(balances: readonly UserBalance[]): SimplifiedDebt[] {
   const currencies = new Map<string, Map<string, bigint>>();
   for (const b of balances)
     if (b.forUser < b.withUser && b.amount !== 0n) {
@@ -18,15 +16,9 @@ export function simplifyDebts(
       currencies.set(b.currency, positions);
     }
   const result: SimplifiedDebt[] = [];
-  for (const [currency, positions] of [...currencies].sort(([a], [b]) =>
-    compare(a, b),
-  )) {
-    let creditors = [...positions]
-      .filter(([, n]) => n > 0n)
-      .map(([id, amount]) => ({ id, amount }));
-    let debtors = [...positions]
-      .filter(([, n]) => n < 0n)
-      .map(([id, amount]) => ({ id, amount: -amount }));
+  for (const [currency, positions] of [...currencies].sort(([a], [b]) => compare(a, b))) {
+    let creditors = [...positions].filter(([, n]) => n > 0n).map(([id, amount]) => ({ id, amount }));
+    let debtors = [...positions].filter(([, n]) => n < 0n).map(([id, amount]) => ({ id, amount: -amount }));
     const sort = (
       a: {
         id: string;
@@ -57,9 +49,7 @@ export function simplifyDebts(
   }
   return result;
 }
-export function mirroredSimplifiedBalances(
-  balances: readonly UserBalance[],
-): UserBalance[] {
+export function mirroredSimplifiedBalances(balances: readonly UserBalance[]): UserBalance[] {
   return simplifyDebts(balances).flatMap((d) => [
     {
       forUser: d.toUser,

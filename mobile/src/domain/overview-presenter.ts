@@ -4,9 +4,7 @@ import type { LedgerRows } from "./models";
 import { roundDivide, scaledString } from "./decimal";
 import { formatMoney } from "./money-formatter";
 function ratio(part: bigint, whole: bigint): number {
-  return whole > 0n
-    ? Number(scaledString(roundDivide(part * 10n ** 40n, whole), 40))
-    : 0;
+  return whole > 0n ? Number(scaledString(roundDivide(part * 10n ** 40n, whole), 40)) : 0;
 }
 export function resolveOverview(
   summaries: readonly TripSpendSummary[],
@@ -17,10 +15,7 @@ export function resolveOverview(
 ) {
   const pages = summaries.map((summary) => {
     const yours = summary.perPerson.find((p) => p.personID === currentPersonID),
-      max = summary.perCategory.reduce(
-        (n, c) => (c.total > n ? c.total : n),
-        0n,
-      ),
+      max = summary.perCategory.reduce((n, c) => (c.total > n ? c.total : n), 0n),
       fmt = (n: bigint) => formatMoney(n, summary.currency, locale);
     return {
       id: summary.currency,
@@ -28,10 +23,7 @@ export function resolveOverview(
       totalSpent: fmt(summary.total),
       youPaid: fmt(yours?.paid ?? 0n),
       yourShare: fmt(yours?.share ?? 0n),
-      yourSharePercent:
-        summary.total > 0n
-          ? `${roundDivide((yours?.share ?? 0n) * 100n, summary.total)}% of trip spend`
-          : null,
+      yourSharePercent: summary.total > 0n ? `${roundDivide((yours?.share ?? 0n) * 100n, summary.total)}% of trip spend` : null,
       people: summary.perPerson.map((p) => ({
         id: p.personID,
         name: p.personID === currentPersonID ? "You" : personName(p.personID),
@@ -63,12 +55,6 @@ export function overview(
   categoryName: (id: string | null) => string,
   locale = "en-US",
 ) {
-  return resolveOverview(
-    spendFromRows(rows),
-    currentPersonID,
-    personName,
-    categoryName,
-    locale,
-  );
+  return resolveOverview(spendFromRows(rows), currentPersonID, personName, categoryName, locale);
 }
 export const OverviewPresenter = { resolve: resolveOverview, overview };

@@ -19,16 +19,9 @@ test("trip card statuses distinguish empty, owed, owing, mixed and completed", (
     type: "mixed",
     text: "net +€15.00 -£10.00",
   });
-  const settled = rowSettlement(
-    addExpense(empty, "1", { [a]: "30" }, { [a]: "15", [b]: "15" }),
-    b,
-    a,
-    "15",
-  );
+  const settled = rowSettlement(addExpense(empty, "1", { [a]: "30" }, { [a]: "15", [b]: "15" }), b, a, "15");
   expect(tripCard(settled, a, now).status.text).toBe("all settled");
-  expect(tripCard(settled, a, "2026-07-01T00:00:00Z").status.text).toBe(
-    "settled · May 2026",
-  );
+  expect(tripCard(settled, a, "2026-07-01T00:00:00Z").status.text).toBe("settled · May 2026");
 });
 test("trip cards use user names for avatar initials and active-member sorting", () => {
   const r = tripRows();
@@ -42,9 +35,7 @@ test("trip cards use user names for avatar initials and active-member sorting", 
     tripCard(
       {
         ...r,
-        people: r.people.map((p) =>
-          p.id === a ? { ...p, removed_at: "2026-05-23T00:00:00Z" } : p,
-        ),
+        people: r.people.map((p) => (p.id === a ? { ...p, removed_at: "2026-05-23T00:00:00Z" } : p)),
       },
       b,
       "2026-05-23T00:00:00Z",

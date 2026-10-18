@@ -16,18 +16,10 @@ export interface TripSpendSummary {
   perPerson: PersonSpend[];
   perCategory: CategorySpend[];
 }
-export function summarizeSpend(
-  expenses: readonly LedgerExpense[],
-): TripSpendSummary[] {
-  const currencies = [
-    ...new Set(
-      expenses.filter((e) => !e.deletedAt).map((e) => e.amount.currency),
-    ),
-  ].sort();
+export function summarizeSpend(expenses: readonly LedgerExpense[]): TripSpendSummary[] {
+  const currencies = [...new Set(expenses.filter((e) => !e.deletedAt).map((e) => e.amount.currency))].sort();
   return currencies.map((currency) => {
-    const group = expenses.filter(
-        (e) => !e.deletedAt && e.amount.currency === currency,
-      ),
+    const group = expenses.filter((e) => !e.deletedAt && e.amount.currency === currency),
       people = new Map<string, PersonSpend>(),
       categories = new Map<string | null, bigint>();
     for (const e of group) {
@@ -49,17 +41,12 @@ export function summarizeSpend(
         value.share += s.amountOwed;
         people.set(s.participantID, value);
       }
-      categories.set(
-        e.categoryID,
-        (categories.get(e.categoryID) ?? 0n) + e.amount.amount,
-      );
+      categories.set(e.categoryID, (categories.get(e.categoryID) ?? 0n) + e.amount.amount);
     }
     return {
       currency,
       total: group.reduce((n, e) => n + e.amount.amount, 0n),
-      perPerson: [...people.values()].sort(
-        (a, b) => compare(b.share, a.share) || compare(b.personID, a.personID),
-      ),
+      perPerson: [...people.values()].sort((a, b) => compare(b.share, a.share) || compare(b.personID, a.personID)),
       perCategory: [...categories]
         .map(([categoryID, total]) => ({ categoryID, total }))
         .sort(

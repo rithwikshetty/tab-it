@@ -143,7 +143,8 @@ export default function Settings() {
     granted: "On",
     denied: "Off. Turn them on in Settings.",
     undetermined: "Not set up yet",
-    unsupported: Platform.OS === "android" ? "Coming to Android later. Activity shows every update meanwhile." : "Not available on this device",
+    unsupported:
+      Platform.OS === "android" ? "Coming to Android later. Activity shows every update meanwhile." : "Not available on this device",
   }[push];
 
   return (
@@ -184,7 +185,12 @@ export default function Settings() {
         <SectionHeader title="Sync" />
         <Card>
           <Row
-            left={<Icon name={status.phase === "offline" ? "cloud-offline-outline" : status.failed ? "alert-circle-outline" : "cloud-done-outline"} color={status.failed ? colors.warning : colors.accentStrong} />}
+            left={
+              <Icon
+                name={status.phase === "offline" ? "cloud-offline-outline" : status.failed ? "alert-circle-outline" : "cloud-done-outline"}
+                color={status.failed ? colors.warning : colors.accentStrong}
+              />
+            }
             title="Status"
             value={syncLabel}
           />
@@ -202,7 +208,12 @@ export default function Settings() {
           {(status.pending > 0 || status.failed > 0) && (
             <>
               <Divider inset={48} />
-              <Row left={<Icon name="list-outline" color={colors.accentStrong} />} title="Review unsynced changes" chevron onPress={() => router.push("/sync-issues")} />
+              <Row
+                left={<Icon name="list-outline" color={colors.accentStrong} />}
+                title="Review unsynced changes"
+                chevron
+                onPress={() => router.push("/sync-issues")}
+              />
             </>
           )}
         </Card>
@@ -210,7 +221,12 @@ export default function Settings() {
         <SectionHeader title="Notifications" />
         <Card>
           <Row
-            left={<Icon name={push === "granted" ? "notifications" : "notifications-off-outline"} color={push === "granted" ? colors.accentStrong : colors.textSecondary} />}
+            left={
+              <Icon
+                name={push === "granted" ? "notifications" : "notifications-off-outline"}
+                color={push === "granted" ? colors.accentStrong : colors.textSecondary}
+              />
+            }
             title="Push notifications"
             subtitle={pushLabel}
             right={
@@ -229,32 +245,73 @@ export default function Settings() {
 
         <SectionHeader title="Preferences" />
         <Card>
-          <Row left={<Icon name="cash-outline" color={colors.accentStrong} />} title="Default currency" value={currency ?? "Automatic"} chevron onPress={() => setPickingCurrency(true)} />
+          <Row
+            left={<Icon name="cash-outline" color={colors.accentStrong} />}
+            title="Default currency"
+            value={currency ?? "Automatic"}
+            chevron
+            onPress={() => setPickingCurrency(true)}
+          />
         </Card>
         <Text style={styles.footnote}>New expenses use the trip's latest currency. This is the fallback for new trips.</Text>
 
         <SectionHeader title="Trips" />
         <Card>
-          <Row left={<Icon name="link-outline" color={colors.accentStrong} />} title="Join a trip with an invite link" chevron onPress={() => setJoining(true)} />
+          <Row
+            left={<Icon name="link-outline" color={colors.accentStrong} />}
+            title="Join a trip with an invite link"
+            chevron
+            onPress={() => setJoining(true)}
+          />
           <Divider inset={48} />
-          <Row left={<Icon name="download-outline" color={colors.accentStrong} />} title="Import from Splitwise" chevron onPress={() => router.push("/import-splitwise")} />
+          <Row
+            left={<Icon name="download-outline" color={colors.accentStrong} />}
+            title="Import from Splitwise"
+            chevron
+            onPress={() => router.push("/import-splitwise")}
+          />
         </Card>
 
         <SectionHeader title="About" />
         <Card>
-          <Row left={<Icon name="shield-checkmark-outline" color={colors.accentStrong} />} title="Privacy policy" chevron onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} />
+          <Row
+            left={<Icon name="shield-checkmark-outline" color={colors.accentStrong} />}
+            title="Privacy policy"
+            chevron
+            onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)}
+          />
           <Divider inset={48} />
-          <Row left={<Icon name="mail-outline" color={colors.accentStrong} />} title="Contact support" value={SUPPORT_EMAIL} onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} />
+          <Row
+            left={<Icon name="mail-outline" color={colors.accentStrong} />}
+            title="Contact support"
+            value={SUPPORT_EMAIL}
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+          />
           <Divider inset={48} />
-          <Row left={<Icon name="information-circle-outline" color={colors.accentStrong} />} title="Version" value={`${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`} />
+          <Row
+            left={<Icon name="information-circle-outline" color={colors.accentStrong} />}
+            title="Version"
+            value={`${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"})`}
+          />
         </Card>
 
         <View style={{ paddingHorizontal: PAGE, gap: 4, marginTop: 18 }}>
           <Button title="Sign out" variant="destructive" loading={busy === "signout"} disabled={busy !== null} onPress={confirmSignOut} />
-          <Button title="Delete account" variant="destructive" loading={busy === "delete"} disabled={busy !== null} onPress={confirmDelete} />
+          <Button
+            title="Delete account"
+            variant="destructive"
+            loading={busy === "delete"}
+            disabled={busy !== null}
+            onPress={confirmDelete}
+          />
         </View>
       </ScrollView>
-      <CurrencyPicker visible={pickingCurrency} value={currency ?? ""} onPick={(code) => rememberCurrency(ctx, code)} onClose={() => setPickingCurrency(false)} />
+      <CurrencyPicker
+        visible={pickingCurrency}
+        value={currency ?? ""}
+        onPick={(code) => rememberCurrency(ctx, code)}
+        onClose={() => setPickingCurrency(false)}
+      />
       <JoinByLink visible={joining} onClose={() => setJoining(false)} />
     </SafeAreaView>
   );

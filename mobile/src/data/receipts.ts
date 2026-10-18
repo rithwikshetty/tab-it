@@ -80,9 +80,7 @@ export async function uploadPendingReceipts(store: Store): Promise<void> {
     if (path && file?.exists) {
       try {
         const bytes = await file.bytes();
-        await call(
-          supabase.storage.from(BUCKET).upload(path, bytes, { contentType: "image/jpeg", upsert: true }) as never,
-        );
+        await call(supabase.storage.from(BUCKET).upload(path, bytes, { contentType: "image/jpeg", upsert: true }) as never);
         file.delete();
       } catch (error) {
         const e = toRemoteError(error);
@@ -106,7 +104,7 @@ export async function receiptSource(path: string): Promise<{ uri: string; cacheK
   if (local) return { uri: local, cacheKey: `local:${path}` };
   const hit = signed.get(path);
   if (hit && hit.expires > Date.now()) return { uri: hit.url, cacheKey: path };
-  const { signedUrl } = await call(supabase.storage.from(BUCKET).createSignedUrl(path, 3600) as never) as { signedUrl: string };
+  const { signedUrl } = (await call(supabase.storage.from(BUCKET).createSignedUrl(path, 3600) as never)) as { signedUrl: string };
   signed.set(path, { url: signedUrl, expires: Date.now() + 50 * 60_000 });
   return { uri: signedUrl, cacheKey: path };
 }

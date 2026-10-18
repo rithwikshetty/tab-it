@@ -9,13 +9,8 @@ import {
 import type { ActivityLogEntry } from "./records";
 import { a, b } from "./test-support";
 const seen = "2027-01-15T08:00:00Z";
-const at = (seconds: number) =>
-  new Date(Date.parse(seen) + seconds * 1000).toISOString();
-const activity = (
-  id: string,
-  seconds = 60,
-  extra: Partial<ActivityLogEntry> = {},
-): ActivityLogEntry => ({
+const at = (seconds: number) => new Date(Date.parse(seen) + seconds * 1000).toISOString();
+const activity = (id: string, seconds = 60, extra: Partial<ActivityLogEntry> = {}): ActivityLogEntry => ({
   id,
   trip_id: "trip",
   actor_id: b,
@@ -65,11 +60,7 @@ test("feedShowsOwnActivityWithoutMarkingItUnread", () => {
 });
 test("readActivityIsNotUnreadEvenWhenNewerThanCursor", () =>
   expect(
-    sections(
-      [activity("read")],
-      options({ localState: { read: { readAt: at(90) } } }),
-      seen,
-    )
+    sections([activity("read")], options({ localState: { read: { readAt: at(90) } } }), seen)
       .flatMap((s) => s.rows)
       .map((r) => r.isUnread),
   ).toEqual([false]));
@@ -82,27 +73,15 @@ test("unreadActivityRequiresNilReadMarkerAndNewerTimestamp", () =>
 test("unreadCountStillExcludesOwnActivity", () =>
   expect(
     count(
-      [
-        activity("own", 120, { actor_id: a, action: "settlement_created" }),
-        activity("other", 60, { action: "settlement_created" }),
-      ],
+      [activity("own", 120, { actor_id: a, action: "settlement_created" }), activity("other", 60, { action: "settlement_created" })],
       options(),
     ),
   ).toBe(1));
 test("preJoinEventsAreNotUnread", () =>
-  expect(
-    count(
-      [activity("old", -3600), activity("new", 60)],
-      options({ lastSeenAt: null, joinedAtByTrip: { trip: seen } }),
-    ),
-  ).toBe(1));
+  expect(count([activity("old", -3600), activity("new", 60)], options({ lastSeenAt: null, joinedAtByTrip: { trip: seen } }))).toBe(1));
 test("mutedTripsAreNotUnread", () =>
   expect(
-    sections(
-      [activity("muted", 60, { trip_id: "muted" })],
-      options({ mutedTripIDs: new Set(["muted"]) }),
-      seen,
-    )
+    sections([activity("muted", 60, { trip_id: "muted" })], options({ mutedTripIDs: new Set(["muted"]) }), seen)
       .flatMap((s) => s.rows)
       .map((r) => r.isUnread),
   ).toEqual([false]));
@@ -184,12 +163,9 @@ test.each([
   expect(row.trailing).toBe("€40.00");
 });
 test("snapshot fallbacks and join-self title", () => {
-  expect(
-    activityRow(
-      activity("self", 60, { action: "member_joined" }),
-      options({ myTripPersonIDs: new Set(["self"]) }),
-    ).title,
-  ).toBe("You were added to Lisbon");
+  expect(activityRow(activity("self", 60, { action: "member_joined" }), options({ myTripPersonIDs: new Set(["self"]) })).title).toBe(
+    "You were added to Lisbon",
+  );
   expect(
     activityRow(
       activity("s", 60, {
@@ -205,23 +181,12 @@ test("snapshot fallbacks and join-self title", () => {
   });
 });
 test("feed date labels use the supplied clock", () => {
-  const s = sections(
-    [
-      activity("today"),
-      activity("yesterday", -86400),
-      activity("old", -400 * 86400),
-    ],
-    options(),
-    seen,
-  );
+  const s = sections([activity("today"), activity("yesterday", -86400), activity("old", -400 * 86400)], options(), seen);
   expect(s[0]?.dateLabel).toBe("Today");
   expect(s[1]?.dateLabel).toBe("Yesterday");
   expect(s[2]?.dateLabel).toMatch(/2025/);
 });
 test("non-string snapshots match Swift whole-dictionary decode fallback", () =>
-  expect(
-    activityRow(
-      activity("x", 60, { snapshot_json: { actor_name: "Bo", amount: 40 } }),
-      options(),
-    ).title,
-  ).toBe("Someone added an expense"));
+  expect(activityRow(activity("x", 60, { snapshot_json: { actor_name: "Bo", amount: 40 } }), options()).title).toBe(
+    "Someone added an expense",
+  ));

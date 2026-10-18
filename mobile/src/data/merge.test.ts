@@ -109,8 +109,12 @@ describe("timestamps", () => {
 describe("resolveConflict", () => {
   const base = { updated_at: "2026-10-01T00:00:00Z", write_id: "b" };
   it("lets a delete beat a later live edit", () => {
-    expect(resolveConflict({ ...base, updated_at: "2026-10-05T00:00:00Z" }, { ...base, write_id: "c", deleted_at: "2026-10-02T00:00:00Z" })).toBe("remote");
-    expect(resolveConflict({ ...base, deleted_at: "2026-10-02T00:00:00Z" }, { ...base, write_id: "c", updated_at: "2026-10-09T00:00:00Z" })).toBe("local");
+    expect(
+      resolveConflict({ ...base, updated_at: "2026-10-05T00:00:00Z" }, { ...base, write_id: "c", deleted_at: "2026-10-02T00:00:00Z" }),
+    ).toBe("remote");
+    expect(
+      resolveConflict({ ...base, deleted_at: "2026-10-02T00:00:00Z" }, { ...base, write_id: "c", updated_at: "2026-10-09T00:00:00Z" }),
+    ).toBe("local");
   });
   it("prefers the later write and breaks ties by write_id", () => {
     expect(resolveConflict(base, { ...base, write_id: "c", updated_at: "2026-10-02T00:00:00Z" })).toBe("remote");
@@ -131,7 +135,17 @@ describe("mergeRemote", () => {
     let state = withRows(emptyState(), { trips: [trip()], expenses: [local] });
     state = withRows(state, {
       expense_splits: [
-        { expense_id: local.id, trip_person_id: PERSON, amount_owed: "40", split_type: "equal", share_units: null, percentage: null, created_at: "x", updated_at: "x", write_id: "x" },
+        {
+          expense_id: local.id,
+          trip_person_id: PERSON,
+          amount_owed: "40",
+          split_type: "equal",
+          share_units: null,
+          percentage: null,
+          created_at: "x",
+          updated_at: "x",
+          write_id: "x",
+        },
       ],
     });
     const next = apply(state, mergeRemote(state, { expenses: [remoteExpense(expense(), [PERSON], [PERSON, OTHER])] }, ctx));
@@ -144,7 +158,17 @@ describe("mergeRemote", () => {
     let state = withRows(emptyState(), { trips: [trip()], expenses: [e] });
     state = withRows(state, {
       expense_splits: [
-        { expense_id: e.id, trip_person_id: "gone", amount_owed: "30", split_type: "equal", share_units: null, percentage: null, created_at: "x", updated_at: "x", write_id: "x" },
+        {
+          expense_id: e.id,
+          trip_person_id: "gone",
+          amount_owed: "30",
+          split_type: "equal",
+          share_units: null,
+          percentage: null,
+          created_at: "x",
+          updated_at: "x",
+          write_id: "x",
+        },
       ],
     });
     const next = apply(state, mergeRemote(state, { expenses: [remoteExpense(e, [PERSON], [PERSON, OTHER])] }, ctx));
@@ -206,7 +230,16 @@ describe("mergeRemote", () => {
     const state = withRows(emptyState(), {
       trips: [trip()],
       activity_log: [
-        { id: "old", trip_id: TRIP, actor_id: USER, action: "trip_created", entity_type: "trip", entity_id: TRIP, timestamp: "2026-01-01T00:00:00Z", snapshot_json: null },
+        {
+          id: "old",
+          trip_id: TRIP,
+          actor_id: USER,
+          action: "trip_created",
+          entity_type: "trip",
+          entity_id: TRIP,
+          timestamp: "2026-01-01T00:00:00Z",
+          snapshot_json: null,
+        },
       ],
     });
     const next = apply(state, mergeRemote(state, { trips: [trip()], activity_log: [] }, ctx));

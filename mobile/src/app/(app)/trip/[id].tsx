@@ -13,6 +13,7 @@ import { BalanceCard, DebtGroups, SettledCard, Timeline } from "@/features/ledge
 import { OverviewSection } from "@/features/ledger/overview";
 import { shareTripExport } from "@/features/trip/export";
 import { SyncBanner } from "@/features/sync/sync-banner";
+import { localOffset } from "@/lib/dates";
 import { AvatarGroup } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
 import { MoreMenu } from "@/ui/menu";
@@ -43,11 +44,14 @@ export default function TripScreen() {
     return {
       summaries: balanceSummaries(rows, youPeople, me.id),
       groups: simplifiedGroups(rows, youPeople, me.id),
-      days: timelineDays(rows, youPeople, categories, me.id),
+      days: timelineDays(rows, youPeople, categories, me.id, { utcOffsetMinutes: localOffset }),
       overview: buildOverview(rows, me.id, names, (cid) => categories.find((c) => c.id === cid)?.name ?? "Other"),
       categoryIcon: (cid: string | null) => categories.find((c) => c.id === cid)?.icon ?? null,
       pending: new Set(rows.expenses.filter((e) => isDirty(e as never)).map((e) => e.id)),
-      members: sortedPeople(people.filter((p) => !p.removed_at), me.id).map((p) => ({
+      members: sortedPeople(
+        people.filter((p) => !p.removed_at),
+        me.id,
+      ).map((p) => ({
         id: p.id,
         name: p.id === me.id ? ctx.user.displayName : p.display_name,
         email: p.email,
@@ -71,7 +75,12 @@ export default function TripScreen() {
   }
 
   const muted = mutedTripIds(state, ctx.user.id).has(id);
-  const title = isNonGroup ? derived.members.filter((m) => m.id !== me.id).map((m) => m.name).join(", ") : trip.name;
+  const title = isNonGroup
+    ? derived.members
+        .filter((m) => m.id !== me.id)
+        .map((m) => m.name)
+        .join(", ")
+    : trip.name;
 
   async function shareInvite() {
     try {
@@ -94,9 +103,16 @@ export default function TripScreen() {
   }
 
   const menu = [
-    ...(isNonGroup ? [] : [{ id: "edit", title: "Edit trip", symbol: "pencil", onPress: () => router.push({ pathname: "/trip-edit", params: { id } }) }]),
+    ...(isNonGroup
+      ? []
+      : [{ id: "edit", title: "Edit trip", symbol: "pencil", onPress: () => router.push({ pathname: "/trip-edit", params: { id } }) }]),
     { id: "people", title: "People", symbol: "person.2", onPress: () => router.push({ pathname: "/trip-people", params: { id } }) },
-    { id: "settle", title: "Record a payment", symbol: "arrow.left.arrow.right", onPress: () => router.push({ pathname: "/settle-up", params: { tripId: id } }) },
+    {
+      id: "settle",
+      title: "Record a payment",
+      symbol: "arrow.left.arrow.right",
+      onPress: () => router.push({ pathname: "/settle-up", params: { tripId: id } }),
+    },
     {
       id: "mute",
       title: muted ? "Unmute notifications" : "Mute notifications",
@@ -126,7 +142,12 @@ export default function TripScreen() {
         options={{
           title: "",
           headerTitle: () => (
-            <AvatarGroup people={derived.members} size={30} max={4} onAdd={isNonGroup ? undefined : () => router.push({ pathname: "/trip-people", params: { id } })} />
+            <AvatarGroup
+              people={derived.members}
+              size={30}
+              max={4}
+              onAdd={isNonGroup ? undefined : () => router.push({ pathname: "/trip-people", params: { id } })}
+            />
           ),
           headerRight: () => <MoreMenu items={menu} label="Trip actions" />,
         }}
@@ -155,7 +176,9 @@ export default function TripScreen() {
         ) : (
           <SettledCard
             title={rows.expenses.some((e) => !e.deleted_at) ? "All settled" : "No expenses yet"}
-            message={rows.expenses.some((e) => !e.deleted_at) ? "Nobody owes anything right now." : "Add the first expense to start tracking."}
+            message={
+              rows.expenses.some((e) => !e.deleted_at) ? "Nobody owes anything right now." : "Add the first expense to start tracking."
+            }
           />
         )}
         <Segmented
@@ -197,10 +220,16 @@ export default function TripScreen() {
                   })
                 }
               />
-              <Text style={styles.hint}>Tap a balance to record a payment. Balances are simplified so the group needs as few payments as possible.</Text>
+              <Text style={styles.hint}>
+                Tap a balance to record a payment. Balances are simplified so the group needs as few payments as possible.
+              </Text>
             </View>
           ) : (
-            <EmptyState icon="checkmark-circle-outline" title="Everyone's settled" message="Balances appear here once there are expenses." />
+            <EmptyState
+              icon="checkmark-circle-outline"
+              title="Everyone's settled"
+              message="Balances appear here once there are expenses."
+            />
           ))}
         {segment === "overview" && (
           <View style={{ paddingTop: 10 }}>

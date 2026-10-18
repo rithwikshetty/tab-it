@@ -1,12 +1,7 @@
 import { timestampUnits } from "./conflict-resolver";
 import type { LedgerRows } from "./models";
 import type { Expense, TripPerson, Category, Settlement } from "./records";
-import type {
-  ExpenseRowItem,
-  SettlementRowItem,
-  TimelineDay,
-  TimelineItem,
-} from "./view-state";
+import type { ExpenseRowItem, SettlementRowItem, TimelineDay, TimelineItem } from "./view-state";
 import type { CalendarOptions } from "./expense-dates";
 import { calendarDay, dayID, dayLabel, calendarOffset } from "./expense-dates";
 import { toMinor } from "./money";
@@ -22,25 +17,14 @@ export function expenseRow(
 ): ExpenseRowItem {
   const payments = rows.payments.filter((p) => p.expense_id === expense.id),
     splits = rows.splits.filter((s) => s.expense_id === expense.id),
-    firstPayer = [...payments].sort((a, b) =>
-      compare(a.trip_person_id, b.trip_person_id),
-    )[0]?.trip_person_id;
-  const name = (id: string) =>
-    people.find((p) => p.id === id)?.display_name ?? "Member";
+    firstPayer = [...payments].sort((a, b) => compare(a.trip_person_id, b.trip_person_id))[0]?.trip_person_id;
+  const name = (id: string) => people.find((p) => p.id === id)?.display_name ?? "Member";
   const payerName =
-    payments.length > 1
-      ? `${payments.length} people`
-      : firstPayer
-        ? firstPayer === currentPersonID
-          ? "you"
-          : name(firstPayer)
-        : "\u2014";
+    payments.length > 1 ? `${payments.length} people` : firstPayer ? (firstPayer === currentPersonID ? "you" : name(firstPayer)) : "\u2014";
   const share = splits
       .filter((s) => s.trip_person_id === currentPersonID)
       .reduce((n, s) => n + toMinor(s.amount_owed, expense.currency), 0n),
-    paid = payments
-      .filter((p) => p.trip_person_id === currentPersonID)
-      .reduce((n, p) => n + toMinor(p.amount_paid, expense.currency), 0n),
+    paid = payments.filter((p) => p.trip_person_id === currentPersonID).reduce((n, p) => n + toMinor(p.amount_paid, expense.currency), 0n),
     net = paid - share;
   const category = categories.find((c) => c.id === expense.category_id);
   return {
@@ -51,8 +35,7 @@ export function expenseRow(
     payerName,
     totalAmount: formatMoney(expense.amount, expense.currency, locale),
     yourShare: formatMoney(share, expense.currency, locale),
-    netAmount:
-      net === 0n ? null : formatMoney(abs(net), expense.currency, locale),
+    netAmount: net === 0n ? null : formatMoney(abs(net), expense.currency, locale),
     balanceSemantic: net > 0n ? "lent" : net < 0n ? "borrowed" : "neutral",
   };
 }
@@ -65,22 +48,16 @@ export function settlementRow(
   const fromName =
       settlement.from_person_id === currentPersonID
         ? "You"
-        : (people.find((p) => p.id === settlement.from_person_id)
-            ?.display_name ?? "Member"),
+        : (people.find((p) => p.id === settlement.from_person_id)?.display_name ?? "Member"),
     toName =
       settlement.to_person_id === currentPersonID
         ? "you"
-        : (people.find((p) => p.id === settlement.to_person_id)?.display_name ??
-          "Member");
+        : (people.find((p) => p.id === settlement.to_person_id)?.display_name ?? "Member");
   return {
     id: settlement.id,
     fromName,
     toName,
-    formattedAmount: formatMoney(
-      settlement.amount,
-      settlement.currency,
-      locale,
-    ),
+    formattedAmount: formatMoney(settlement.amount, settlement.currency, locale),
     text: `${fromName} settled with ${toName}`,
   };
 }
@@ -128,9 +105,7 @@ export function timelineDays(
       value = currencies.get(e.currency) ?? { total: 0n, share: 0n };
     value.total += toMinor(e.amount, e.currency);
     value.share += rows.splits
-      .filter(
-        (s) => s.expense_id === e.id && s.trip_person_id === currentPersonID,
-      )
+      .filter((s) => s.expense_id === e.id && s.trip_person_id === currentPersonID)
       .reduce((n, s) => n + toMinor(s.amount_owed, e.currency), 0n);
     currencies.set(e.currency, value);
     totals.set(day, currencies);
@@ -170,9 +145,7 @@ export function timelineDays(
         })),
       items: all
         .filter((a) => a.day === day)
-        .sort((a, b) =>
-          compare(timestampUnits(b.created), timestampUnits(a.created)),
-        )
+        .sort((a, b) => compare(timestampUnits(b.created), timestampUnits(a.created)))
         .map((a) => a.item),
     }));
 }

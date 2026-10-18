@@ -1,29 +1,12 @@
 import { expect, test } from "vitest";
-import {
-  extractExportData,
-  buildWorkbook,
-  exportCSVs,
-  exportText,
-  sheetCSV,
-  type ExportData,
-} from "./trip-exporter";
-import {
-  buildWorkbookXML,
-  workbookXLSX,
-  spreadsheetColumn,
-  xmlDecimal,
-} from "./workbook-xlsx";
+import { extractExportData, buildWorkbook, exportCSVs, exportText, sheetCSV, type ExportData } from "./trip-exporter";
+import { buildWorkbookXML, workbookXLSX, spreadsheetColumn, xmlDecimal } from "./workbook-xlsx";
 import { a, b, c, tripRows, person, addExpense } from "./test-support";
 test("extractDataUsesPaymentMethodNotMode", () => {
-  const r = addExpense(
-      tripRows("trip", "Tokyo", [person(a, "Alice")]),
-      "expense",
-      { [a]: "60" },
-      { [a]: "60" },
-      "60",
-      "EUR",
-      { description: "Taxi", payment_method: "cash" },
-    ),
+  const r = addExpense(tripRows("trip", "Tokyo", [person(a, "Alice")]), "expense", { [a]: "60" }, { [a]: "60" }, "60", "EUR", {
+      description: "Taxi",
+      payment_method: "cash",
+    }),
     data = extractExportData(r);
   expect(data.expenses[0]?.paymentMethod).toBe("cash");
   expect(data.expensePayments[0]?.paymentMode).toBe("equal");
@@ -92,13 +75,7 @@ function data(): ExportData {
 }
 test("workbookHasNormalizedExpensePaymentAndSplitSheets", () => {
   const w = buildWorkbook(data());
-  expect(w.sheets.map((s) => s.name)).toEqual([
-    "Expenses",
-    "Expense Payments",
-    "Expense Splits",
-    "Settlements",
-    "Summary",
-  ]);
+  expect(w.sheets.map((s) => s.name)).toEqual(["Expenses", "Expense Payments", "Expense Splits", "Settlements", "Summary"]);
   const e = w.sheets[0]!.rows.map((r) => r.map((c) => c.value));
   expect(e[0]).toEqual([
     "Expense ID",
@@ -125,16 +102,7 @@ test("workbookHasNormalizedExpensePaymentAndSplitSheets", () => {
   ]);
   const p = w.sheets[1]!.rows.map((r) => r.map((c) => c.value));
   expect(p).toHaveLength(3);
-  expect(p[0]).toEqual([
-    "Expense ID",
-    "Date",
-    "Description",
-    "Payer ID",
-    "Payer Name",
-    "Currency",
-    "Amount Paid",
-    "Payment Mode",
-  ]);
+  expect(p[0]).toEqual(["Expense ID", "Date", "Description", "Payer ID", "Payer Name", "Currency", "Amount Paid", "Payment Mode"]);
   expect(p[1]?.slice(3, 5)).toEqual([a, "Alice"]);
   const s = w.sheets[2]!.rows.map((r) => r.map((c) => c.value));
   expect(s).toHaveLength(4);
@@ -171,9 +139,7 @@ test("extraction sorts names and dates and retains exact creator/editor and symb
     lastEditedBy: "Cara",
     lastEditedAt: "2026-05-22 21:00",
   });
-  expect(data.summary.totalsByCurrency).toEqual([
-    { currency: "EUR", total: "120" },
-  ]);
+  expect(data.summary.totalsByCurrency).toEqual([{ currency: "EUR", total: "120" }]);
   expect(data.summary.personSummaries).toEqual([
     {
       name: "Alice",
@@ -249,20 +215,10 @@ test("XLSX numeric cells keep exact decimal text and the Swift minimum two digit
   expect(xmlDecimal("12.5")).toBe("12.50");
   expect(xmlDecimal("1.23456789")).toBe("1.23456789");
   expect(xmlDecimal("999999999999.99")).toBe("999999999999.99");
-  expect([0, 25, 26, 51, 52, 701, 702].map(spreadsheetColumn)).toEqual([
-    "A",
-    "Z",
-    "AA",
-    "AZ",
-    "BA",
-    "ZZ",
-    "AAA",
-  ]);
+  expect([0, 25, 26, 51, 52, 701, 702].map(spreadsheetColumn)).toEqual(["A", "Z", "AA", "AZ", "BA", "ZZ", "AAA"]);
   const w = buildWorkbook(data()),
     files = buildWorkbookXML(w);
-  expect(files["xl/worksheets/sheet1.xml"]).toContain(
-    '<c r="D2"><v>120.00</v></c>',
-  );
+  expect(files["xl/worksheets/sheet1.xml"]).toContain('<c r="D2"><v>120.00</v></c>');
   expect(files["xl/workbook.xml"]).toContain('name="Expense Payments"');
 });
 test("XLSX is a complete stored ZIP with each XML part and central directory", () => {

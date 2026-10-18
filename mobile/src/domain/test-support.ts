@@ -1,11 +1,5 @@
 import type { LedgerExpense, LedgerSettlement, TripRows } from "./models";
-import type {
-  Expense,
-  ExpensePayment,
-  ExpenseSplit,
-  TripPerson,
-  Settlement,
-} from "./records";
+import type { Expense, ExpensePayment, ExpenseSplit, TripPerson, Settlement } from "./records";
 import type { UserBalance } from "./balance-engine";
 import { toMinor } from "./money";
 export const a = "00000000-0000-0000-0000-00000000000a",
@@ -40,12 +34,7 @@ export function ledgerExpense(
     })),
   };
 }
-export function ledgerSettlement(
-  fromUserID: string,
-  toUserID: string,
-  amount: string,
-  currency = "EUR",
-): LedgerSettlement {
+export function ledgerSettlement(fromUserID: string, toUserID: string, amount: string, currency = "EUR"): LedgerSettlement {
   return {
     fromUserID,
     toUserID,
@@ -53,12 +42,7 @@ export function ledgerSettlement(
     deletedAt: null,
   };
 }
-export function mirrored(
-  creditor: string,
-  debtor: string,
-  amount: string,
-  currency = "EUR",
-): UserBalance[] {
+export function mirrored(creditor: string, debtor: string, amount: string, currency = "EUR"): UserBalance[] {
   const value = toMinor(amount, currency);
   return [
     {
@@ -75,12 +59,7 @@ export function mirrored(
     },
   ];
 }
-export function person(
-  id: string,
-  display_name: string,
-  trip_id = "trip",
-  user_id: string | null = id,
-): TripPerson {
+export function person(id: string, display_name: string, trip_id = "trip", user_id: string | null = id): TripPerson {
   return {
     id,
     display_name,
@@ -98,11 +77,7 @@ export function person(
 export function tripRows(
   id = "trip",
   name = "Demo",
-  people = [
-    person(a, "Alice", id),
-    person(b, "Bob", id),
-    person(c, "Cara", id),
-  ],
+  people = [person(a, "Alice", id), person(b, "Bob", id), person(c, "Cara", id)],
 ): TripRows {
   return {
     trip: {
@@ -152,30 +127,26 @@ export function addExpense(
     deleted_at: null,
     ...extra,
   };
-  const payments: ExpensePayment[] = Object.entries(paid).map(
-    ([trip_person_id, amount_paid]) => ({
-      expense_id: id,
-      trip_person_id,
-      amount_paid,
-      payment_mode: "equal",
-      created_at: now,
-      updated_at: now,
-      write_id: a,
-    }),
-  );
-  const splits: ExpenseSplit[] = Object.entries(owed).map(
-    ([trip_person_id, amount_owed]) => ({
-      expense_id: id,
-      trip_person_id,
-      amount_owed,
-      split_type: "equal",
-      share_units: null,
-      percentage: null,
-      created_at: now,
-      updated_at: now,
-      write_id: a,
-    }),
-  );
+  const payments: ExpensePayment[] = Object.entries(paid).map(([trip_person_id, amount_paid]) => ({
+    expense_id: id,
+    trip_person_id,
+    amount_paid,
+    payment_mode: "equal",
+    created_at: now,
+    updated_at: now,
+    write_id: a,
+  }));
+  const splits: ExpenseSplit[] = Object.entries(owed).map(([trip_person_id, amount_owed]) => ({
+    expense_id: id,
+    trip_person_id,
+    amount_owed,
+    split_type: "equal",
+    share_units: null,
+    percentage: null,
+    created_at: now,
+    updated_at: now,
+    write_id: a,
+  }));
   return {
     ...rows,
     expenses: [...rows.expenses, expense],

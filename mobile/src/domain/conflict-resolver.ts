@@ -10,10 +10,7 @@ export type MergeDecision = "keepLocal" | "applyRemote";
 export function timestampUnits(value: string): bigint {
   const match = /\.(\d+)(?=Z|[+-]\d\d:\d\d$)/i.exec(value);
   const instant = match ? value.replace("." + match[1], "") : value;
-  return (
-    BigInt(Date.parse(instant)) * 1000000n +
-    BigInt((match?.[1] ?? "").padEnd(9, "0").slice(0, 9) || "0")
-  );
+  return BigInt(Date.parse(instant)) * 1000000n + BigInt((match?.[1] ?? "").padEnd(9, "0").slice(0, 9) || "0");
 }
 export function resolveConflict<T extends WriteStamp>(a: T, b: T): T {
   if (a.deletedAt !== null && b.deletedAt === null) return a;
@@ -23,17 +20,10 @@ export function resolveConflict<T extends WriteStamp>(a: T, b: T): T {
   if (at !== bt) return at > bt ? a : b;
   return a.writeID.toLowerCase() >= b.writeID.toLowerCase() ? a : b;
 }
-export function mergeDecision(
-  local: WriteStamp,
-  localIsDirty: boolean,
-  remote: WriteStamp,
-): MergeDecision {
-  if (local.writeID.toLowerCase() === remote.writeID.toLowerCase())
-    return "keepLocal";
+export function mergeDecision(local: WriteStamp, localIsDirty: boolean, remote: WriteStamp): MergeDecision {
+  if (local.writeID.toLowerCase() === remote.writeID.toLowerCase()) return "keepLocal";
   if (!localIsDirty) return "applyRemote";
-  return resolveConflict(local, remote).writeID === remote.writeID
-    ? "applyRemote"
-    : "keepLocal";
+  return resolveConflict(local, remote).writeID === remote.writeID ? "applyRemote" : "keepLocal";
 }
 export function rowMergeDecision(
   local: SyncFields & {

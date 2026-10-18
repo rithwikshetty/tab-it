@@ -3,12 +3,7 @@ import type { Payment, CalculatedSplit } from "./models";
 import { calculateSplits, equalPercentages } from "./split-calculator";
 import { calculatePayments } from "./payment-calculator";
 import { addDecimals, decimalRational } from "./decimal";
-import {
-  decimalFromInput,
-  sanitizeAmountInput,
-  sanitizeShareInput,
-  shareString,
-} from "./money";
+import { decimalFromInput, sanitizeAmountInput, sanitizeShareInput, shareString } from "./money";
 import { plainAmountString } from "./money-formatter";
 export interface PaymentSplitDraft {
   payerMode: SplitType;
@@ -22,9 +17,7 @@ export interface PaymentSplitDraft {
   percentSplitText: Record<string, string>;
   hasSeeded: boolean;
 }
-export function createPaymentSplitDraft(
-  values: Partial<PaymentSplitDraft> = {},
-): PaymentSplitDraft {
+export function createPaymentSplitDraft(values: Partial<PaymentSplitDraft> = {}): PaymentSplitDraft {
   return {
     payerMode: "equal",
     selectedPayerIDs: [],
@@ -49,31 +42,13 @@ const copy = (s: PaymentSplitDraft): PaymentSplitDraft => ({
   percentSplitText: { ...s.percentSplitText },
 });
 export function selectedSplitType(draft: PaymentSplitDraft): SplitType {
-  return draft.splitMode === 0
-    ? "equal"
-    : draft.splitMode === 2
-      ? "shares"
-      : draft.splitMode === 3
-        ? "percentage"
-        : "exact";
+  return draft.splitMode === 0 ? "equal" : draft.splitMode === 2 ? "shares" : draft.splitMode === 3 ? "percentage" : "exact";
 }
-export function enteredDraftTotal(
-  ids: readonly string[],
-  text: Readonly<Record<string, string>>,
-): string {
+export function enteredDraftTotal(ids: readonly string[], text: Readonly<Record<string, string>>): string {
   return addDecimals(ids.map((id) => decimalFromInput(text[id] ?? "") ?? "0"));
 }
-function seedPayers(
-  draft: PaymentSplitDraft,
-  totalAmount: string,
-  currency: string,
-  overwrite: boolean,
-) {
-  if (
-    !draft.selectedPayerIDs.length ||
-    decimalRational(totalAmount).numerator <= 0n
-  )
-    return;
+function seedPayers(draft: PaymentSplitDraft, totalAmount: string, currency: string, overwrite: boolean) {
+  if (!draft.selectedPayerIDs.length || decimalRational(totalAmount).numerator <= 0n) return;
   let computed: Payment[];
   try {
     computed = calculatePayments({
@@ -86,37 +61,21 @@ function seedPayers(
     return;
   }
   draft.exactPayerAmountText = Object.fromEntries(
-    Object.entries(draft.exactPayerAmountText).filter(([id]) =>
-      draft.selectedPayerIDs.includes(id),
-    ),
+    Object.entries(draft.exactPayerAmountText).filter(([id]) => draft.selectedPayerIDs.includes(id)),
   );
   for (const p of computed)
     if (overwrite || !draft.exactPayerAmountText[p.payerID]?.trim())
-      draft.exactPayerAmountText[p.payerID] = plainAmountString(
-        p.amountPaid,
-        currency,
-      );
+      draft.exactPayerAmountText[p.payerID] = plainAmountString(p.amountPaid, currency);
 }
-function seedSplits(
-  draft: PaymentSplitDraft,
-  totalAmount: string,
-  currency: string,
-  overwrite = false,
-) {
+function seedSplits(draft: PaymentSplitDraft, totalAmount: string, currency: string, overwrite = false) {
   const type = selectedSplitType(draft);
   if (type === "shares") {
-    for (const id of draft.selectedParticipants)
-      if (!draft.shareSplitText[id]?.trim()) draft.shareSplitText[id] = "1";
+    for (const id of draft.selectedParticipants) if (!draft.shareSplitText[id]?.trim()) draft.shareSplitText[id] = "1";
   } else if (type === "percentage") {
     const equal = equalPercentages(draft.selectedParticipants);
     for (const id of draft.selectedParticipants)
-      if (!draft.percentSplitText[id]?.trim())
-        draft.percentSplitText[id] = shareString(equal[id]!);
-  } else if (
-    type === "exact" &&
-    draft.selectedParticipants.length &&
-    decimalRational(totalAmount).numerator > 0n
-  ) {
+      if (!draft.percentSplitText[id]?.trim()) draft.percentSplitText[id] = shareString(equal[id]!);
+  } else if (type === "exact" && draft.selectedParticipants.length && decimalRational(totalAmount).numerator > 0n) {
     let splits: CalculatedSplit[];
     try {
       splits = calculateSplits({
@@ -130,10 +89,7 @@ function seedSplits(
     }
     for (const s of splits)
       if (overwrite || !draft.exactSplitAmountText[s.participantID]?.trim())
-        draft.exactSplitAmountText[s.participantID] = plainAmountString(
-          s.amountOwed,
-          currency,
-        );
+        draft.exactSplitAmountText[s.participantID] = plainAmountString(s.amountOwed, currency);
   }
 }
 export function seedPaymentSplitDraft(
@@ -155,49 +111,25 @@ export function seedPaymentSplitDraft(
   d.hasSeeded = true;
   d.selectedPayerIDs = options.payments.length
     ? [...new Set(options.payments.map((p) => p.payerID))]
-    : [options.currentPersonID ?? options.members[0]].filter(
-        (id): id is string => id !== undefined && id !== null,
-      );
+    : [options.currentPersonID ?? options.members[0]].filter((id): id is string => id !== undefined && id !== null);
   d.payerMode = options.payments[0]?.paymentMode ?? "equal";
   if (d.payerMode === "exact") {
     d.payerEdited = true;
     d.exactPayerAmountText = Object.fromEntries(
-      options.payments.map((p) => [
-        p.payerID,
-        plainAmountString(p.amountPaid, options.currency),
-      ]),
+      options.payments.map((p) => [p.payerID, plainAmountString(p.amountPaid, options.currency)]),
     );
   }
   d.splitMode = options.splitMode;
   d.selectedParticipants = [...new Set(options.participantSet)];
   d.exactSplitAmountText = Object.fromEntries(
-    Object.entries(options.exactSplitAmountText).map(([id, s]) => [
-      id,
-      sanitizeAmountInput(s, options.currency),
-    ]),
+    Object.entries(options.exactSplitAmountText).map(([id, s]) => [id, sanitizeAmountInput(s, options.currency)]),
   );
-  d.shareSplitText = Object.fromEntries(
-    Object.entries(options.shareSplitText).map(([id, s]) => [
-      id,
-      sanitizeShareInput(s),
-    ]),
-  );
-  d.percentSplitText = Object.fromEntries(
-    Object.entries(options.percentSplitText).map(([id, s]) => [
-      id,
-      sanitizeShareInput(s),
-    ]),
-  );
-  if (d.splitMode === 2 || d.splitMode === 3)
-    seedSplits(d, "0", options.currency);
+  d.shareSplitText = Object.fromEntries(Object.entries(options.shareSplitText).map(([id, s]) => [id, sanitizeShareInput(s)]));
+  d.percentSplitText = Object.fromEntries(Object.entries(options.percentSplitText).map(([id, s]) => [id, sanitizeShareInput(s)]));
+  if (d.splitMode === 2 || d.splitMode === 3) seedSplits(d, "0", options.currency);
   return d;
 }
-export function setPayerMode(
-  draft: PaymentSplitDraft,
-  mode: SplitType,
-  totalAmount: string,
-  currency: string,
-): PaymentSplitDraft {
+export function setPayerMode(draft: PaymentSplitDraft, mode: SplitType, totalAmount: string, currency: string): PaymentSplitDraft {
   const d = copy(draft);
   d.payerMode = mode;
   if (mode === "exact") {
@@ -206,12 +138,7 @@ export function setPayerMode(
   }
   return d;
 }
-export function togglePayer(
-  draft: PaymentSplitDraft,
-  id: string,
-  totalAmount: string,
-  currency: string,
-): PaymentSplitDraft {
+export function togglePayer(draft: PaymentSplitDraft, id: string, totalAmount: string, currency: string): PaymentSplitDraft {
   const d = copy(draft),
     selected = d.selectedPayerIDs.includes(id);
   if (selected) {
@@ -219,13 +146,7 @@ export function togglePayer(
     d.selectedPayerIDs = d.selectedPayerIDs.filter((p) => p !== id);
     delete d.exactPayerAmountText[id];
   } else d.selectedPayerIDs.push(id);
-  if (d.payerMode === "exact")
-    seedPayers(
-      d,
-      totalAmount,
-      currency,
-      !d.payerEdited || (selected && d.selectedPayerIDs.length === 1),
-    );
+  if (d.payerMode === "exact") seedPayers(d, totalAmount, currency, !d.payerEdited || (selected && d.selectedPayerIDs.length === 1));
   return d;
 }
 export function setDraftText(
@@ -239,8 +160,7 @@ export function setDraftText(
   if (field === "payer") {
     d.payerEdited = true;
     d.exactPayerAmountText[id] = sanitizeAmountInput(input, currency);
-  } else if (field === "exact")
-    d.exactSplitAmountText[id] = sanitizeAmountInput(input, currency);
+  } else if (field === "exact") d.exactSplitAmountText[id] = sanitizeAmountInput(input, currency);
   else if (field === "shares") d.shareSplitText[id] = sanitizeShareInput(input);
   else d.percentSplitText[id] = sanitizeShareInput(input);
   return d;
@@ -257,12 +177,7 @@ export function setSplitMode(
   seedSplits(d, totalAmount, currency, overwriteExactAmounts);
   return d;
 }
-export function toggleParticipant(
-  draft: PaymentSplitDraft,
-  id: string,
-  totalAmount: string,
-  currency: string,
-): PaymentSplitDraft {
+export function toggleParticipant(draft: PaymentSplitDraft, id: string, totalAmount: string, currency: string): PaymentSplitDraft {
   const d = copy(draft);
   if (d.selectedParticipants.includes(id)) {
     if (d.selectedParticipants.length <= 1) return draft;
@@ -271,10 +186,7 @@ export function toggleParticipant(
   seedSplits(d, totalAmount, currency);
   return d;
 }
-function entered(
-  ids: readonly string[],
-  text: Readonly<Record<string, string>>,
-): Record<string, string> | null {
+function entered(ids: readonly string[], text: Readonly<Record<string, string>>): Record<string, string> | null {
   const values: Record<string, string> = {};
   for (const id of ids) {
     const value = decimalFromInput(text[id]?.trim() ?? "");
@@ -283,20 +195,9 @@ function entered(
   }
   return values;
 }
-export function computedDraftPayments(
-  d: PaymentSplitDraft,
-  totalAmount: string,
-  currency: string,
-): Payment[] | null {
-  if (
-    !d.selectedPayerIDs.length ||
-    decimalRational(totalAmount).numerator <= 0n
-  )
-    return null;
-  const amounts =
-    d.payerMode === "exact"
-      ? entered(d.selectedPayerIDs, d.exactPayerAmountText)
-      : undefined;
+export function computedDraftPayments(d: PaymentSplitDraft, totalAmount: string, currency: string): Payment[] | null {
+  if (!d.selectedPayerIDs.length || decimalRational(totalAmount).numerator <= 0n) return null;
+  const amounts = d.payerMode === "exact" ? entered(d.selectedPayerIDs, d.exactPayerAmountText) : undefined;
   if (amounts === null) return null;
   try {
     return calculatePayments({
@@ -310,27 +211,15 @@ export function computedDraftPayments(
     return null;
   }
 }
-export function computedDraftSplits(
-  d: PaymentSplitDraft,
-  totalAmount: string,
-  currency: string,
-): CalculatedSplit[] | null {
-  if (
-    !d.selectedParticipants.length ||
-    decimalRational(totalAmount).numerator <= 0n
-  )
-    return null;
+export function computedDraftSplits(d: PaymentSplitDraft, totalAmount: string, currency: string): CalculatedSplit[] | null {
+  if (!d.selectedParticipants.length || decimalRational(totalAmount).numerator <= 0n) return null;
   const type = selectedSplitType(d),
     amounts =
       type === "equal"
         ? undefined
         : entered(
             d.selectedParticipants,
-            type === "exact"
-              ? d.exactSplitAmountText
-              : type === "shares"
-                ? d.shareSplitText
-                : d.percentSplitText,
+            type === "exact" ? d.exactSplitAmountText : type === "shares" ? d.shareSplitText : d.percentSplitText,
           );
   if (amounts === null) return null;
   try {

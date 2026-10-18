@@ -65,12 +65,8 @@ for (const f of fixture.balanceCases)
     ]);
     expect(r).toHaveLength(f.expected.length * 2);
     for (const row of f.expected) {
-      expect(
-        r.find((r) => r.forUser === row.for && r.withUser === row.with)?.amount,
-      ).toBe(toMinor(row.amount, f.currency));
-      expect(
-        r.find((r) => r.forUser === row.with && r.withUser === row.for)?.amount,
-      ).toBe(-toMinor(row.amount, f.currency));
+      expect(r.find((r) => r.forUser === row.for && r.withUser === row.with)?.amount).toBe(toMinor(row.amount, f.currency));
+      expect(r.find((r) => r.forUser === row.with && r.withUser === row.for)?.amount).toBe(-toMinor(row.amount, f.currency));
     }
   });
 for (const f of fixture.tripStateCases)

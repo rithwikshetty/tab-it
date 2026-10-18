@@ -1,25 +1,10 @@
 import { DefaultCategories } from "./presentation-helpers";
 import type { ImportResult } from "./splitwise-import";
-import type {
-  Expense,
-  ExpensePayment,
-  ExpenseSplit,
-  Settlement,
-} from "./records";
+import type { Expense, ExpensePayment, ExpenseSplit, Settlement } from "./records";
 import { fromMinor } from "./money";
 export function splitwiseCategoryID(category: string): string {
   const key = category.toLowerCase().trim();
-  if (
-    [
-      "food and drink",
-      "dining out",
-      "dining",
-      "groceries",
-      "liquor",
-      "restaurant",
-      "drinks",
-    ].includes(key)
-  )
+  if (["food and drink", "dining out", "dining", "groceries", "liquor", "restaurant", "drinks"].includes(key))
     return DefaultCategories.food.id;
   if (
     [
@@ -39,46 +24,13 @@ export function splitwiseCategoryID(category: string): string {
     ].includes(key)
   )
     return DefaultCategories.transport.id;
-  if (
-    [
-      "hotel",
-      "rent",
-      "mortgage",
-      "accommodation",
-      "lodging",
-      "hostel",
-      "airbnb",
-    ].includes(key)
-  )
-    return DefaultCategories.lodging.id;
-  if (
-    [
-      "entertainment",
-      "games",
-      "movies",
-      "music",
-      "sports",
-      "activities",
-    ].includes(key)
-  )
-    return DefaultCategories.activities.id;
-  if (
-    [
-      "shopping",
-      "clothing",
-      "electronics",
-      "furniture",
-      "household supplies",
-      "gifts",
-    ].includes(key)
-  )
+  if (["hotel", "rent", "mortgage", "accommodation", "lodging", "hostel", "airbnb"].includes(key)) return DefaultCategories.lodging.id;
+  if (["entertainment", "games", "movies", "music", "sports", "activities"].includes(key)) return DefaultCategories.activities.id;
+  if (["shopping", "clothing", "electronics", "furniture", "household supplies", "gifts"].includes(key))
     return DefaultCategories.shopping.id;
   return DefaultCategories.other.id;
 }
-export function bestSelfMatch(
-  people: readonly string[],
-  displayName: string,
-): string | null {
+export function bestSelfMatch(people: readonly string[], displayName: string): string | null {
   const target = displayName.toLowerCase().trim();
   if (!target) return null;
   const exact = people.find((p) => p.toLowerCase() === target);
@@ -87,9 +39,7 @@ export function bestSelfMatch(
   let best: string | null = null,
     score = 0;
   for (const person of people) {
-    const count = [
-      ...new Set(person.toLowerCase().split(" ").filter(Boolean)),
-    ].filter((t) => tokens.has(t)).length;
+    const count = [...new Set(person.toLowerCase().split(" ").filter(Boolean))].filter((t) => tokens.has(t)).length;
     if (count > score) {
       best = person;
       score = count;
@@ -146,8 +96,7 @@ export function mapSplitwiseRows(
         last_edited_by: null,
         deleted_at: null,
       });
-      const single =
-        row.payments.length === 1 && row.payments[0]!.amount === row.total;
+      const single = row.payments.length === 1 && row.payments[0]!.amount === row.total;
       for (const p of row.payments)
         payments.push({
           ...sync,
@@ -217,20 +166,14 @@ export function mapImportPeople(options: {
     id: options.creatorPersonID,
     trip_id: options.tripID,
     user_id: options.user.id,
-    email:
-      options.user.email !== null
-        ? options.user.email.trim().toLowerCase()
-        : options.user.id.toLowerCase() + "@users.tab",
+    email: options.user.email !== null ? options.user.email.trim().toLowerCase() : options.user.id.toLowerCase() + "@users.tab",
     display_name: options.user.displayName,
     invited_by: options.user.id,
     joined_at: options.now,
     removed_at: null,
   };
   const people = [creator],
-    personIDs: Record<string, string> = Object.create(null) as Record<
-      string,
-      string
-    >;
+    personIDs: Record<string, string> = Object.create(null) as Record<string, string>;
   if (options.selfPerson !== null) personIDs[options.selfPerson] = creator.id;
   for (const name of options.names) {
     if (personIDs[name] !== undefined) continue;

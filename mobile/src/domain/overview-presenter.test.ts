@@ -3,10 +3,8 @@ import { resolveOverview as resolve } from "./overview-presenter";
 import { a, b } from "./test-support";
 import type { TripSpendSummary } from "./trip-analytics";
 const names = (id: string) => (id === b ? "Marco" : "Member"),
-  cats = (id: string | null) =>
-    id === "food" ? "Food & Drink" : id === "lodging" ? "Lodging" : "Other";
-const show = (summaries: TripSpendSummary[]) =>
-  resolve(summaries, a, names, cats);
+  cats = (id: string | null) => (id === "food" ? "Food & Drink" : id === "lodging" ? "Lodging" : "Other");
+const show = (summaries: TripSpendSummary[]) => resolve(summaries, a, names, cats);
 test("empty", () => {
   const s = show([]);
   expect(s.isEmpty).toBe(true);

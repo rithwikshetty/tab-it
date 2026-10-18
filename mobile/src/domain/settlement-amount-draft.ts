@@ -8,26 +8,16 @@ export interface SettlementAmountDraft {
 export function createSettlementAmountDraft(): SettlementAmountDraft {
   return { text: "", wasUserEdited: false, shouldPrefill: true };
 }
-export function userChangedSettlementText(
-  draft: SettlementAmountDraft,
-  input: string,
-  currency: string,
-): SettlementAmountDraft {
+export function userChangedSettlementText(draft: SettlementAmountDraft, input: string, currency: string): SettlementAmountDraft {
   return {
     text: sanitizeAmountInput(input, currency),
     wasUserEdited: true,
     shouldPrefill: false,
   };
 }
-export function setProgrammaticSettlementText(
-  draft: SettlementAmountDraft,
-  text: string,
-): SettlementAmountDraft {
+export function setProgrammaticSettlementText(draft: SettlementAmountDraft, text: string): SettlementAmountDraft {
   return { ...draft, text };
 }
-export function convertSettlementDraft(
-  draft: SettlementAmountDraft,
-  currency: string,
-): SettlementAmountDraft {
+export function convertSettlementDraft(draft: SettlementAmountDraft, currency: string): SettlementAmountDraft {
   return { ...draft, text: convertAmountText(draft.text, currency) };
 }

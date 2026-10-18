@@ -47,7 +47,16 @@ export default function TripEdit() {
         }}
       />
       <View style={styles.section}>
-        <Field label="Trip name" value={name} onChangeText={setName} autoFocus autoCapitalize="words" maxLength={100} returnKeyType="done" onSubmitEditing={save} />
+        <Field
+          label="Trip name"
+          value={name}
+          onChangeText={setName}
+          autoFocus
+          autoCapitalize="words"
+          maxLength={100}
+          returnKeyType="done"
+          onSubmitEditing={save}
+        />
       </View>
       <View style={[styles.section, { marginTop: 40 }]}>
         <Button title="Delete trip" variant="destructive" icon="trash-outline" onPress={confirmDelete} />

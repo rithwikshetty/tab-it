@@ -2,12 +2,7 @@ import { utf8Bytes } from "./text";
 import type { Workbook } from "./trip-exporter";
 import { decimalRational, roundDivide, scaledString } from "./decimal";
 export function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 export function spreadsheetColumn(index: number): string {
   let value = index,
@@ -20,10 +15,7 @@ export function spreadsheetColumn(index: number): string {
 }
 export function xmlDecimal(value: string): string {
   const r = decimalRational(value),
-    rounded = scaledString(
-      roundDivide(r.numerator * 10n ** 10n, r.denominator, "halfEven"),
-      10,
-    );
+    rounded = scaledString(roundDivide(r.numerator * 10n ** 10n, r.denominator, "halfEven"), 10);
   const [whole = "0", fraction = ""] = rounded.split(".");
   return whole + "." + fraction.padEnd(2, "0");
 }
@@ -31,8 +23,7 @@ export function buildWorkbookXML(workbook: Workbook): Record<string, string> {
   const declaration = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
     rels = "http://schemas.openxmlformats.org/package/2006/relationships",
-    office =
-      "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    office = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
   const strings: string[] = [],
     lookup = new Map<string, number>(),
     index = (value: string) => {
@@ -85,21 +76,13 @@ export function buildWorkbookXML(workbook: Workbook): Record<string, string> {
   files["xl/workbook.xml"] =
     declaration +
     `\n<workbook xmlns="${ns}" xmlns:r="${office}">\n  <sheets>\n` +
-    workbook.sheets
-      .map(
-        (s, i) =>
-          `    <sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
-      )
-      .join("\n") +
+    workbook.sheets.map((s, i) => `    <sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("\n") +
     "\n  </sheets>\n</workbook>";
   files["xl/_rels/workbook.xml.rels"] =
     declaration +
     `\n<Relationships xmlns="${rels}">\n` +
     workbook.sheets
-      .map(
-        (_, i) =>
-          `  <Relationship Id="rId${i + 1}" Type="${office}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`,
-      )
+      .map((_, i) => `  <Relationship Id="rId${i + 1}" Type="${office}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)
       .join("\n") +
     `\n  <Relationship Id="rId${workbook.sheets.length + 1}" Type="${office}/styles" Target="styles.xml"/>\n  <Relationship Id="rId${workbook.sheets.length + 2}" Type="${office}/sharedStrings" Target="sharedStrings.xml"/>\n</Relationships>`;
   files["xl/styles.xml"] =
@@ -111,8 +94,7 @@ function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
   for (const byte of bytes) {
     crc ^= byte;
-    for (let i = 0; i < 8; i++)
-      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    for (let i = 0; i < 8; i++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -121,16 +103,13 @@ export function workbookXLSX(workbook: Workbook): Uint8Array {
     central: Uint8Array[] = [];
   let offset = 0,
     centralSize = 0;
-  const files = Object.entries(buildWorkbookXML(workbook)).sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  );
+  const files = Object.entries(buildWorkbookXML(workbook)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   if (files.length > 65535) throw new Error("archiveTooLarge");
   for (const [path, text] of files) {
     const name = utf8Bytes(path),
       data = utf8Bytes(text),
       crc = crc32(data);
-    if (name.length > 65535 || data.length > 0xffffffff || offset > 0xffffffff)
-      throw new Error("archiveTooLarge");
+    if (name.length > 65535 || data.length > 0xffffffff || offset > 0xffffffff) throw new Error("archiveTooLarge");
     const local = new Uint8Array(30 + name.length),
       lv = new DataView(local.buffer);
     lv.setUint32(0, 0x04034b50, true);
@@ -158,8 +137,7 @@ export function workbookXLSX(workbook: Workbook): Uint8Array {
     centralSize += entry.length;
     offset += local.length + data.length;
   }
-  if (centralSize > 0xffffffff || offset > 0xffffffff)
-    throw new Error("archiveTooLarge");
+  if (centralSize > 0xffffffff || offset > 0xffffffff) throw new Error("archiveTooLarge");
   const end = new Uint8Array(22),
     view = new DataView(end.buffer);
   view.setUint32(0, 0x06054b50, true);

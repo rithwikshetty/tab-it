@@ -8,7 +8,7 @@ Row types in `records.ts` retain Supabase field names and decimal strings. Domai
 
 `fromMinor` and `normalizedAmount` remove insignificant trailing zeros, matching `SyncService.decimalString` and `NSDecimalNumber.stringValue`. They return `"12.5"`, `"0"`, and `"1.25"`. `plainAmountString` renders fixed entry precision, such as `"12.50"`.
 
-`toMinor` and `normalizedAmount` round pulled over-precision values half away from zero. Calculators reject over-precision inputs rather than normalizing them. Display and currency-switch rounding use half even, matching `NumberFormatter`; share labels use half away from zero, matching `NSDecimalRound(.plain)`. Equal and weighted splits floor minor units, including negative totals. Weighted allocation compares exact rational remainders.
+`toMinor` and `normalizedAmount` round pulled over-precision values half away from zero. Calculators reject over-precision inputs rather than normalizing them. Display and currency-switch rounding use half even, matching `NumberFormatter`; raw negative display values retain their minus sign when rounded to zero. Share labels use half away from zero, matching `NSDecimalRound(.plain)`. Equal and weighted splits floor minor units, including negative totals. Weighted allocation compares exact rational remainders.
 
 `LedgerRows` contains separate `expenses`, `payments`, `splits`, and `settlements` arrays. `TripRows` adds `trip`, `people`, and optional `categories`. Row-based presenters accept these plain rows. Callers select the relevant trip's rows. `ledgerFromRows` converts them to the nested arithmetic ledger without changing the input. Pass `normalizedAmount` as the data layer's `normalizeAmount` callback when merging pulls.
 
@@ -86,3 +86,11 @@ SwiftData persistence/merge lifecycle, local-store wiping, DTO decoding machiner
 `records.ts` received only a comment correction: canonical wire decimals strip insignificant trailing zeros. No interface, field, or union changed.
 
 No browser, simulator, network service, database, git mutation, commit, or push was used. A regression test removes `Intl` and `TextEncoder` before importing the public entry point, then exercises money, trip cards, activity, timelines, friends, names, currency search, and XLSX generation. Native runtime rendering remains outside this lane's verification scope. This folder adds no dependency or configuration change.
+
+## Validation on 2026-10-18
+
+- Full configured Vitest run: 344 passed, zero failed. Domain: 329 passed across 27 test files. The JSON reporter changed only output formatting; no transform override was used.
+- Domain TypeScript check passed with strict mode, `noUncheckedIndexedAccess`, the project target/module resolution, and no emit.
+- Full `npx tsc --noEmit` exited 2 with route-typing errors only outside this folder. Its error files were `src/app/(app)/(tabs)/index.tsx`, `src/app/(app)/_layout.tsx`, `src/app/(app)/new-trip.tsx`, `src/app/(app)/trip/[id].tsx`, `src/features/sync/sync-banner.tsx`. No domain diagnostic remained.
+- Formatting and source-case-name coverage checks passed. A source scan found no production `Intl`, locale collation, `formatToParts`, or `TextEncoder` use.
+- The only changed expected value was the inferred `de-DE` money-format assertion, explicitly approved to use fixed en-US output. Timezone tests retain their expected values and supply the source examples' date-specific offsets.

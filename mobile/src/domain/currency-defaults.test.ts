@@ -2,8 +2,7 @@ import { expect, test } from "vitest";
 import { CurrencyDefaults as C } from "./currency-defaults";
 import { a, b, tripRows, addExpense, rowSettlement } from "./test-support";
 const date = (n: number) => new Date(n * 1000).toISOString();
-test("emptyTripUsesSavedCurrencyBeforeRegion", () =>
-  expect(C.defaultCurrency([], [], "JPY", "USD")).toBe("JPY"));
+test("emptyTripUsesSavedCurrencyBeforeRegion", () => expect(C.defaultCurrency([], [], "JPY", "USD")).toBe("JPY"));
 test("tripRecentCurrencyBeatsSavedAndRegion", () => {
   let r = addExpense(tripRows(), "1", {}, {}, "10", "USD", {
     created_at: date(1),
@@ -15,10 +14,8 @@ test("tripRecentCurrencyBeatsSavedAndRegion", () => {
   });
   expect(C.defaultCurrency(r.expenses, [], "JPY", "GBP")).toBe("CHF");
 });
-test("firstRunFallsBackToINR", () =>
-  expect(C.initialCurrency(null, null)).toBe("INR"));
-test("firstRunUsesDeviceRegionCurrency", () =>
-  expect(C.initialCurrency(null, "GBP")).toBe("GBP"));
+test("firstRunFallsBackToINR", () => expect(C.initialCurrency(null, null)).toBe("INR"));
+test("firstRunUsesDeviceRegionCurrency", () => expect(C.initialCurrency(null, "GBP")).toBe("GBP"));
 test("deletedAndUnsupportedTripCurrenciesAreIgnored", () => {
   let r = addExpense(tripRows(), "1", {}, {}, "10", "USD", {
     created_at: date(1),
@@ -53,13 +50,6 @@ test("rememberedCurrencyIsNormalizedAndUnsupportedValuesAreIgnored", () => {
   expect(C.initialCurrency(saved, "GBP")).toBe("USD");
 });
 test("recent-currency ties sort by currency code", () => {
-  const r = addExpense(
-    addExpense(tripRows(), "1", {}, {}, "1", "USD"),
-    "2",
-    {},
-    {},
-    "1",
-    "EUR",
-  );
+  const r = addExpense(addExpense(tripRows(), "1", {}, {}, "1", "USD"), "2", {}, {}, "1", "EUR");
   expect(C.mostRecentTripCurrency(r.expenses, [])).toBe("EUR");
 });

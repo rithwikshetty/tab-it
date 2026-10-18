@@ -18,7 +18,17 @@ import { colors, fabShadow, PAGE, radius, shadow, type } from "./theme";
 
 export type IconName = ComponentProps<typeof Ionicons>["name"];
 
-export function Icon({ name, size = 20, color = colors.text, style }: { name: IconName; size?: number; color?: string; style?: StyleProp<TextStyle> }) {
+export function Icon({
+  name,
+  size = 20,
+  color = colors.text,
+  style,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  style?: StyleProp<TextStyle>;
+}) {
   return <Ionicons name={name} size={size} color={color} style={style} />;
 }
 
@@ -321,7 +331,15 @@ export function Field({
   );
 }
 
-export function Banner({ tone = "info", text, action }: { tone?: "info" | "warning"; text: string; action?: { label: string; onPress: () => void } }) {
+export function Banner({
+  tone = "info",
+  text,
+  action,
+}: {
+  tone?: "info" | "warning";
+  text: string;
+  action?: { label: string; onPress: () => void };
+}) {
   const warning = tone === "warning";
   return (
     <View style={[styles.banner, warning && { backgroundColor: "#F6E9DE" }]}>
@@ -387,7 +405,13 @@ const styles = StyleSheet.create({
   fabWide: { height: 52, paddingHorizontal: 20 },
   fabRound: { width: 56, height: 56 },
   fabText: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  segmented: { flexDirection: "row", padding: 3, borderRadius: radius.control, backgroundColor: colors.segmentedBg, marginHorizontal: PAGE },
+  segmented: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: radius.control,
+    backgroundColor: colors.segmentedBg,
+    marginHorizontal: PAGE,
+  },
   segment: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 7 },
   segmentActive: { backgroundColor: colors.surface, ...shadow },
   segmentText: { fontSize: 13, fontWeight: "500", color: colors.textSecondary },
@@ -439,11 +463,37 @@ const styles = StyleSheet.create({
 });
 
 /** A text button for navigation bars (Cancel, Save). */
-export function HeaderButton({ title, onPress, disabled, bold, loading }: { title: string; onPress: () => void; disabled?: boolean; bold?: boolean; loading?: boolean }) {
+export function HeaderButton({
+  title,
+  onPress,
+  disabled,
+  bold,
+  loading,
+}: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+  bold?: boolean;
+  loading?: boolean;
+}) {
   if (loading) return <ActivityIndicator color={colors.accent} />;
   return (
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} hitSlop={10} style={({ pressed }) => [{ paddingHorizontal: 4 }, pressed && { opacity: 0.5 }]}>
-      <Text style={{ fontSize: 16, fontWeight: bold ? "600" : "400", color: disabled ? colors.textTertiary : bold ? colors.accentStrong : colors.text }}>{title}</Text>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={10}
+      style={({ pressed }) => [{ paddingHorizontal: 4 }, pressed && { opacity: 0.5 }]}
+    >
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: bold ? "600" : "400",
+          color: disabled ? colors.textTertiary : bold ? colors.accentStrong : colors.text,
+        }}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }

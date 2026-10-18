@@ -147,7 +147,10 @@ export class SyncEngine {
         const e = toRemoteError(error);
         this.refreshCounts();
         if (e.transient) {
-          this.setStatus({ phase: "offline", message: "You're offline. Changes are saved on this phone and will sync when you reconnect." });
+          this.setStatus({
+            phase: "offline",
+            message: "You're offline. Changes are saved on this phone and will sync when you reconnect.",
+          });
           this.scheduleRetry();
         } else {
           this.setStatus({ phase: "error", message: e.message });
@@ -228,12 +231,7 @@ export class SyncEngine {
   }
 
   /** Marks the version that was sent as acknowledged on the row as it is now. */
-  private async ack<T extends PushTable>(
-    table: T,
-    key: string,
-    writeId: string,
-    patch: Record<string, unknown> = {},
-  ) {
+  private async ack<T extends PushTable>(table: T, key: string, writeId: string, patch: Record<string, unknown> = {}) {
     const row = this.state.tables[table].get(key);
     if (!row || this.stopped) return;
     await this.store.commit([{ table, row: { ...row, ...patch, _pushed: writeId, _error: null } } as Op]);
@@ -299,9 +297,7 @@ export class SyncEngine {
   private async pushTrip(trip: LocalTrip) {
     const writeId = trip.write_id;
     if (trip._pushed === null) {
-      const creator = [...this.state.tables.trip_people.values()].find(
-        (p) => p.trip_id === trip.id && p.user_id === this.user.id,
-      );
+      const creator = [...this.state.tables.trip_people.values()].find((p) => p.trip_id === trip.id && p.user_id === this.user.id);
       if (!creator) throw new RemoteError("The trip is missing its creator.", false);
       await call(
         supabase.rpc("create_trip_with_self", {
@@ -488,10 +484,7 @@ export class SyncEngine {
   private async pushSettlement(s: LocalSettlement) {
     if (s.deleted_at) {
       await call(
-        supabase
-          .from("settlements")
-          .update({ deleted_at: s.deleted_at, updated_at: s.updated_at, write_id: s.write_id })
-          .eq("id", s.id),
+        supabase.from("settlements").update({ deleted_at: s.deleted_at, updated_at: s.updated_at, write_id: s.write_id }).eq("id", s.id),
       );
     } else {
       await call(
@@ -529,10 +522,12 @@ export class SyncEngine {
           if (current?.write_id === m.write_id) await this.store.commit([{ table: "trip_mute_prefs", key, remove: true }]);
         } else {
           await call(
-            supabase.from("trip_mute_prefs").upsert(
-              { trip_id: m.trip_id, user_id: m.user_id, muted_at: m.muted_at, updated_at: m.updated_at, write_id: m.write_id },
-              { onConflict: "trip_id,user_id" },
-            ),
+            supabase
+              .from("trip_mute_prefs")
+              .upsert(
+                { trip_id: m.trip_id, user_id: m.user_id, muted_at: m.muted_at, updated_at: m.updated_at, write_id: m.write_id },
+                { onConflict: "trip_id,user_id" },
+              ),
           );
           await this.ack("trip_mute_prefs", key, m.write_id);
         }

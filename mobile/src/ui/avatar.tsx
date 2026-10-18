@@ -21,10 +21,7 @@ export function toneFor(person: AvatarPerson): string {
 export function Avatar({ person, size = 28, ring = 2 }: { person: AvatarPerson; size?: number; ring?: number }) {
   return (
     <View
-      style={[
-        styles.avatar,
-        { width: size, height: size, borderRadius: size / 2, borderWidth: ring, backgroundColor: toneFor(person) },
-      ]}
+      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, borderWidth: ring, backgroundColor: toneFor(person) }]}
     >
       <Text style={[styles.initial, { fontSize: size >= 40 ? 16 : size >= 32 ? 13 : 11 }]} allowFontScaling={false}>
         {avatarInitial(person.name)}

@@ -14,7 +14,14 @@ export function toneFor(semantic: BalanceSemantic): string {
 }
 
 export function ExpenseRow({ item, onPress, pending }: { item: ExpenseRowItem; onPress: () => void; pending?: boolean }) {
-  const caption = item.netAmount === null ? "your share" : item.balanceSemantic === "lent" ? "you lent" : item.balanceSemantic === "borrowed" ? "you borrowed" : "your share";
+  const caption =
+    item.netAmount === null
+      ? "your share"
+      : item.balanceSemantic === "lent"
+        ? "you lent"
+        : item.balanceSemantic === "borrowed"
+          ? "you borrowed"
+          : "your share";
   return (
     <Pressable
       accessibilityRole="button"
@@ -230,7 +237,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(107,141,166,0.22)",
   },
-  settleIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(107,141,166,0.12)", alignItems: "center", justifyContent: "center" },
+  settleIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(107,141,166,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   settleText: { fontSize: 13, color: colors.textSecondary },
   balanceCard: { marginHorizontal: PAGE, marginBottom: 12, padding: 18, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   balanceLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9 },
@@ -245,7 +259,15 @@ const styles = StyleSheet.create({
   debtRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   debtText: { fontSize: 14 },
   debtAmount: { fontSize: 14, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  dayHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10, paddingHorizontal: PAGE + 8, paddingTop: 18, paddingBottom: 6 },
+  dayHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: PAGE + 8,
+    paddingTop: 18,
+    paddingBottom: 6,
+  },
   dayLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 1.3, color: colors.textSecondary },
   dayTotal: { fontSize: 10.5, fontWeight: "600", color: colors.textSecondary, fontVariant: ["tabular-nums"] },
 });

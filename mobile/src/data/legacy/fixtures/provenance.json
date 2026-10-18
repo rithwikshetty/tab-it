@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-10-18",
+  "simulator": "649BB472-E327-412F-B750-CC52DB177743",
+  "device": "iPhone 18 Pro",
+  "bundleId": "com.rithwikshetty.tab",
+  "supabaseSwiftVersion": "2.46.0",
+  "supabaseSwiftRevision": "dd29b624b9ceea87612d0b00457e1400f7d22c2e",
+  "buildResult": "BUILD SUCCEEDED",
+  "buildSupabaseURL": "http://127.0.0.1:54321",
+  "buildSupabasePublishableKey": "local",
+  "launchEnvironment": {
+    "TAB_MOCK_AUTH": "1",
+    "TAB_SEED_DEMO": "1",
+    "TAB_SEED_ACTIVITY": "1",
+    "TAB_SKIP_PUSH_PROMPT": "1"
+  },
+  "dataContainerRelativeStorePath": "Library/Application Support/default.store",
+  "uuidStorage": "16-byte BLOB, UUID byte order",
+  "timestampStorage": "REAL seconds since 2001-01-01T00:00:00Z",
+  "decimalStorage": "SQLite NUMERIC affinity, INTEGER or REAL; select decimals as TEXT",
+  "relationshipStorage": "ZTRIP and ZEXPENSE refer to parent Z_PK",
+  "fixtureRows": {
+    "ZACTIVITYENTITY": 5,
+    "ZCATEGORYENTITY": 6,
+    "ZEXPENSEENTITY": 12,
+    "ZEXPENSESPLITENTITY": 49,
+    "ZPAYMENTENTITY": 12,
+    "ZPROFILEENTITY": 1,
+    "ZSETTLEMENTENTITY": 1,
+    "ZTRIPENTITY": 3,
+    "ZTRIPMUTEENTITY": 1,
+    "ZTRIPPERSONENTITY": 12
+  },
+  "sha256": "89f7ed1f8010526dd69c734f8b41959d47326e5fb6afc4814311483b74cd6f85",
+  "fixtureMethod": "SQLite online backup of the terminated, fictional-only simulator store, checkpointed to DELETE journal mode. seed.swift runs only in the /tmp native build.",
+  "simulatorAppRemoved": true
+}

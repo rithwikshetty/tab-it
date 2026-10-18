@@ -54,10 +54,7 @@ export async function signInWithApple(): Promise<boolean> {
   let credential: AppleAuthentication.AppleAuthenticationCredential;
   try {
     credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
       nonce: hashed,
     });
   } catch (error) {
@@ -73,9 +70,7 @@ export async function signInWithApple(): Promise<boolean> {
   if (error) throw new AuthError(error.message);
   // Apple shares the name only on the first authorisation; keep it.
   const name = normalizeName(
-    [credential.fullName?.givenName, credential.fullName?.middleName, credential.fullName?.familyName]
-      .filter(Boolean)
-      .join(" "),
+    [credential.fullName?.givenName, credential.fullName?.middleName, credential.fullName?.familyName].filter(Boolean).join(" "),
   );
   if (name) await supabase.auth.updateUser({ data: nameMetadata(name) });
   return true;

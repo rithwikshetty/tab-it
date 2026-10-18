@@ -19,7 +19,11 @@ import { Button, Field } from "@/ui/primitives";
 import { colors, radius, type } from "@/ui/theme";
 import * as WebBrowser from "expo-web-browser";
 
-type Status = { kind: "idle" } | { kind: "busy"; what: "apple" | "google" | "send" | "verify" } | { kind: "sent"; message: string } | { kind: "error"; message: string };
+type Status =
+  | { kind: "idle" }
+  | { kind: "busy"; what: "apple" | "google" | "send" | "verify" }
+  | { kind: "sent"; message: string }
+  | { kind: "error"; message: string };
 
 export default function SignIn() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
