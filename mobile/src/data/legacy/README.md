@@ -39,7 +39,7 @@ The app supplies no custom storage or access group, `Apps/Tab/Sources/Tab/Servic
 
 `mobile/modules/legacy-keychain/` is a local Expo Modules API module. Its Swift `readLegacySession(service, account)` uses `SecItemCopyMatching` with the exact class, service, and string account above, `kSecReturnData = true`, and `kSecMatchLimitOne`. Its separate `deleteLegacySession(service, account)` uses the same identifying attributes. Neither query includes a generic attribute or access group. JS decodes the raw UTF-8 JSON into the refresh token and `user.id`. The module no-ops on Android and in binaries without the native module. Expo discovers it through the default `modules/` autolinking directory, without a dependency or config-plugin entry.
 
-Preserve bundle `com.rithwikshetty.tab`, team `KR8C647GCW`, signing access groups, and callback identity. Test an update over the installed app; uninstalling removes its data container.
+Preserve bundle `com.rithwikshetty.tab`, team `36VWCMM6GL`, signing access groups, and callback identity. Test an update over the installed app; uninstalling removes its data container.
 
 ## Data findings and guarantees
 

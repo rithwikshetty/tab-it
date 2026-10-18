@@ -5,7 +5,7 @@ import type { ExpoConfig } from "expo/config";
 // same user identifiers, the Supabase auth redirect allowlist already contains
 // `<bundle id>://auth-callback`, and tab-it.app invite links keep resolving.
 const BUNDLE_ID = "com.rithwikshetty.tab";
-const APPLE_TEAM_ID = "KR8C647GCW";
+const APPLE_TEAM_ID = "36VWCMM6GL";
 
 const config: ExpoConfig = {
   name: "tab-it",
