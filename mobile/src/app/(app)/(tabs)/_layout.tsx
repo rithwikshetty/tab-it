@@ -13,6 +13,7 @@ export default function TabsLayout() {
       backgroundColor={colors.bg}
       badgeBackgroundColor={colors.danger}
       labelStyle={{ fontSize: 11, fontWeight: "500" }}
+      labelVisibilityMode="labeled"
     >
       <NativeTabs.Trigger name="friends">
         <NativeTabs.Trigger.Icon sf={{ default: "person.2", selected: "person.2.fill" }} md="group" />

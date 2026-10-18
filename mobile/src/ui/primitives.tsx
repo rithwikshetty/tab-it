@@ -236,13 +236,14 @@ export function Fab({
   label,
   icon = "add",
   onPress,
-  bottom = 20,
+  bottom,
 }: {
   label?: string;
   icon?: IconName;
   onPress: () => void;
   bottom?: number;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Pressable
       accessibilityRole="button"
@@ -253,7 +254,7 @@ export function Fab({
       }}
       style={({ pressed }) => [
         styles.fab,
-        { bottom },
+        { bottom: bottom ?? insets.bottom + 16 },
         label ? styles.fabWide : styles.fabRound,
         pressed && { transform: [{ scale: 0.95 }] },
       ]}

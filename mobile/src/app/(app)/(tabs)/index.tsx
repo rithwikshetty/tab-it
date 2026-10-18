@@ -65,7 +65,7 @@ export default function TripsScreen() {
                     onPress={() => router.push({ pathname: "/trip/[id]", params: { id: card.id } })}
                     accessibilityLabel={`${card.name}, ${card.status.text}`}
                     title={card.name}
-                    subtitle={card.status.text ? <StatusText status={card.status} /> : undefined}
+                    subtitle={<StatusText status={card.status} />}
                     right={
                       <AvatarGroup
                         people={card.members.map((m) => ({
@@ -127,7 +127,7 @@ function StatusText({ status }: { status: TripCardStatus }) {
   const color = status.type === "owed" ? colors.owed : status.type === "owe" ? colors.owe : colors.textSecondary;
   return (
     <Text style={[styles.status, { color }]} numberOfLines={1}>
-      {status.text}
+      {status.text || "no expenses yet"}
     </Text>
   );
 }

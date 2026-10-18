@@ -22,6 +22,7 @@ export default function SignedInLayout() {
         headerTintColor: colors.accentStrong,
         headerTitleStyle: { color: colors.text, fontWeight: "600", fontSize: 16 },
         headerBackButtonDisplayMode: "minimal",
+        headerTitleAlign: "center",
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
