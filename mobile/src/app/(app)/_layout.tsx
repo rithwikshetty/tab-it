@@ -95,9 +95,12 @@ function usePush() {
 
   useEffect(() => {
     // A tap that launched the app waits as the last response; later taps come
-    // through the listener. send-push collapses by entity, so pushes about the
-    // same expense share an identifier and the delivery date tells them apart.
+    // through the listener. Expo keeps every tap as the last response, so each
+    // one is cleared once seen or a remount after sign-in would reopen it.
+    // send-push collapses by entity, so pushes about the same expense share an
+    // identifier and the delivery date tells them apart.
     const open = (response: Notifications.NotificationResponse) => {
+      Notifications.clearLastNotificationResponse();
       const key = `${response.notification.request.identifier}:${response.notification.date}`;
       if (handled.current === key) return;
       handled.current = key;
@@ -115,7 +118,6 @@ function usePush() {
       })();
     };
     const launched = Notifications.getLastNotificationResponse();
-    Notifications.clearLastNotificationResponse();
     if (launched) open(launched);
     const tapped = Notifications.addNotificationResponseReceivedListener(open);
     return () => tapped.remove();
