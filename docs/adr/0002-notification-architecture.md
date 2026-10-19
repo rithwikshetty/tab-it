@@ -50,7 +50,7 @@ Treat notifications as **one event stream rendered through two channels**: the i
 - New DB triggers across the mutable tables; a Database Webhook; one new edge function (the project's first — `supabase/functions/` is created here).
 - App gains the `aps-environment` entitlement, an AppDelegate (`didRegisterForRemoteNotifications` + `UNUserNotificationCenterDelegate`), token upsert, deep-link handling for taps, and a `RootView` restructure to three tabs with per-tab `NavigationStack`s plus the Activity screen and tab/icon badge.
 - A trip-mute toggle is added to the trip-detail overflow menu.
-- Secrets to provision: APNs `.p8` key, Key ID, Team ID, bundle ID, APNs environment (sandbox for dev/TestFlight, production for App Store).
+- Secrets to provision: APNs `.p8` key, Key ID, Team ID, bundle ID, APNs environment (sandbox for development builds, production for TestFlight and the App Store).
 
 ## Alternatives considered
 

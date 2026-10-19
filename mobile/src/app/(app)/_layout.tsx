@@ -99,7 +99,7 @@ function usePush() {
     const id = lastResponse.notification.request.identifier;
     if (handled.current === id) return;
     handled.current = id;
-    const target = pushTarget(lastResponse.notification.request.content.data as Record<string, unknown>);
+    const target = pushTarget(lastResponse.notification.request);
     if (!target) return;
     void (async () => {
       await ctx.sync.request({ tripId: target.tripId });

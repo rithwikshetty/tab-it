@@ -75,7 +75,15 @@ export interface PushTarget {
   entityId: string | null;
 }
 
-export function pushTarget(data: Record<string, unknown> | undefined): PushTarget | null {
+/**
+ * Where a tapped push should open. send-push puts `trip_id`, `entity_type` and
+ * `entity_id` beside `aps` in the APNs payload; for a remote push iOS exposes
+ * that whole payload as the trigger's `payload`, while `content.data` only
+ * carries a `body` key.
+ */
+export function pushTarget(request: Notifications.NotificationRequest): PushTarget | null {
+  const trigger = request.trigger;
+  const data = (trigger && "payload" in trigger && trigger.payload) || request.content.data;
   const tripId = typeof data?.trip_id === "string" ? data.trip_id.toLowerCase() : null;
   if (!tripId) return null;
   return {
