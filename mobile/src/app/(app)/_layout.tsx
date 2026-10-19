@@ -99,6 +99,7 @@ function usePush() {
     // one is cleared once seen or a remount after sign-in would reopen it.
     // send-push collapses by entity, so pushes about the same expense share an
     // identifier and the delivery date tells them apart.
+    let active = true;
     const open = (response: Notifications.NotificationResponse) => {
       Notifications.clearLastNotificationResponse();
       const key = `${response.notification.request.identifier}:${response.notification.date}`;
@@ -108,6 +109,7 @@ function usePush() {
       if (!target) return;
       void (async () => {
         await ctx.sync.request({ tripId: target.tripId });
+        if (!active) return;
         const t = ctx.store.getState().tables;
         router.push({ pathname: "/trip/[id]", params: { id: target.tripId } });
         if (target.entityType === "expense" && target.entityId && t.expenses.get(target.entityId)?.deleted_at === null) {
@@ -120,6 +122,9 @@ function usePush() {
     const launched = Notifications.getLastNotificationResponse();
     if (launched) open(launched);
     const tapped = Notifications.addNotificationResponseReceivedListener(open);
-    return () => tapped.remove();
+    return () => {
+      active = false;
+      tapped.remove();
+    };
   }, [ctx]);
 }
