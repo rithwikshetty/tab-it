@@ -1,6 +1,6 @@
 # Production rollout plan: #18, #28, #19, #34
 
-Status: **awaiting the owner's approval.** Nothing here has run against production. Each numbered production step needs its own explicit go-ahead, and each one starts by verifying the target is project `gaseuxsieddlksxtdliq`.
+Status: **steps 0 to 3 applied on 19 October 2026** with the owner's approval; results are in `docs/working_log/2026-10-18-expo-rewrite.md` ("production rollout of #18, #28, #19 and #34"). Step 4 is the next TestFlight build. Each production step began by verifying the target is project `gaseuxsieddlksxtdliq`.
 
 | Issue | State on main | What production still needs |
 |---|---|---|
