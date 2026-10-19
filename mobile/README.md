@@ -60,10 +60,9 @@ Builds read `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, 
 
 ## Releasing
 
-`eas.json` has `development`, `preview` and `production` profiles. Before the first store build:
+iOS builds are archived and uploaded to App Store Connect from a Mac with `release/ExportOptions.plist`; `.agents/skills/testflight/SKILL.md` is the procedure. The internal TestFlight group receives every upload automatically, and the external group receives a build only when it is added and passes Beta App Review.
 
-- Set the production variables in EAS (`eas env:create --environment production ...`), using the same values the Swift app ships with.
-- iOS: bump `version`/`buildNumber` in `app.config.ts` above the live 1.3.0 (16).
+- `eas.json` has `development`, `preview` and `production` profiles for EAS builds. They need the production variables created in EAS first (`eas env:create --environment production ...`).
 - Android: create the Play listing and upload key, then publish `site/.well-known/assetlinks.json` with the signing certificate's SHA-256 so invite links open the app.
 - Push notifications reach iOS only. The server sends through APNs and stores APNs tokens; Android delivery needs an FCM sender on the server, which is a separate, approved backend change.
 
