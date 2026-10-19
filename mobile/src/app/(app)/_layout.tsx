@@ -77,11 +77,26 @@ function usePush() {
 
   useEffect(() => {
     // The first prompt waits until the user has a trip, when notifications
-    // obviously help; after that it only re-registers silently.
-    const hasTrips = [...ctx.store.getState().tables.trips.values()].some((t) => !t.deleted_at && t.kind === "trip");
-    void registerForPush(hasTrips).catch(() => undefined);
+    // obviously help; after that it only re-registers silently. A first
+    // sign-in has no trips until the initial pull lands, so it waits for one.
+    const hasTrips = () => [...ctx.store.getState().tables.trips.values()].some((t) => !t.deleted_at && t.kind === "trip");
+    let stopWaiting: (() => void) | undefined;
+    if (hasTrips()) {
+      void registerForPush(true).catch(() => undefined);
+    } else {
+      void registerForPush(false).catch(() => undefined);
+      stopWaiting = ctx.store.subscribe(() => {
+        if (!stopWaiting || !hasTrips()) return;
+        stopWaiting();
+        stopWaiting = undefined;
+        void registerForPush(true).catch(() => undefined);
+      });
+    }
     const sub = AppState.addEventListener("change", (s) => s === "active" && void registerForPush(false).catch(() => undefined));
-    return () => sub.remove();
+    return () => {
+      stopWaiting?.();
+      sub.remove();
+    };
   }, [ctx]);
 
   useEffect(() => {
