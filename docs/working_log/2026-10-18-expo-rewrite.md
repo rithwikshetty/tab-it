@@ -103,3 +103,27 @@ Two findings on the new store rule, both confirmed and fixed.
 - Production Supabase, changed with the user's explicit approval through Codex in the user's Chrome: the Google provider's Client IDs field went from the web client alone to the web client followed by the iOS client, confirmed after a reload. Nothing else on the page changed; "Skip nonce checks" is off.
 - Google branding (name `tab-it`, no logo) is unverified, so Google doesn't show it to users yet.
 - Codex review: no findings. Build 2.0.0 (18) archived, installed ad hoc on the user's iPhone, and uploaded to App Store Connect.
+
+### 19 Oct 15:00: production rollout of #18, #28, #19 and #34
+
+The user approved every step of `docs/reports/2026-10-19-production-rollout-plan.md`. Production project `gaseuxsieddlksxtdliq` was verified by name and ref first.
+
+- **Read-only inventory.**
+  - Migration history ends at `trip_invites` and has no baseline version, so `db push` stays off-limits.
+  - Both functions matched the expected pre-fix bodies and metadata.
+  - All 11 `set_sync_fields` triggers are enabled.
+  - pg_cron isn't installed and no edge function calls the purge, so nothing purges soft-deleted rows automatically.
+  - Every privilege M1 grants was already held, the `profiles` read boundary was intact, and no policy targets `anon`. The ACL snapshot had 650 entries, digest `c4c12fbf6592c1b7b3bbb3dcdc0c4dc0`.
+  - Secret digests showed `APNS_ENV=sandbox` and `APNS_TEAM_ID=KR8C647GCW`, which isn't the team (`36VWCMM6GL`). Recent send-push calls returned `sent:0, pruned:0`, and 19 device rows exist, so no registrations were being deleted.
+- **#19.**
+  - Set `APNS_TEAM_ID=36VWCMM6GL` and `APNS_ENV=production`.
+  - Deployed `send-push` v9 from `1ef5b70` with `--no-verify-jwt`. An unauthenticated POST returns 401 `unauthorized`.
+  - The deploy wrote `supabase/.temp/linked-project.json`, which the local guard refuses, so it was removed.
+  - A delivered push hasn't been observed yet.
+- **#18 and #28.** Applied `delete_wins_and_claimed_name_guard` (version `20261019145359`) as one transaction, with the body-hash and metadata guards. Afterwards the bodies hash to the fixed md5s, and owner, security mode, search path and ACLs are unchanged. The rollback copy is the pre-fix definition, which matched git exactly.
+- **#34.** Applied `explicit_api_role_grants` (version `20261019145418`). The ACL snapshot afterwards was byte-identical (650 entries, same digest).
+- **Postgres logs.** No errors after either migration.
+- **Locally.**
+  - Both migrations are committed under their production versions.
+  - `api.auto_expose_new_tables` is removed from `supabase/config.toml`.
+  - A fresh reset applies the baseline plus both migrations, and all 15 pgTAP suites pass.

@@ -59,11 +59,10 @@ endpoints backed by `tab-local` containers. Supabase's development stack uses
 default local credentials and publishes its ports on all host interfaces, so
 it must be run only on a trusted development machine and network. Reset always
 passes `--local`, reapplies the immutable baseline, and then loads
-`supabase/seed.sql`, which contains fictional development data only. The local
-configuration temporarily enables Supabase's legacy API-role auto-exposure so
-a clean database matches the existing client contract. Supabase is deprecating
-that compatibility switch, so explicit grants must be handled later through
-the separate production approval process.
+`supabase/seed.sql`, which contains fictional development data only. The API
+roles' table privileges come from the explicit grants migration
+(`migrations/20261019145418_explicit_api_role_grants.sql`), so a clean
+database matches production without Supabase's legacy auto-exposure.
 
 Do not run raw remote-management commands from this repository. Hosted-project
 link state, a Supabase access token, project ref, or database URL causes the
