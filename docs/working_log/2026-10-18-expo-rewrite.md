@@ -90,3 +90,7 @@ Two findings on the new store rule, both confirmed and fixed.
 - Add expense sat about 62pt too high on iOS. Inside NativeTabs, the screen's bottom safe area already reaches the top of the floating tab bar, and `useTabBarClearance` was adding the tab bar height again (`d2c84a2`).
 - An ad hoc export (`release-testing`) of 2.0.0 (17), with production config and signing, is installed on the user's iPhone 16.
 - The user accepted the updated Program License Agreement and filled in the EU DSA declaration as a non-trader. App Store Connect still shows the agreement banner, the Free Apps Agreement reads "Active (New Agreement Available)" with nothing to accept, and every upload fails with "You do not have required contracts". Sol checked through the user's own browser and found nothing pending. Uploads have been retried every 5 to 15 minutes since 12:13. Apple forum reports of the same state say to wait about 24 hours, then phone Developer Support to have the acceptance pushed through. The App Store Connect business address still shows the user's old UK address, which matches one reported cause.
+
+### 19 Oct 16:24: build 17 uploaded
+
+- The contract block cleared on 19 October. The upload of 2.0.0 (17) succeeded at 16:24 and the build went into App Store Connect processing.
