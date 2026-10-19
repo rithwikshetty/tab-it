@@ -73,7 +73,6 @@ function usePendingInvite() {
 function usePush() {
   const ctx = useSignedIn();
   const unread = useUnreadActivityCount();
-  const lastResponse = Notifications.useLastNotificationResponse();
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
@@ -95,21 +94,30 @@ function usePush() {
   }, [ctx]);
 
   useEffect(() => {
-    if (!lastResponse) return;
-    const id = lastResponse.notification.request.identifier;
-    if (handled.current === id) return;
-    handled.current = id;
-    const target = pushTarget(lastResponse.notification.request);
-    if (!target) return;
-    void (async () => {
-      await ctx.sync.request({ tripId: target.tripId });
-      const t = ctx.store.getState().tables;
-      router.push({ pathname: "/trip/[id]", params: { id: target.tripId } });
-      if (target.entityType === "expense" && target.entityId && t.expenses.get(target.entityId)?.deleted_at === null) {
-        router.push({ pathname: "/expense/[id]", params: { id: target.entityId } });
-      } else if (target.entityType === "settlement" && target.entityId && t.settlements.get(target.entityId)?.deleted_at === null) {
-        router.push({ pathname: "/settlement/[id]", params: { id: target.entityId } });
-      }
-    })();
-  }, [lastResponse, ctx]);
+    // A tap that launched the app waits as the last response; later taps come
+    // through the listener. send-push collapses by entity, so pushes about the
+    // same expense share an identifier and the delivery date tells them apart.
+    const open = (response: Notifications.NotificationResponse) => {
+      const key = `${response.notification.request.identifier}:${response.notification.date}`;
+      if (handled.current === key) return;
+      handled.current = key;
+      const target = pushTarget(response.notification.request);
+      if (!target) return;
+      void (async () => {
+        await ctx.sync.request({ tripId: target.tripId });
+        const t = ctx.store.getState().tables;
+        router.push({ pathname: "/trip/[id]", params: { id: target.tripId } });
+        if (target.entityType === "expense" && target.entityId && t.expenses.get(target.entityId)?.deleted_at === null) {
+          router.push({ pathname: "/expense/[id]", params: { id: target.entityId } });
+        } else if (target.entityType === "settlement" && target.entityId && t.settlements.get(target.entityId)?.deleted_at === null) {
+          router.push({ pathname: "/settlement/[id]", params: { id: target.entityId } });
+        }
+      })();
+    };
+    const launched = Notifications.getLastNotificationResponse();
+    Notifications.clearLastNotificationResponse();
+    if (launched) open(launched);
+    const tapped = Notifications.addNotificationResponseReceivedListener(open);
+    return () => tapped.remove();
+  }, [ctx]);
 }
