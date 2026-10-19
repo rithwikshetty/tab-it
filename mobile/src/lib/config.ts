@@ -10,6 +10,12 @@ const turnstileSiteKey = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "
 
 export const BUNDLE_ID = "com.rithwikshetty.tab";
 export const AUTH_CALLBACK_URL = `${BUNDLE_ID}://auth-callback`;
+/**
+ * The Google OAuth client (project tab-it-512005) for native Google sign-in on
+ * iOS, registered to BUNDLE_ID. The Supabase Google provider lists it as an
+ * accepted client ID, and app.config.ts repeats it for the Google URL scheme.
+ */
+export const GOOGLE_IOS_CLIENT_ID = "542784538752-9dsn18dpif24i5ll2b7dn6uq94pt49f0.apps.googleusercontent.com";
 export const INVITE_URL_PREFIX = "https://tab-it.app/join/";
 export const PRIVACY_URL = "https://tab-it.app/privacy";
 

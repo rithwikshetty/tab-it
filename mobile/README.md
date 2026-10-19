@@ -56,7 +56,7 @@ npx prettier --check "src/**/*.{ts,tsx}"
 
 ## Configuration
 
-Builds read `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_TURNSTILE_SITE_KEY` and `EXPO_PUBLIC_EMAIL_CODE_LENGTH` at bundle time. `EXPO_PUBLIC_GOOGLE_SIGN_IN=1` shows "Continue with Google"; set it only where the backend has the Google provider configured. Development builds take them from `.env.development.local`; release builds from `.env.production.local` or the EAS `production` environment. Nothing falls back to a hosted project: a build without them shows a configuration error.
+Builds read `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_TURNSTILE_SITE_KEY` and `EXPO_PUBLIC_EMAIL_CODE_LENGTH` at bundle time. `EXPO_PUBLIC_GOOGLE_SIGN_IN=1` shows "Continue with Google"; set it only where the backend has the Google provider configured. iOS signs in to Google natively with the OAuth client `GOOGLE_IOS_CLIENT_ID` in `src/lib/config.ts`, which the Supabase Google provider also lists as a client ID. Android uses the browser flow. Development builds take them from `.env.development.local`; release builds from `.env.production.local` or the EAS `production` environment. Nothing falls back to a hosted project: a build without them shows a configuration error.
 
 ## Releasing
 

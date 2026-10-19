@@ -6,6 +6,9 @@ import type { ExpoConfig } from "expo/config";
 // `<bundle id>://auth-callback`, and tab-it.app invite links keep resolving.
 const BUNDLE_ID = "com.rithwikshetty.tab";
 const APPLE_TEAM_ID = "36VWCMM6GL";
+// Matches GOOGLE_IOS_CLIENT_ID in src/lib/config.ts. Native Google sign-in
+// returns to the app through this client ID, reversed, as a URL scheme.
+const GOOGLE_IOS_CLIENT_ID = "542784538752-9dsn18dpif24i5ll2b7dn6uq94pt49f0.apps.googleusercontent.com";
 
 const config: ExpoConfig = {
   name: "tab-it",
@@ -19,7 +22,7 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: BUNDLE_ID,
     appleTeamId: APPLE_TEAM_ID,
-    buildNumber: "17",
+    buildNumber: "18",
     supportsTablet: false,
     usesAppleSignIn: true,
     associatedDomains: ["applinks:tab-it.app"],
@@ -82,6 +85,7 @@ const config: ExpoConfig = {
         microphonePermission: false,
       },
     ],
+    ["@react-native-google-signin/google-signin", { iosUrlScheme: GOOGLE_IOS_CLIENT_ID.split(".").reverse().join(".") }],
   ],
   experiments: {
     typedRoutes: true,

@@ -94,3 +94,12 @@ Two findings on the new store rule, both confirmed and fixed.
 ### 19 Oct 16:24: build 17 uploaded
 
 - The contract block cleared on 19 October. The upload of 2.0.0 (17) succeeded at 16:24 and the build went into App Store Connect processing.
+
+### 19 Oct 18:30: native Google sign-in on iOS, build 18
+
+- The Google consent page named `gaseuxsieddlksxtdliq.supabase.co`, because the browser flow returns through the Supabase callback. iOS now signs in with `@react-native-google-signin/google-signin` and passes the ID token to `signInWithIdToken`, the same shape as Sign in with Apple. Android keeps the browser flow.
+- The library's free iOS API takes no nonce, and the GoogleSignIn SDK otherwise adds a random one Supabase can't check. A patch-package patch passes a SHA-256-hashed nonce through to `signInWithPresentingViewController:hint:additionalScopes:nonce:completion:`, so "Skip nonce checks" stays off.
+- Google Cloud project `tab-it-512005` has a new iOS OAuth client "tab iOS" (bundle `com.rithwikshetty.tab`, team `36VWCMM6GL`, App Store ID 6770451955). Its public client ID is `GOOGLE_IOS_CLIENT_ID` in `src/lib/config.ts`, repeated in `app.config.ts` because Expo can't import TypeScript modules there. Expo prebuild loads `.env.development.local` even with `NODE_ENV=production`, so the ID can't come from the production env file.
+- Production Supabase, changed with the user's explicit approval through Codex in the user's Chrome: the Google provider's Client IDs field went from the web client alone to the web client followed by the iOS client, confirmed after a reload. Nothing else on the page changed; "Skip nonce checks" is off.
+- Google branding (name `tab-it`, no logo) is unverified, so Google doesn't show it to users yet.
+- Codex review: no findings. Build 2.0.0 (18) archived, installed ad hoc on the user's iPhone, and uploaded to App Store Connect.

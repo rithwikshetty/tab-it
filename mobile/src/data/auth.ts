@@ -1,11 +1,13 @@
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { Directory, Paths } from "expo-file-system";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 
-import { AUTH_CALLBACK_URL, config } from "@/lib/config";
+import { AUTH_CALLBACK_URL, config, GOOGLE_IOS_CLIENT_ID } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
 
 import { discardImportedLegacyFiles, forgetLegacySession, IMPORT_MARKER } from "./legacy";
@@ -15,9 +17,10 @@ import type { Store } from "./store";
 import { deleteStore } from "./store";
 import type { SyncEngine } from "./sync";
 
-// Sign-in methods: Sign in with Apple (iOS), Google through the system browser,
-// and an emailed one-time code behind a Cloudflare Turnstile check. Local
-// development against the Docker stack can also sign in with a password.
+// Sign-in methods: Sign in with Apple (iOS), Google (native on iOS, the system
+// browser on Android), and an emailed one-time code behind a Cloudflare
+// Turnstile check. Local development against the Docker stack can also sign in
+// with a password.
 
 export const EMAIL_CODE_LENGTH = Number(process.env.EXPO_PUBLIC_EMAIL_CODE_LENGTH ?? 8);
 
@@ -51,13 +54,12 @@ function isCancel(error: unknown) {
 /** Returns false when the user cancelled. */
 export async function signInWithApple(): Promise<boolean> {
   requireConfig();
-  const rawNonce = `${Crypto.randomUUID()}${Crypto.randomUUID()}`;
-  const hashed = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+  const nonce = await idTokenNonce();
   let credential: AppleAuthentication.AppleAuthenticationCredential;
   try {
     credential = await AppleAuthentication.signInAsync({
       requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
-      nonce: hashed,
+      nonce: nonce.hashed,
     });
   } catch (error) {
     if (isCancel(error)) return false;
@@ -67,7 +69,7 @@ export async function signInWithApple(): Promise<boolean> {
   const { error } = await supabase.auth.signInWithIdToken({
     provider: "apple",
     token: credential.identityToken,
-    nonce: rawNonce,
+    nonce: nonce.raw,
   });
   if (error) throw new AuthError(error.message);
   // Apple shares the name only on the first authorisation; keep it.
@@ -78,9 +80,40 @@ export async function signInWithApple(): Promise<boolean> {
   return true;
 }
 
-/** Returns false when the user closed the browser. */
+/** A raw nonce for an ID token request and the SHA-256 hash the provider embeds in the token. */
+async function idTokenNonce() {
+  const raw = `${Crypto.randomUUID()}${Crypto.randomUUID()}`;
+  const hashed = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, raw);
+  return { raw, hashed };
+}
+
+/**
+ * Returns false when the user cancelled. iOS uses Google's native sign-in, so
+ * the consent sheet names the app rather than the Supabase callback domain;
+ * Supabase accepts the token because the iOS client ID is in the Google
+ * provider's client ID list.
+ */
 export async function signInWithGoogle(): Promise<boolean> {
   requireConfig();
+  return Platform.OS === "ios" ? signInWithGoogleNative() : signInWithGoogleBrowser();
+}
+
+async function signInWithGoogleNative(): Promise<boolean> {
+  GoogleSignin.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID });
+  const nonce = await idTokenNonce();
+  const result = await GoogleSignin.signIn({ nonce: nonce.hashed });
+  if (result.type !== "success") return false;
+  if (!result.data.idToken) throw new AuthError("Google didn't return an identity token.");
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: "google",
+    token: result.data.idToken,
+    nonce: nonce.raw,
+  });
+  if (error) throw new AuthError(error.message);
+  return true;
+}
+
+async function signInWithGoogleBrowser(): Promise<boolean> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: AUTH_CALLBACK_URL, skipBrowserRedirect: true },
