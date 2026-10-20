@@ -27,7 +27,8 @@ Let someone who imports a Splitwise group say that an imported name is a friend 
 - Sol round 1, three findings, all accepted:
   - Picking a linked name as yourself let a second name take the same email, and the server would then merge the two people's splits. Picking yourself now removes that name's email, and `mapImportPeople` refuses two people under one email, including the importer's.
   - Automatic links could use friend data from before the file picker opened. This was already fixed by reading the store after the file loads.
-  - On a short phone, four suggestions pushed the buttons behind the keyboard. The suggestions now scroll, and the sheet shrinks below the status bar.
+  - On a short phone, four suggestions pushed the buttons behind the keyboard. The sheet now shrinks below the status bar and scrolls.
+- Sol round 2: the first two fixes held. With large system text on a short phone, the field and buttons alone could still sit behind the keyboard. Now the whole sheet scrolls inside the space the keyboard leaves. That was a layout-only fix, so there was no third round.
 - End to end on the local stack with the seeded users. An imported "Alex" was linked automatically and pushed through `add_trip_person_by_email`. Alex saw the trip only after his claim. "Kim" was pointed at Sam with `update_trip_person_email`, a duplicate email was refused, and Sam joined after his claim.
 
 ### Open

@@ -73,7 +73,7 @@ export function PersonEmailSheet({
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <Pressable style={[styles.dismiss, { minHeight: insets.top + 24 }]} accessibilityLabel="Close" onPress={onClose} />
-        <View style={styles.sheet}>
+        <ScrollView style={styles.sheet} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>{name}'s email</Text>
           <Text style={styles.body}>Pick a friend or type their email. They join when they open tab-it signed in with it.</Text>
           <Field
@@ -91,7 +91,7 @@ export function PersonEmailSheet({
             error={error ?? (taken ? "Someone in this trip already has that email." : null)}
           />
           {suggestions.length > 0 && (
-            <ScrollView style={styles.suggestions} keyboardShouldPersistTaps="handled">
+            <View style={styles.suggestions}>
               {suggestions.map((k, i) => (
                 <View key={k.email}>
                   {i > 0 && <Divider inset={62} />}
@@ -107,7 +107,7 @@ export function PersonEmailSheet({
                   />
                 </View>
               ))}
-            </ScrollView>
+            </View>
           )}
           <View style={styles.buttons}>
             <Button title="Cancel" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
@@ -123,7 +123,7 @@ export function PersonEmailSheet({
               }}
             />
           )}
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -132,12 +132,10 @@ export function PersonEmailSheet({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.overlay },
   dismiss: { flex: 1 },
-  // On a short screen the suggestions scroll so the buttons stay above the keyboard.
+  // On a short screen the sheet scrolls, so nothing is left behind the keyboard.
   sheet: {
+    flexGrow: 0,
     flexShrink: 1,
-    padding: 20,
-    paddingBottom: 34,
-    gap: 12,
     backgroundColor: colors.bg,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -146,9 +144,8 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 17, fontWeight: "600", color: colors.text },
   body: { fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
+  content: { padding: 20, paddingBottom: 34, gap: 12 },
   suggestions: {
-    flexGrow: 0,
-    flexShrink: 1,
     borderRadius: radius.control,
     backgroundColor: colors.surface,
     borderWidth: 1,
