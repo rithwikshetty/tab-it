@@ -147,7 +147,7 @@ export function PeoplePicker({
   );
 }
 
-function PersonRow({
+export function PersonRow({
   person,
   trailing,
   onPress,

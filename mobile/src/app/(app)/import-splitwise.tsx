@@ -5,10 +5,13 @@ import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { importSplitwise } from "@/data/actions";
+import { knownPeople } from "@/data/selectors";
 import { useSignedIn } from "@/data/session";
-import { bestSelfMatch, ImportParseError, parseSplitwise, type ImportResult } from "@/domain";
+import { bestSelfMatch, ImportParseError, normalizedEmail, parseSplitwise, suggestImportLinks, type ImportResult } from "@/domain";
+import { PersonEmailSheet } from "@/features/people/email-sheet";
+import { Avatar } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
-import { Button, Card, Divider, Field, HeaderButton, Icon, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, Field, HeaderButton, Icon, Row, SectionHeader } from "@/ui/primitives";
 import { colors, PAGE } from "@/ui/theme";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -27,8 +30,21 @@ export default function ImportSplitwise() {
   const [parsed, setParsed] = useState<ImportResult | null>(null);
   const [tripName, setTripName] = useState("");
   const [self, setSelf] = useState<string | null>(null);
+  /** Imported name to the email it's added under. */
+  const [links, setLinks] = useState<ReadonlyMap<string, string>>(new Map());
+  const [linking, setLinking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const selfEmail = ctx.user.email ? normalizedEmail(ctx.user.email) : null;
+  const others = parsed ? parsed.people.filter((name) => name !== self) : [];
+
+  function removeEmail(name: string) {
+    setLinks((current) => {
+      const next = new Map(current);
+      next.delete(name);
+      return next;
+    });
+  }
 
   async function choose() {
     setError(null);
@@ -44,7 +60,14 @@ export default function ImportSplitwise() {
       const data = parseSplitwise(await file.text());
       setParsed(data);
       setTripName((asset.name ?? "").replace(/\.[^.]+$/, "").trim() || "Imported trip");
-      setSelf(bestSelfMatch(data.people, ctx.user.displayName));
+      const me = bestSelfMatch(data.people, ctx.user.displayName);
+      setSelf(me);
+      setLinks(
+        suggestImportLinks(
+          data.people.filter((name) => name !== me),
+          knownPeople(ctx.store.getState(), ctx.user.id, selfEmail),
+        ),
+      );
     } catch (e) {
       setError(parseError(e));
     }
@@ -54,7 +77,7 @@ export default function ImportSplitwise() {
     if (!parsed || !tripName.trim()) return;
     setImporting(true);
     try {
-      const tripId = await importSplitwise(ctx, parsed, tripName.trim(), self);
+      const tripId = await importSplitwise(ctx, parsed, tripName.trim(), self, links);
       haptics.success();
       router.dismissAll();
       router.push({ pathname: "/trip/[id]", params: { id: tripId } });
@@ -93,7 +116,11 @@ export default function ImportSplitwise() {
                   <Pressable
                     accessibilityRole="radio"
                     accessibilityState={{ checked: self === name }}
-                    onPress={() => setSelf(name)}
+                    onPress={() => {
+                      setSelf(name);
+                      // You're added under your own email, never a friend's.
+                      if (name !== null) removeEmail(name);
+                    }}
                     style={styles.option}
                   >
                     <Icon
@@ -108,6 +135,26 @@ export default function ImportSplitwise() {
                 </View>
               ))}
             </Card>
+            {others.length > 0 && (
+              <>
+                <SectionHeader title="Who's everyone else?" />
+                <Card>
+                  {others.map((name, i) => (
+                    <View key={name}>
+                      {i > 0 && <Divider inset={58} />}
+                      <Row
+                        left={<Avatar person={{ id: name, name, email: links.get(name) ?? null }} size={30} ring={0} />}
+                        title={name}
+                        subtitle={links.get(name) ?? "No email yet"}
+                        accessibilityLabel={links.has(name) ? `${name}, ${links.get(name)}` : `Add ${name}'s email`}
+                        onPress={() => setLinking(name)}
+                        chevron
+                      />
+                    </View>
+                  ))}
+                </Card>
+              </>
+            )}
             <Card style={{ padding: 16, gap: 4 }}>
               <Text style={styles.summary}>
                 {parsed.people.length} {parsed.people.length === 1 ? "person" : "people"} · {parsed.expenses.length}{" "}
@@ -115,7 +162,8 @@ export default function ImportSplitwise() {
                 {parsed.settlements.length === 1 ? "payment" : "payments"}
               </Text>
               <Text style={styles.small}>
-                Everyone except you is added by name. Add their emails later from the trip's People screen so they can claim their spot.
+                People with an email join when they open tab-it signed in with it. Anyone without one is added by name, and you can add
+                their email later from the trip's People screen.
               </Text>
             </Card>
             {parsed.warnings.length > 0 && (
@@ -142,6 +190,16 @@ export default function ImportSplitwise() {
           </>
         )}
       </ScrollView>
+      {linking !== null && (
+        <PersonEmailSheet
+          name={linking}
+          initialEmail={links.get(linking) ?? ""}
+          exclude={[...(selfEmail ? [selfEmail] : []), ...others.flatMap((name) => (name !== linking && links.get(name)) || [])]}
+          onSave={(email) => setLinks((current) => new Map(current).set(linking, email))}
+          onUnlink={() => removeEmail(linking)}
+          onClose={() => setLinking(null)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

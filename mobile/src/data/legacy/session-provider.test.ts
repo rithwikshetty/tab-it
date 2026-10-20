@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   openStore: vi.fn(),
   onAuthStateChange: vi.fn(),
   unsubscribe: vi.fn(),
-  rpc: vi.fn(),
   createEngine: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
@@ -29,7 +28,7 @@ vi.mock("react", async (original) => ({
   },
   useMemo: (factory: () => unknown) => factory(),
 }));
-vi.mock("@/lib/supabase", () => ({ supabase: { auth: { onAuthStateChange: mocks.onAuthStateChange }, rpc: mocks.rpc } }));
+vi.mock("@/lib/supabase", () => ({ supabase: { auth: { onAuthStateChange: mocks.onAuthStateChange } } }));
 vi.mock("../legacy", () => ({ importLegacyData: mocks.importLegacyData }));
 vi.mock("./startup", () => ({ loadInitialSession: mocks.loadInitialSession }));
 vi.mock("../store", () => ({ openStore: mocks.openStore, deleteStore: vi.fn() }));
@@ -76,7 +75,6 @@ beforeEach(() => {
   mocks.importLegacyData.mockResolvedValue({ status: "imported" });
   mocks.loadInitialSession.mockResolvedValue({ session, legacyUserId: userId });
   mocks.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: mocks.unsubscribe } } });
-  mocks.rpc.mockResolvedValue({ error: null });
   mocks.close.mockResolvedValue(undefined);
 });
 
@@ -141,7 +139,7 @@ describe("session provider startup effects", () => {
     if (cleanup) cleanup();
   });
 
-  it("awaits import before publishing the store, constructing sync, or claiming people", async () => {
+  it("awaits import before publishing the store or constructing sync", async () => {
     const importing = deferred<{ status: string }>();
     mocks.importLegacyData.mockReturnValue(importing.promise);
     render();
@@ -149,12 +147,10 @@ describe("session provider startup effects", () => {
     await vi.waitFor(() => expect(mocks.importLegacyData).toHaveBeenCalledWith(store, userId, { legacyUserId: userId }));
     expect(mocks.createEngine).not.toHaveBeenCalled();
     expect(setOpened).not.toHaveBeenCalled();
-    expect(mocks.rpc).not.toHaveBeenCalled();
     importing.resolve({ status: "imported" });
     await vi.waitFor(() => expect(mocks.start).toHaveBeenCalledOnce());
     expect(setOpened).toHaveBeenCalledOnce();
     expect(mocks.createEngine).toHaveBeenCalledWith(store, expect.objectContaining({ id: userId }));
-    expect(mocks.rpc).toHaveBeenCalledWith("claim_trip_people_for_current_email");
     if (cleanup) cleanup();
     await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
   });
@@ -195,20 +191,6 @@ describe("session provider startup effects", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("retry on the next launch"));
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain("fictional-secret");
     if (cleanup) cleanup();
-  });
-
-  it("can close after import while the claim request is still pending", async () => {
-    const claim = deferred<{ error: null }>();
-    mocks.rpc.mockReturnValue(claim.promise);
-    render();
-    const cleanup = mocks.effects[1]!();
-    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
-    if (cleanup) cleanup();
-    await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
-    claim.resolve({ error: null });
-    await claim.promise;
-    expect(mocks.start).not.toHaveBeenCalled();
-    expect(mocks.stop).toHaveBeenCalledOnce();
   });
 
   it("preserves the opened signedIn object across token refresh renders", () => {

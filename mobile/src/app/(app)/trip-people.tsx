@@ -1,17 +1,18 @@
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 
 import { addPeople } from "@/data/actions";
 import { onlineMessage, removeTripPerson, tripInviteUrl, updateTripPersonEmail } from "@/data/online";
 import { peopleInTrip } from "@/data/selectors";
 import { useAppState, useSignedIn } from "@/data/session";
-import { hasPlaceholderEmail, isValidEmail, normalizedEmail, sortedPeople } from "@/domain";
+import { hasPlaceholderEmail, sortedPeople } from "@/domain";
 import type { LocalPerson } from "@/data/schema";
+import { PersonEmailSheet } from "@/features/people/email-sheet";
 import { PeoplePicker, type PickedPerson } from "@/features/people/people-picker";
 import { Avatar } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
-import { Button, Card, Divider, HeaderButton, Icon, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, HeaderButton, SectionHeader } from "@/ui/primitives";
 import { colors, PAGE, radius } from "@/ui/theme";
 
 export default function TripPeople() {
@@ -117,7 +118,7 @@ export default function TripPeople() {
           })}
         </Card>
         <Text style={styles.hint}>
-          Pending people join when they sign in with that email. Tap someone to change their email or remove them.
+          Pending people join when they open tab-it signed in with that email. Tap someone to add or change their email, or to remove them.
         </Text>
 
         {trip?.kind === "trip" && (
@@ -138,55 +139,16 @@ export default function TripPeople() {
           </View>
         )}
       </ScrollView>
-      {editing && <EmailEditor person={editing} onClose={() => setEditing(null)} />}
-    </KeyboardAvoidingView>
-  );
-}
-
-function EmailEditor({ person, onClose }: { person: LocalPerson; onClose: () => void }) {
-  const ctx = useSignedIn();
-  const [email, setEmail] = useState(hasPlaceholderEmail(person) ? "" : person.email);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const valid = isValidEmail(normalizedEmail(email)) && normalizedEmail(email) !== person.email;
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      await updateTripPersonEmail(ctx, person.id, email);
-      haptics.success();
-      onClose();
-    } catch (e) {
-      setError(onlineMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <View style={styles.sheet}>
-      <Text style={styles.sheetTitle}>{person.display_name}'s email</Text>
-      <Text style={styles.email}>They can claim this spot by signing in with this email.</Text>
-      <View style={styles.inputRow}>
-        <Icon name="mail-outline" size={16} color={colors.textSecondary} />
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="name@example.com"
-          placeholderTextColor={colors.textTertiary}
-          autoFocus
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          style={styles.input}
-          onSubmitEditing={() => valid && save()}
+      {editing && (
+        <PersonEmailSheet
+          name={editing.display_name}
+          initialEmail={hasPlaceholderEmail(editing) ? "" : editing.email}
+          exclude={people.filter((p) => p.id !== editing.id).map((p) => p.email)}
+          onSave={(email) => updateTripPersonEmail(ctx, editing.id, email)}
+          onClose={() => setEditing(null)}
         />
-      </View>
-      {error && <Text style={[styles.email, { color: colors.danger }]}>{error}</Text>}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Button title="Cancel" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
-        <Button title="Save email" onPress={save} disabled={!valid} loading={busy} style={{ flex: 1 }} />
-      </View>
-    </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -198,31 +160,4 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.surface2 },
   badgeText: { fontSize: 11, fontWeight: "600", color: colors.warning },
   hint: { fontSize: 12.5, color: colors.textSecondary, paddingHorizontal: PAGE + 8, lineHeight: 17 },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 20,
-    paddingBottom: 34,
-    gap: 12,
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  sheetTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    height: 48,
-    borderRadius: radius.control,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  input: { flex: 1, fontSize: 16, color: colors.text },
 });

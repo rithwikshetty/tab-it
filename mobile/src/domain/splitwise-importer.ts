@@ -1,4 +1,4 @@
-import { DefaultCategories } from "./presentation-helpers";
+import { DefaultCategories, normalizedEmail } from "./presentation-helpers";
 import type { ImportResult } from "./splitwise-import";
 import type { Expense, ExpensePayment, ExpenseSplit, Settlement } from "./records";
 import { fromMinor } from "./money";
@@ -30,22 +30,50 @@ export function splitwiseCategoryID(category: string): string {
     return DefaultCategories.shopping.id;
   return DefaultCategories.other.id;
 }
+const EXACT_NAME_MATCH = Number.MAX_SAFE_INTEGER;
+/**
+ * How closely two display names match, ignoring case: an exact match (outer
+ * spaces aside) scores above any partial one, else the number of shared words.
+ */
+export function nameMatchScore(a: string, b: string): number {
+  const x = a.toLowerCase().trim(),
+    y = b.toLowerCase().trim();
+  if (!x || !y) return 0;
+  if (x === y) return EXACT_NAME_MATCH;
+  const words = new Set(y.split(" ").filter(Boolean));
+  return [...new Set(x.split(" ").filter(Boolean))].filter((t) => words.has(t)).length;
+}
 export function bestSelfMatch(people: readonly string[], displayName: string): string | null {
-  const target = displayName.toLowerCase().trim();
-  if (!target) return null;
-  const exact = people.find((p) => p.toLowerCase() === target);
-  if (exact) return exact;
-  const tokens = new Set(target.split(" ").filter(Boolean));
   let best: string | null = null,
     score = 0;
   for (const person of people) {
-    const count = [...new Set(person.toLowerCase().split(" ").filter(Boolean))].filter((t) => tokens.has(t)).length;
-    if (count > score) {
+    const s = nameMatchScore(person, displayName);
+    if (s > score) {
       best = person;
-      score = count;
+      score = s;
     }
   }
   return best;
+}
+/**
+ * Emails to link imported names to before import: a name is linked only when
+ * exactly one known person has that exact name, and each email is used once.
+ */
+export function suggestImportLinks(
+  names: readonly string[],
+  known: readonly { email: string; displayName: string }[],
+): Map<string, string> {
+  const links = new Map<string, string>();
+  const used = new Set<string>();
+  for (const name of names) {
+    const exact = known.filter((k) => nameMatchScore(k.displayName, name) === EXACT_NAME_MATCH);
+    const email = exact.length === 1 ? normalizedEmail(exact[0]!.email) : null;
+    if (email && !used.has(email)) {
+      links.set(name, email);
+      used.add(email);
+    }
+  }
+  return links;
 }
 export function mapSplitwiseRows(
   parsed: ImportResult,
@@ -140,12 +168,15 @@ export function mapSplitwiseRows(
 export const SplitwiseImporter = {
   categoryID: splitwiseCategoryID,
   bestSelfMatch,
+  suggestLinks: suggestImportLinks,
   mapRows: mapSplitwiseRows,
   mapPeople: mapImportPeople,
 };
 export function mapImportPeople(options: {
   names: readonly string[];
   selfPerson: string | null;
+  /** Real emails for imported names, so those people can claim their spot; the rest get placeholders. */
+  emails?: ReadonlyMap<string, string>;
   tripID: string;
   user: { id: string; email: string | null; displayName: string };
   creatorPersonID: string;
@@ -175,17 +206,23 @@ export function mapImportPeople(options: {
   const people = [creator],
     personIDs: Record<string, string> = Object.create(null) as Record<string, string>;
   if (options.selfPerson !== null) personIDs[options.selfPerson] = creator.id;
+  // Two people under one email would be merged into one by the server.
+  const emails = new Set([creator.email]);
   for (const name of options.names) {
     if (personIDs[name] !== undefined) continue;
     const id = options.newPersonIDs[name];
     if (!id) throw new Error(`Missing person ID: ${name}`);
     personIDs[name] = id;
+    const linked = options.emails?.get(name);
+    const email = linked ? normalizedEmail(linked) : id.toLowerCase() + "@users.tab";
+    if (emails.has(email)) throw new Error(`Two people can't share the email ${email}.`);
+    emails.add(email);
     people.push({
       ...sync,
       id,
       trip_id: options.tripID,
       user_id: null,
-      email: id.toLowerCase() + "@users.tab",
+      email,
       display_name: name.trim(),
       invited_by: options.user.id,
       joined_at: null,
