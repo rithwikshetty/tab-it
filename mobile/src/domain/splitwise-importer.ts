@@ -1,8 +1,7 @@
-import { DefaultCategories } from "./presentation-helpers";
+import { DefaultCategories, normalizedEmail } from "./presentation-helpers";
 import type { ImportResult } from "./splitwise-import";
 import type { Expense, ExpensePayment, ExpenseSplit, Settlement } from "./records";
 import { fromMinor } from "./money";
-import { normalizedEmail } from "./presentation-helpers";
 export function splitwiseCategoryID(category: string): string {
   const key = category.toLowerCase().trim();
   if (["food and drink", "dining out", "dining", "groceries", "liquor", "restaurant", "drinks"].includes(key))
@@ -31,9 +30,11 @@ export function splitwiseCategoryID(category: string): string {
     return DefaultCategories.shopping.id;
   return DefaultCategories.other.id;
 }
-/** Score given to two display names that match exactly, ignoring case and outer spaces. */
-export const EXACT_NAME_MATCH = Number.MAX_SAFE_INTEGER;
-/** How closely two display names match: `EXACT_NAME_MATCH`, else the number of words they share, ignoring case. */
+const EXACT_NAME_MATCH = Number.MAX_SAFE_INTEGER;
+/**
+ * How closely two display names match, ignoring case: an exact match (outer
+ * spaces aside) scores above any partial one, else the number of shared words.
+ */
 export function nameMatchScore(a: string, b: string): number {
   const x = a.toLowerCase().trim(),
     y = b.toLowerCase().trim();
@@ -205,18 +206,23 @@ export function mapImportPeople(options: {
   const people = [creator],
     personIDs: Record<string, string> = Object.create(null) as Record<string, string>;
   if (options.selfPerson !== null) personIDs[options.selfPerson] = creator.id;
+  // Two people under one email would be merged into one by the server.
+  const emails = new Set([creator.email]);
   for (const name of options.names) {
     if (personIDs[name] !== undefined) continue;
     const id = options.newPersonIDs[name];
     if (!id) throw new Error(`Missing person ID: ${name}`);
     personIDs[name] = id;
-    const email = options.emails?.get(name);
+    const linked = options.emails?.get(name);
+    const email = linked ? normalizedEmail(linked) : id.toLowerCase() + "@users.tab";
+    if (emails.has(email)) throw new Error(`Two people can't share the email ${email}.`);
+    emails.add(email);
     people.push({
       ...sync,
       id,
       trip_id: options.tripID,
       user_id: null,
-      email: email ? normalizedEmail(email) : id.toLowerCase() + "@users.tab",
+      email,
       display_name: name.trim(),
       invited_by: options.user.id,
       joined_at: null,

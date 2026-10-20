@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { onlineMessage } from "@/data/online";
 import { knownPeople } from "@/data/selectors";
@@ -7,7 +8,7 @@ import { useAppState, useSignedIn } from "@/data/session";
 import { isValidEmail, nameMatchScore, normalizedEmail } from "@/domain";
 import { PersonRow } from "@/features/people/people-picker";
 import { haptics } from "@/ui/haptics";
-import { Button, Divider, Icon } from "@/ui/primitives";
+import { Button, Divider, Field, Icon } from "@/ui/primitives";
 import { colors, radius } from "@/ui/theme";
 
 /**
@@ -30,12 +31,13 @@ export function PersonEmailSheet({
   exclude: readonly string[];
   /** Saves the normalised email; a thrown error is shown in the sheet. */
   onSave: (email: string) => Promise<void> | void;
-  /** Offered when the link can be undone, before anything is saved to the server. */
+  /** Offered when the email can still be taken off, before anything reaches the server. */
   onUnlink?: () => void;
   onClose: () => void;
 }) {
   const { user } = useSignedIn();
   const state = useAppState();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState(initialEmail);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export function PersonEmailSheet({
       haptics.success();
       onClose();
     } catch (e) {
+      haptics.error();
       setError(onlineMessage(e));
     } finally {
       setBusy(false);
@@ -69,33 +72,26 @@ export function PersonEmailSheet({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <Pressable style={styles.dismiss} accessibilityLabel="Close" onPress={onClose} />
+        <Pressable style={[styles.dismiss, { minHeight: insets.top + 24 }]} accessibilityLabel="Close" onPress={onClose} />
         <View style={styles.sheet}>
           <Text style={styles.title}>{name}'s email</Text>
           <Text style={styles.body}>Pick a friend or type their email. They join when they open tab-it signed in with it.</Text>
-          <View style={styles.inputRow}>
-            <Icon name="mail-outline" size={16} color={colors.textSecondary} />
-            <TextInput
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                setError(null);
-              }}
-              placeholder="name@example.com"
-              placeholderTextColor={colors.textTertiary}
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              style={styles.input}
-              onSubmitEditing={() => valid && save()}
-            />
-          </View>
-          {(error ?? taken) && (
-            <Text style={[styles.body, { color: colors.danger }]}>{error ?? "Someone in this trip already has that email."}</Text>
-          )}
+          <Field
+            value={email}
+            onChangeText={(t) => {
+              setEmail(t);
+              setError(null);
+            }}
+            placeholder="name@example.com"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            onSubmitEditing={() => valid && save()}
+            error={error ?? (taken ? "Someone in this trip already has that email." : null)}
+          />
           {suggestions.length > 0 && (
-            <View style={styles.suggestions}>
+            <ScrollView style={styles.suggestions} keyboardShouldPersistTaps="handled">
               {suggestions.map((k, i) => (
                 <View key={k.email}>
                   {i > 0 && <Divider inset={62} />}
@@ -111,7 +107,7 @@ export function PersonEmailSheet({
                   />
                 </View>
               ))}
-            </View>
+            </ScrollView>
           )}
           <View style={styles.buttons}>
             <Button title="Cancel" variant="secondary" onPress={onClose} style={{ flex: 1 }} />
@@ -119,7 +115,7 @@ export function PersonEmailSheet({
           </View>
           {onUnlink && initialEmail !== "" && (
             <Button
-              title="Don't link"
+              title="Remove email"
               variant="destructive"
               onPress={() => {
                 onUnlink();
@@ -136,7 +132,9 @@ export function PersonEmailSheet({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.overlay },
   dismiss: { flex: 1 },
+  // On a short screen the suggestions scroll so the buttons stay above the keyboard.
   sheet: {
+    flexShrink: 1,
     padding: 20,
     paddingBottom: 34,
     gap: 12,
@@ -148,19 +146,9 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 17, fontWeight: "600", color: colors.text },
   body: { fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    height: 48,
-    borderRadius: radius.control,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  input: { flex: 1, fontSize: 16, color: colors.text },
   suggestions: {
+    flexGrow: 0,
+    flexShrink: 1,
     borderRadius: radius.control,
     backgroundColor: colors.surface,
     borderWidth: 1,

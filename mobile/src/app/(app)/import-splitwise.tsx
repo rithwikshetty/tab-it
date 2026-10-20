@@ -6,7 +6,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 
 import { importSplitwise } from "@/data/actions";
 import { knownPeople } from "@/data/selectors";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useSignedIn } from "@/data/session";
 import { bestSelfMatch, ImportParseError, normalizedEmail, parseSplitwise, suggestImportLinks, type ImportResult } from "@/domain";
 import { PersonEmailSheet } from "@/features/people/email-sheet";
 import { Avatar } from "@/ui/avatar";
@@ -27,17 +27,24 @@ function parseError(e: unknown): string {
 
 export default function ImportSplitwise() {
   const ctx = useSignedIn();
-  const state = useAppState();
   const [parsed, setParsed] = useState<ImportResult | null>(null);
   const [tripName, setTripName] = useState("");
   const [self, setSelf] = useState<string | null>(null);
-  /** Imported name to the email it's linked to. */
+  /** Imported name to the email it's added under. */
   const [links, setLinks] = useState<ReadonlyMap<string, string>>(new Map());
   const [linking, setLinking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const selfEmail = ctx.user.email ? normalizedEmail(ctx.user.email) : null;
   const others = parsed ? parsed.people.filter((name) => name !== self) : [];
+
+  function removeEmail(name: string) {
+    setLinks((current) => {
+      const next = new Map(current);
+      next.delete(name);
+      return next;
+    });
+  }
 
   async function choose() {
     setError(null);
@@ -58,7 +65,7 @@ export default function ImportSplitwise() {
       setLinks(
         suggestImportLinks(
           data.people.filter((name) => name !== me),
-          knownPeople(state, ctx.user.id, selfEmail),
+          knownPeople(ctx.store.getState(), ctx.user.id, selfEmail),
         ),
       );
     } catch (e) {
@@ -109,7 +116,11 @@ export default function ImportSplitwise() {
                   <Pressable
                     accessibilityRole="radio"
                     accessibilityState={{ checked: self === name }}
-                    onPress={() => setSelf(name)}
+                    onPress={() => {
+                      setSelf(name);
+                      // You're added under your own email, never a friend's.
+                      if (name !== null) removeEmail(name);
+                    }}
                     style={styles.option}
                   >
                     <Icon
@@ -134,8 +145,8 @@ export default function ImportSplitwise() {
                       <Row
                         left={<Avatar person={{ id: name, name, email: links.get(name) ?? null }} size={30} ring={0} />}
                         title={name}
-                        subtitle={links.get(name) ?? "Not linked"}
-                        accessibilityLabel={links.has(name) ? `${name}, linked to ${links.get(name)}` : `Link ${name}`}
+                        subtitle={links.get(name) ?? "No email yet"}
+                        accessibilityLabel={links.has(name) ? `${name}, ${links.get(name)}` : `Add ${name}'s email`}
                         onPress={() => setLinking(name)}
                         chevron
                       />
@@ -151,8 +162,8 @@ export default function ImportSplitwise() {
                 {parsed.settlements.length === 1 ? "payment" : "payments"}
               </Text>
               <Text style={styles.small}>
-                Linked people join when they open tab-it signed in with that email. Anyone you don't link is added by name, and you can link
-                them later from the trip's People screen.
+                People with an email join when they open tab-it signed in with it. Anyone without one is added by name, and you can add
+                their email later from the trip's People screen.
               </Text>
             </Card>
             {parsed.warnings.length > 0 && (
@@ -185,13 +196,7 @@ export default function ImportSplitwise() {
           initialEmail={links.get(linking) ?? ""}
           exclude={[...(selfEmail ? [selfEmail] : []), ...others.flatMap((name) => (name !== linking && links.get(name)) || [])]}
           onSave={(email) => setLinks((current) => new Map(current).set(linking, email))}
-          onUnlink={() =>
-            setLinks((current) => {
-              const next = new Map(current);
-              next.delete(linking);
-              return next;
-            })
-          }
+          onUnlink={() => removeEmail(linking)}
           onClose={() => setLinking(null)}
         />
       )}

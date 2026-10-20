@@ -20,14 +20,7 @@ import {
   isExpectedAuthCallbackURL,
   inviteToken,
 } from "./auth-helpers";
-import {
-  splitwiseCategoryID,
-  bestSelfMatch,
-  mapSplitwiseRows,
-  nameMatchScore,
-  EXACT_NAME_MATCH,
-  suggestImportLinks,
-} from "./splitwise-importer";
+import { splitwiseCategoryID, bestSelfMatch, mapSplitwiseRows, nameMatchScore, suggestImportLinks } from "./splitwise-importer";
 import { parseSplitwise } from "./splitwise-import";
 import { a, b, c, d, person, now } from "./test-support";
 import { DefaultCategories as D } from "./presentation-helpers";
@@ -84,7 +77,7 @@ test("selfMatchNone", () => {
 });
 test("selfMatchPrefersExactOverMoreSharedWords", () => expect(bestSelfMatch(["Sam Lee Park", "sam lee"], " Sam Lee ")).toBe("sam lee"));
 test("nameMatchScore", () => {
-  expect(nameMatchScore(" Sam Lee ", "sam lee")).toBe(EXACT_NAME_MATCH);
+  expect(nameMatchScore(" Sam Lee ", "sam lee")).toBeGreaterThan(nameMatchScore("Sam Lee", "Lee Sam Park"));
   expect(nameMatchScore("Sam Lee", "Sam Park")).toBe(1);
   expect(nameMatchScore("Sam Lee", "Lee Sam Park")).toBe(2);
   expect(nameMatchScore("Sam", "Alex")).toBe(0);
@@ -257,6 +250,29 @@ test("import people take linked emails and keep placeholders for the rest", asyn
     writeID: a,
   });
   expect(result.people.map((p) => p.email)).toEqual(["alice@x.test", "bob@x.test", d + "@users.tab"]);
+});
+test("import people refuse two people under one email, including the importer's", async () => {
+  const { mapImportPeople } = await import("./splitwise-importer");
+  const base = {
+    names: ["Alice", "Bob", "Cara"],
+    selfPerson: "Alice",
+    tripID: "trip",
+    user: { id: a, email: "alice@x.test", displayName: "Alice" },
+    creatorPersonID: c,
+    newPersonIDs: { Bob: b, Cara: d },
+    now,
+    writeID: a,
+  };
+  expect(() =>
+    mapImportPeople({
+      ...base,
+      emails: new Map([
+        ["Bob", "bob@x.test"],
+        ["Cara", " BOB@x.test"],
+      ]),
+    }),
+  ).toThrow("bob@x.test");
+  expect(() => mapImportPeople({ ...base, emails: new Map([["Bob", "Alice@X.test"]]) })).toThrow("alice@x.test");
 });
 test("fallback names match Foundation Unicode title casing and word boundaries", () => {
   expect(fallbackDisplayName("émile@example.com")).toBe("Émile");

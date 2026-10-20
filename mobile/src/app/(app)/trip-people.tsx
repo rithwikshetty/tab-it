@@ -118,8 +118,7 @@ export default function TripPeople() {
           })}
         </Card>
         <Text style={styles.hint}>
-          Pending people join when they open tab-it signed in with that email. Tap someone to link them to a friend or an email, or to
-          remove them.
+          Pending people join when they open tab-it signed in with that email. Tap someone to add or change their email, or to remove them.
         </Text>
 
         {trip?.kind === "trip" && (
