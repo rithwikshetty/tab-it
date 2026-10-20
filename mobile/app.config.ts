@@ -22,7 +22,7 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: BUNDLE_ID,
     appleTeamId: APPLE_TEAM_ID,
-    buildNumber: "19",
+    buildNumber: "20",
     supportsTablet: false,
     usesAppleSignIn: true,
     associatedDomains: ["applinks:tab-it.app"],
