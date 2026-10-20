@@ -397,11 +397,18 @@ export async function discardLocalChange({ store }: Ctx, table: UnsyncedChange["
 
 /**
  * Creates a trip from a parsed Splitwise export. Everyone except the chosen
- * "you" joins as a pending person with a placeholder email that can be
- * replaced later. It all lands locally in one commit and syncs like any other
- * change, so importing works offline.
+ * "you" joins as a pending person. Names in `emails` are linked to that email,
+ * so its owner claims the spot when they next open the app; the rest get a
+ * placeholder email that can be replaced later. It all lands locally in one
+ * commit and syncs like any other change, so importing works offline.
  */
-export async function importSplitwise(ctx: Ctx, parsed: ImportResult, tripName: string, selfPerson: string | null): Promise<string> {
+export async function importSplitwise(
+  ctx: Ctx,
+  parsed: ImportResult,
+  tripName: string,
+  selfPerson: string | null,
+  emails: ReadonlyMap<string, string>,
+): Promise<string> {
   const tripId = await createTrip(ctx, tripName);
   const t = ctx.store.getState().tables;
   const creator = [...t.trip_people.values()].find((p) => p.trip_id === tripId && p.user_id === ctx.user.id)!;
@@ -409,6 +416,7 @@ export async function importSplitwise(ctx: Ctx, parsed: ImportResult, tripName: 
   const { people, personIDs } = mapImportPeople({
     names: parsed.people,
     selfPerson,
+    emails,
     tripID: tripId,
     user: { id: ctx.user.id, email: ctx.user.email, displayName: creator.display_name },
     creatorPersonID: creator.id,

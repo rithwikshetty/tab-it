@@ -209,6 +209,11 @@ export class SyncEngine {
   // MARK: pull
 
   private async pull(tripId?: string) {
+    // A full pull first claims trip people pending under this account's email,
+    // so a trip someone added you to arrives with this pull. A failed claim
+    // waits for the next full pull; the snapshot below reports being offline.
+    if (!tripId) await call(supabase.rpc("claim_trip_people_for_current_email")).catch(() => null);
+    if (this.stopped) return;
     const [{ snapshot, errors }, cursor] = await Promise.all([
       fetchSnapshot(tripId),
       tripId ? Promise.resolve(null) : call(supabase.rpc("activity_read_cursor")).catch(() => null),

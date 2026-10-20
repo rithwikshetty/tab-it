@@ -39,7 +39,7 @@ tab/
 - **Multi-currency, no FX conversion**: per-currency pairwise balances only.
 - **Last-write-wins** with delete-wins and a `write_id` tiebreaker on identical timestamps, matching `set_sync_fields` on the server.
 - **Soft delete** on mutable user-visible records (`deleted_at`).
-- **Email pre-add** trip joining with automatic claim on sign-in; invite links at `https://tab-it.app/join/<token>`.
+- **Email pre-add** trip joining with an automatic claim on every full sync; invite links at `https://tab-it.app/join/<token>`.
 - **Realtime** on the currently viewed trip only, plus pulls on launch, foreground, reconnect and every five minutes.
 
 ## Conventions
@@ -66,7 +66,7 @@ tab/
 - `bash supabase/tests/00_sql_assembly.sh` is a local static source-consistency check and does not connect to a database. pgTAP tests in `supabase/tests/` may run only against an isolated non-production target.
 - **RLS is mandatory** on every public table. Every test must verify both the allow and deny path.
 - Mutable synced row-tables use `updated_at` + `write_id` (UUID), plus `deleted_at` where the row is soft-deleted.
-- Direct `trip_people` insert is forbidden for clients. Trip creation goes through `create_trip_with_self`; adding people goes through `add_trip_person_by_email`; sign-in claims go through `claim_trip_people_for_current_email`.
+- Direct `trip_people` insert is forbidden for clients. Trip creation goes through `create_trip_with_self`; adding people goes through `add_trip_person_by_email`; claims go through `claim_trip_people_for_current_email`, which the sync engine calls before each full pull.
 - Expense + split writes must be transactional (`create_expense_with_payments_and_splits`); the DB enforces split totals and trip-person references for payers, participants, settlements, categories, and mute prefs.
 - Trip access derives from joined `trip_people` rows — RLS policies all read from it.
 - Older installed Swift clients keep writing to the same database. Client changes must stay compatible with them.

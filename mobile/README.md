@@ -20,11 +20,11 @@ src/
 
 1. A screen calls an action in `data/actions.ts`. The action commits rows to the local store (`data/store.ts`), which updates memory at once and writes the per-user SQLite file. The row is now "dirty": its `write_id` differs from `_pushed`.
 2. The sync engine (`data/sync.ts`) notices dirty rows, pushes them in dependency order (profile, trips, people, expenses with ledgers, payments, receipts, mutes, activity cursor), and marks each acknowledged by the exact `write_id` it sent.
-3. It then pulls everything visible (or one trip, for realtime updates), and `data/merge.ts` applies it with the server's rules: delete wins, then the later `updated_at`, then the larger `write_id`. Unsent local edits survive a pull unless the server's version would win anyway.
+3. It then pulls everything visible (or one trip, for realtime updates). A full pull first claims trip people pending under the account's email, so a trip someone added you to arrives with it. `data/merge.ts` applies the pull with the server's rules: delete wins, then the later `updated_at`, then the larger `write_id`. Unsent local edits survive a pull unless the server's version would win anyway.
 
 Rows keep Supabase column names, so a pulled row is stored as-is. Money is a decimal string in rows and a `bigint` count of minor units in domain maths. PostgREST money columns are read with `::text` casts so nothing passes through a float.
 
-Things only the server can do (claiming people, invites, non-group containers, account deletion) live in `data/online.ts` and need a connection.
+Things only the server can do (invites, non-group containers, account deletion, person email changes and removal) live in `data/online.ts` and need a connection.
 
 ## Run it
 

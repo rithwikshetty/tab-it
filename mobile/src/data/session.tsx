@@ -104,17 +104,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       engine = new SyncEngine(store, user);
       setOpened({ store, sync: engine, user });
-      // Pending trip people added by email become this account's before the
-      // first pull, so newly joined trips arrive with it.
-      void supabase
-        .rpc("claim_trip_people_for_current_email")
-        .then(
-          () => undefined,
-          () => undefined,
-        )
-        .then(() => {
-          if (!cancelled) engine?.start();
-        });
+      engine.start();
     })().catch(() => {
       console.warn("[session] Could not open the local store.");
     });

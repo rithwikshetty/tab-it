@@ -20,9 +20,16 @@ import {
   isExpectedAuthCallbackURL,
   inviteToken,
 } from "./auth-helpers";
-import { splitwiseCategoryID, bestSelfMatch, mapSplitwiseRows } from "./splitwise-importer";
+import {
+  splitwiseCategoryID,
+  bestSelfMatch,
+  mapSplitwiseRows,
+  nameMatchScore,
+  EXACT_NAME_MATCH,
+  suggestImportLinks,
+} from "./splitwise-importer";
 import { parseSplitwise } from "./splitwise-import";
-import { a, b, c, person, now } from "./test-support";
+import { a, b, c, d, person, now } from "./test-support";
 import { DefaultCategories as D } from "./presentation-helpers";
 test("acceptsNormal", () => {
   for (const email of ["alice@example.com", "alex@example.com", "Alex+test@sub.example.co.uk", " alex@example.com "])
@@ -74,6 +81,23 @@ test("selfMatchToken", () => expect(bestSelfMatch(["Rithwik Shetty", "Lym", "Shr
 test("selfMatchNone", () => {
   expect(bestSelfMatch(["Lym", "Shreya Iyer"], "Test User")).toBeNull();
   expect(bestSelfMatch(["Lym", "Shreya Iyer"], "")).toBeNull();
+});
+test("selfMatchPrefersExactOverMoreSharedWords", () => expect(bestSelfMatch(["Sam Lee Park", "sam lee"], " Sam Lee ")).toBe("sam lee"));
+test("nameMatchScore", () => {
+  expect(nameMatchScore(" Sam Lee ", "sam lee")).toBe(EXACT_NAME_MATCH);
+  expect(nameMatchScore("Sam Lee", "Sam Park")).toBe(1);
+  expect(nameMatchScore("Sam Lee", "Lee Sam Park")).toBe(2);
+  expect(nameMatchScore("Sam", "Alex")).toBe(0);
+  expect(nameMatchScore("", "")).toBe(0);
+});
+test("importLinksNeedOneExactNameMatchAndUseEachEmailOnce", () => {
+  const known = [
+    { email: "Alex@X.test", displayName: "Alex" },
+    { email: "sam.one@x.test", displayName: "Sam" },
+    { email: "sam.two@x.test", displayName: "sam" },
+    { email: "jo@x.test", displayName: "Jo Park" },
+  ];
+  expect(suggestImportLinks(["alex", "ALEX ", "Sam", "Jo", "constructor"], known)).toEqual(new Map([["alex", "alex@x.test"]]));
 });
 test("privateRelayEmailsAreHidden", () => {
   const email = "ABC123@privaterelay.appleid.com";
@@ -215,6 +239,24 @@ test("import people map the self column and create normalized pending people", a
     display_name: "Bob",
     joined_at: null,
   });
+});
+test("import people take linked emails and keep placeholders for the rest", async () => {
+  const { mapImportPeople } = await import("./splitwise-importer");
+  const result = mapImportPeople({
+    names: ["Alice", "Bob", "Cara"],
+    selfPerson: "Alice",
+    emails: new Map([
+      ["Alice", "ignored@x.test"],
+      ["Bob", " Bob@X.test "],
+    ]),
+    tripID: "trip",
+    user: { id: a, email: "alice@x.test", displayName: "Alice" },
+    creatorPersonID: c,
+    newPersonIDs: { Bob: b, Cara: d },
+    now,
+    writeID: a,
+  });
+  expect(result.people.map((p) => p.email)).toEqual(["alice@x.test", "bob@x.test", d + "@users.tab"]);
 });
 test("fallback names match Foundation Unicode title casing and word boundaries", () => {
   expect(fallbackDisplayName("émile@example.com")).toBe("Émile");

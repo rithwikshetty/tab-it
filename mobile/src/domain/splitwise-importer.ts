@@ -2,6 +2,7 @@ import { DefaultCategories } from "./presentation-helpers";
 import type { ImportResult } from "./splitwise-import";
 import type { Expense, ExpensePayment, ExpenseSplit, Settlement } from "./records";
 import { fromMinor } from "./money";
+import { normalizedEmail } from "./presentation-helpers";
 export function splitwiseCategoryID(category: string): string {
   const key = category.toLowerCase().trim();
   if (["food and drink", "dining out", "dining", "groceries", "liquor", "restaurant", "drinks"].includes(key))
@@ -30,22 +31,48 @@ export function splitwiseCategoryID(category: string): string {
     return DefaultCategories.shopping.id;
   return DefaultCategories.other.id;
 }
+/** Score given to two display names that match exactly, ignoring case and outer spaces. */
+export const EXACT_NAME_MATCH = Number.MAX_SAFE_INTEGER;
+/** How closely two display names match: `EXACT_NAME_MATCH`, else the number of words they share, ignoring case. */
+export function nameMatchScore(a: string, b: string): number {
+  const x = a.toLowerCase().trim(),
+    y = b.toLowerCase().trim();
+  if (!x || !y) return 0;
+  if (x === y) return EXACT_NAME_MATCH;
+  const words = new Set(y.split(" ").filter(Boolean));
+  return [...new Set(x.split(" ").filter(Boolean))].filter((t) => words.has(t)).length;
+}
 export function bestSelfMatch(people: readonly string[], displayName: string): string | null {
-  const target = displayName.toLowerCase().trim();
-  if (!target) return null;
-  const exact = people.find((p) => p.toLowerCase() === target);
-  if (exact) return exact;
-  const tokens = new Set(target.split(" ").filter(Boolean));
   let best: string | null = null,
     score = 0;
   for (const person of people) {
-    const count = [...new Set(person.toLowerCase().split(" ").filter(Boolean))].filter((t) => tokens.has(t)).length;
-    if (count > score) {
+    const s = nameMatchScore(person, displayName);
+    if (s > score) {
       best = person;
-      score = count;
+      score = s;
     }
   }
   return best;
+}
+/**
+ * Emails to link imported names to before import: a name is linked only when
+ * exactly one known person has that exact name, and each email is used once.
+ */
+export function suggestImportLinks(
+  names: readonly string[],
+  known: readonly { email: string; displayName: string }[],
+): Map<string, string> {
+  const links = new Map<string, string>();
+  const used = new Set<string>();
+  for (const name of names) {
+    const exact = known.filter((k) => nameMatchScore(k.displayName, name) === EXACT_NAME_MATCH);
+    const email = exact.length === 1 ? normalizedEmail(exact[0]!.email) : null;
+    if (email && !used.has(email)) {
+      links.set(name, email);
+      used.add(email);
+    }
+  }
+  return links;
 }
 export function mapSplitwiseRows(
   parsed: ImportResult,
@@ -140,12 +167,15 @@ export function mapSplitwiseRows(
 export const SplitwiseImporter = {
   categoryID: splitwiseCategoryID,
   bestSelfMatch,
+  suggestLinks: suggestImportLinks,
   mapRows: mapSplitwiseRows,
   mapPeople: mapImportPeople,
 };
 export function mapImportPeople(options: {
   names: readonly string[];
   selfPerson: string | null;
+  /** Real emails for imported names, so those people can claim their spot; the rest get placeholders. */
+  emails?: ReadonlyMap<string, string>;
   tripID: string;
   user: { id: string; email: string | null; displayName: string };
   creatorPersonID: string;
@@ -180,12 +210,13 @@ export function mapImportPeople(options: {
     const id = options.newPersonIDs[name];
     if (!id) throw new Error(`Missing person ID: ${name}`);
     personIDs[name] = id;
+    const email = options.emails?.get(name);
     people.push({
       ...sync,
       id,
       trip_id: options.tripID,
       user_id: null,
-      email: id.toLowerCase() + "@users.tab",
+      email: email ? normalizedEmail(email) : id.toLowerCase() + "@users.tab",
       display_name: name.trim(),
       invited_by: options.user.id,
       joined_at: null,

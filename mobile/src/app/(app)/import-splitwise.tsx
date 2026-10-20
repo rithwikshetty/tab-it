@@ -5,10 +5,13 @@ import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { importSplitwise } from "@/data/actions";
-import { useSignedIn } from "@/data/session";
-import { bestSelfMatch, ImportParseError, parseSplitwise, type ImportResult } from "@/domain";
+import { knownPeople } from "@/data/selectors";
+import { useAppState, useSignedIn } from "@/data/session";
+import { bestSelfMatch, ImportParseError, normalizedEmail, parseSplitwise, suggestImportLinks, type ImportResult } from "@/domain";
+import { PersonEmailSheet } from "@/features/people/email-sheet";
+import { Avatar } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
-import { Button, Card, Divider, Field, HeaderButton, Icon, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Divider, Field, HeaderButton, Icon, Row, SectionHeader } from "@/ui/primitives";
 import { colors, PAGE } from "@/ui/theme";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -24,11 +27,17 @@ function parseError(e: unknown): string {
 
 export default function ImportSplitwise() {
   const ctx = useSignedIn();
+  const state = useAppState();
   const [parsed, setParsed] = useState<ImportResult | null>(null);
   const [tripName, setTripName] = useState("");
   const [self, setSelf] = useState<string | null>(null);
+  /** Imported name to the email it's linked to. */
+  const [links, setLinks] = useState<ReadonlyMap<string, string>>(new Map());
+  const [linking, setLinking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const selfEmail = ctx.user.email ? normalizedEmail(ctx.user.email) : null;
+  const others = parsed ? parsed.people.filter((name) => name !== self) : [];
 
   async function choose() {
     setError(null);
@@ -44,7 +53,14 @@ export default function ImportSplitwise() {
       const data = parseSplitwise(await file.text());
       setParsed(data);
       setTripName((asset.name ?? "").replace(/\.[^.]+$/, "").trim() || "Imported trip");
-      setSelf(bestSelfMatch(data.people, ctx.user.displayName));
+      const me = bestSelfMatch(data.people, ctx.user.displayName);
+      setSelf(me);
+      setLinks(
+        suggestImportLinks(
+          data.people.filter((name) => name !== me),
+          knownPeople(state, ctx.user.id, selfEmail),
+        ),
+      );
     } catch (e) {
       setError(parseError(e));
     }
@@ -54,7 +70,7 @@ export default function ImportSplitwise() {
     if (!parsed || !tripName.trim()) return;
     setImporting(true);
     try {
-      const tripId = await importSplitwise(ctx, parsed, tripName.trim(), self);
+      const tripId = await importSplitwise(ctx, parsed, tripName.trim(), self, links);
       haptics.success();
       router.dismissAll();
       router.push({ pathname: "/trip/[id]", params: { id: tripId } });
@@ -108,6 +124,26 @@ export default function ImportSplitwise() {
                 </View>
               ))}
             </Card>
+            {others.length > 0 && (
+              <>
+                <SectionHeader title="Who's everyone else?" />
+                <Card>
+                  {others.map((name, i) => (
+                    <View key={name}>
+                      {i > 0 && <Divider inset={58} />}
+                      <Row
+                        left={<Avatar person={{ id: name, name, email: links.get(name) ?? null }} size={30} ring={0} />}
+                        title={name}
+                        subtitle={links.get(name) ?? "Not linked"}
+                        accessibilityLabel={links.has(name) ? `${name}, linked to ${links.get(name)}` : `Link ${name}`}
+                        onPress={() => setLinking(name)}
+                        chevron
+                      />
+                    </View>
+                  ))}
+                </Card>
+              </>
+            )}
             <Card style={{ padding: 16, gap: 4 }}>
               <Text style={styles.summary}>
                 {parsed.people.length} {parsed.people.length === 1 ? "person" : "people"} · {parsed.expenses.length}{" "}
@@ -115,7 +151,8 @@ export default function ImportSplitwise() {
                 {parsed.settlements.length === 1 ? "payment" : "payments"}
               </Text>
               <Text style={styles.small}>
-                Everyone except you is added by name. Add their emails later from the trip's People screen so they can claim their spot.
+                Linked people join when they open tab-it signed in with that email. Anyone you don't link is added by name, and you can link
+                them later from the trip's People screen.
               </Text>
             </Card>
             {parsed.warnings.length > 0 && (
@@ -142,6 +179,22 @@ export default function ImportSplitwise() {
           </>
         )}
       </ScrollView>
+      {linking !== null && (
+        <PersonEmailSheet
+          name={linking}
+          initialEmail={links.get(linking) ?? ""}
+          exclude={[...(selfEmail ? [selfEmail] : []), ...others.flatMap((name) => (name !== linking && links.get(name)) || [])]}
+          onSave={(email) => setLinks((current) => new Map(current).set(linking, email))}
+          onUnlink={() =>
+            setLinks((current) => {
+              const next = new Map(current);
+              next.delete(linking);
+              return next;
+            })
+          }
+          onClose={() => setLinking(null)}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
