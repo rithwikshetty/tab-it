@@ -91,14 +91,16 @@ Answer "No" to everything in the questionnaire. Result: **4+**.
 2026 Rithwik Shetty
 ```
 
-## What's New (version 1.3.0)
+## What's New (version 2.0.0)
 
 ```
-• Join a trip by opening an invite link.
-• Open the app, add expenses, and view saved receipts while you're offline. Changes sync when you're back online.
-• See how much you lent or borrowed on each expense.
-• Amounts now use currency symbols, and you can settle up with fewer payments.
-• Trip activity notifications arrive more reliably.
+tab-it is rebuilt from the ground up. Your trips, balances and receipts carry over, and you stay signed in.
+
+• Tap a notification to open the expense it's about.
+• After importing a Splitwise group, link its people to friends you already split with, during the import or later from the trip's People screen.
+• Each person keeps one avatar colour across all your trips.
+• Excel exports show times and payment dates in your local time.
+• Many fixes to syncing and offline changes.
 ```
 
 ## App Privacy section
@@ -119,7 +121,7 @@ activity feed.
 Sign-in is required, so App Review will ask how to get in. Suggested note:
 
 ```
-Sign in with Apple works with any Apple ID and is the fastest way in. Email sign-in sends an 8-digit code to the address entered. No demo account exists because there are no passwords; every account is created on first sign-in.
+Sign in with Apple works with any Apple ID and is the fastest way in. Sign in with Google works with any Google account. Email sign-in sends an 8-digit code to the address entered. No demo account exists because there are no passwords; every account is created on first sign-in.
 ```
 
 If the reviewer insists on a demo account anyway, that needs a decision at
