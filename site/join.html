@@ -5,12 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>tab-it · you're invited</title>
 <meta name="description" content="Someone invited you to a trip on tab-it, a free iOS app for tracking shared expenses on group trips.">
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="tab-it">
+<meta property="og:title" content="You're invited to a trip on tab-it">
+<meta property="og:description" content="tab-it keeps track of who paid for what on group trips. Free, no ads.">
+<meta property="og:image" content="https://tab-it.app/assets/og-invite.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="You're invited to a trip on tab-it">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F3EEE2">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/gochi-hand-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face {
+    font-family: "Fraunces"; font-style: normal; font-weight: 400 700; font-display: swap;
+    src: url("/assets/fonts/fraunces-latin.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Gochi Hand"; font-style: normal; font-weight: 400; font-display: swap;
+    src: url("/assets/fonts/gochi-hand-latin.woff2") format("woff2");
+  }
   :root {
     --cork: #F3EEE2;
     --card: #FFFEF9;

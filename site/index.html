@@ -6,11 +6,28 @@
 <title>tab-it · keep track of who paid for what</title>
 <meta name="description" content="tab-it is a free iOS app for tracking shared expenses on group trips. Add expenses as they happen and see who owes who.">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="tab-it">
+<meta property="og:url" content="https://tab-it.app/">
+<meta property="og:title" content="tab-it · keep track of who paid for what">
+<meta property="og:description" content="A free iOS app for tracking shared expenses on group trips. Add expenses as they happen and see who owes who.">
+<meta property="og:image" content="https://tab-it.app/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="tab-it: keep track of who paid for what, without the spreadsheet">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F3EEE2">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/gochi-hand-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face {
+    font-family: "Fraunces"; font-style: normal; font-weight: 400 700; font-display: swap;
+    src: url("/assets/fonts/fraunces-latin.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Gochi Hand"; font-style: normal; font-weight: 400; font-display: swap;
+    src: url("/assets/fonts/gochi-hand-latin.woff2") format("woff2");
+  }
   :root {
     --cork: #F3EEE2;
     --card: #FFFEF9;
@@ -97,7 +114,7 @@
   .notes { padding: 90px 0 60px; }
   h2 { font-size: clamp(30px, 4vw, 42px); text-align: center; font-weight: 700; }
   h2 .scribble { font-family: "Gochi Hand", cursive; color: var(--sage); }
-  .note-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; margin-top: 56px; }
+  .note-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 34px; max-width: 860px; margin: 56px auto 0; }
   .sticky {
     background: #FBF6DF; padding: 28px 24px 32px; position: relative;
     box-shadow: 0 10px 22px rgba(51,64,47,.14);
@@ -106,6 +123,7 @@
   .sticky:nth-child(1) { transform: rotate(-1.6deg); background: #FBF6DF; }
   .sticky:nth-child(2) { transform: rotate(1.2deg); background: #EDF3E4; }
   .sticky:nth-child(3) { transform: rotate(-0.8deg); background: #F8EFE2; }
+  .sticky:nth-child(4) { transform: rotate(1.4deg); background: #EEF0E6; }
   .sticky:hover { transform: rotate(0) translateY(-6px); }
   .sticky::before {
     content: ""; position: absolute; top: -12px; left: 26px; width: 84px; height: 26px;
@@ -178,15 +196,15 @@
 
   <section class="board">
     <div class="polaroid p1 reveal">
-      <img loading="lazy" decoding="async" src="assets/01-trips.png" alt="Trips list">
+      <img loading="lazy" decoding="async" src="assets/01-trips.jpg" alt="Trips list">
       <div class="cap">all our trips ☻</div>
     </div>
     <div class="polaroid p2 reveal" style="transition-delay:.12s">
-      <img loading="lazy" decoding="async" src="assets/02-trip-detail.png" alt="Lisbon trip detail">
+      <img loading="lazy" decoding="async" src="assets/02-trip-detail.jpg" alt="Lisbon trip detail">
       <div class="cap">lisbon, all square</div>
     </div>
     <div class="polaroid p3 reveal" style="transition-delay:.24s">
-      <img loading="lazy" decoding="async" src="assets/04-friends.png" alt="Friends balances">
+      <img loading="lazy" decoding="async" src="assets/04-friends.jpg" alt="Friends balances">
       <div class="cap">who owes who</div>
     </div>
   </section>
@@ -205,6 +223,10 @@
       <div class="sticky reveal" style="transition-delay:.24s">
         <h3>"I'll get you back at home"</h3>
         <p>One screen shows the total across everything you share. When they pay you back, tick it off.</p>
+      </div>
+      <div class="sticky reveal" style="transition-delay:.36s">
+        <h3>"there's no signal up here"</h3>
+        <p>Add it anyway. tab-it keeps it on your phone and syncs when you're back online.</p>
       </div>
     </div>
   </section>
