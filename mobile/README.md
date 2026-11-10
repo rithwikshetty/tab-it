@@ -8,7 +8,7 @@ One Expo / React Native app for iOS and Android. It is the App Store update to t
 src/
 ├── app/            Expo Router screens (file = route)
 │   ├── sign-in.tsx, join/[token].tsx, auth-callback.tsx
-│   └── (app)/      signed-in area: (tabs)/ plus trip, expense, payment, friend screens and modals
+│   └── (app)/      signed-in area: (tabs)/ plus trip, expense, settlement, friend screens and modals
 ├── domain/         pure money, splitting, balances, presenters (port of the Swift TabCore); see domain/API.md
 ├── data/           local store, sync engine, auth, push, receipts, server-only actions
 ├── features/       pieces shared by several screens (ledger rows, pickers, forms)

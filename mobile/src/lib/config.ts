@@ -7,6 +7,7 @@
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ?? "";
 const turnstileSiteKey = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+const emailCodeLength = Number(process.env.EXPO_PUBLIC_EMAIL_CODE_LENGTH?.trim());
 
 export const BUNDLE_ID = "com.rithwikshetty.tab";
 export const AUTH_CALLBACK_URL = `${BUNDLE_ID}://auth-callback`;
@@ -23,6 +24,8 @@ export const config = {
   supabaseUrl,
   supabaseKey,
   turnstileSiteKey: turnstileSiteKey || null,
+  /** Digits in an emailed sign-in code. It must match the backend's OTP length; 8 when unset or not a positive whole number. */
+  emailCodeLength: Number.isInteger(emailCodeLength) && emailCodeLength > 0 ? emailCodeLength : 8,
   isConfigured: supabaseUrl.length > 0 && supabaseKey.length > 0,
   /** Google sign-in needs the Google provider set up on the backend, so it's off unless a build turns it on. */
   googleSignIn: process.env.EXPO_PUBLIC_GOOGLE_SIGN_IN?.trim() === "1",

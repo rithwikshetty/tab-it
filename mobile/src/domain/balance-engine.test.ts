@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { computeBalances, type UserBalance } from "./balance-engine";
 import { a, b, c, d, ledgerExpense as e, ledgerSettlement as s } from "./test-support";
-import { toMinor } from "./money";
 const single = () => e({ [a]: "30" }, { [a]: "15", [b]: "15" });
 const multi = () => e({ [a]: "60", [b]: "40" }, { [a]: "20", [b]: "20", [c]: "60" }, "EUR", "100");
 const get = (rows: UserBalance[], from: string, to: string, currency = "EUR") =>
@@ -174,6 +173,14 @@ describe("Swift BalanceEngineTests", () => {
           })),
       ),
     ).toEqual([]);
+  });
+  test("multiPayerCreditorsGetExactlyTheirNet", () => {
+    const r = computeBalances([
+      e({ [a]: "50", [b]: "50" }, { [c]: "33.34", [d]: "33.33", ["e0000000-0000-0000-0000-000000000005"]: "33.33" }, "EUR", "100"),
+    ]);
+    expect(r.filter((x) => x.forUser === a).reduce((n, x) => n + x.amount, 0n)).toBe(5000n);
+    expect(r.filter((x) => x.forUser === b).reduce((n, x) => n + x.amount, 0n)).toBe(5000n);
+    expect(r.filter((x) => x.forUser === c).reduce((n, x) => n + x.amount, 0n)).toBe(-3334n);
   });
   test("multiPayerZeroDecimalCurrency", () => {
     const r = computeBalances([e({ [a]: "700", [b]: "300" }, { [c]: "451", [d]: "549" }, "JPY", "1000")]);

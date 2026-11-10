@@ -87,7 +87,7 @@ export function PersonEmailSheet({
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
-            onSubmitEditing={() => valid && save()}
+            onSubmitEditing={() => valid && !busy && save()}
             error={error ?? (taken ? "Someone in this trip already has that email." : null)}
           />
           {suggestions.length > 0 && (

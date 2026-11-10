@@ -11,7 +11,6 @@ import {
   View,
   type StyleProp,
   type TextInputProps,
-  type TextStyle,
   type ViewStyle,
 } from "react-native";
 
@@ -20,18 +19,8 @@ import { colors, fabShadow, PAGE, radius, shadow, type } from "./theme";
 
 export type IconName = ComponentProps<typeof Ionicons>["name"];
 
-export function Icon({
-  name,
-  size = 20,
-  color = colors.text,
-  style,
-}: {
-  name: IconName;
-  size?: number;
-  color?: string;
-  style?: StyleProp<TextStyle>;
-}) {
-  return <Ionicons name={name} size={size} color={color} style={style} />;
+export function Icon({ name, size = 20, color = colors.text }: { name: IconName; size?: number; color?: string }) {
+  return <Ionicons name={name} size={size} color={color} />;
 }
 
 export function LargeTitle({ title, right }: { title: string; right?: ReactNode }) {
@@ -56,8 +45,37 @@ export function SectionHeader({ title, right, first }: { title: string; right?: 
   );
 }
 
-export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+/**
+ * A rounded card. In a virtualised list each row renders its own slice of the
+ * card: `first` and `last` say which slice keeps the top and bottom edges.
+ */
+export function Card({
+  children,
+  style,
+  first = true,
+  last = true,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  first?: boolean;
+  last?: boolean;
+}) {
+  return <View style={[styles.card, style, !first && styles.cardOpenTop, !last && styles.cardOpenBottom]}>{children}</View>;
+}
+
+/**
+ * Structural equality for plain props: primitives, arrays and plain objects
+ * compare by value, functions by identity. List rows pass it to `memo` so a
+ * presenter rebuilding equal rows does not re-render them.
+ */
+export function sameValues(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every((k) => sameValues(left[k], right[k]));
 }
 
 export function Divider({ inset = 0 }: { inset?: number }) {
@@ -71,9 +89,7 @@ export function Row({
   right,
   value,
   onPress,
-  onLongPress,
   chevron,
-  destructive,
   disabled,
   accessibilityLabel,
   titleLines = 1,
@@ -84,9 +100,7 @@ export function Row({
   right?: ReactNode;
   value?: string;
   onPress?: () => void;
-  onLongPress?: () => void;
   chevron?: boolean;
-  destructive?: boolean;
   disabled?: boolean;
   accessibilityLabel?: string;
   titleLines?: number;
@@ -96,7 +110,7 @@ export function Row({
       {left}
       <View style={styles.rowText}>
         {typeof title === "string" ? (
-          <Text style={[type.rowTitle, destructive && { color: colors.danger }]} numberOfLines={titleLines}>
+          <Text style={type.rowTitle} numberOfLines={titleLines}>
             {title}
           </Text>
         ) : (
@@ -119,14 +133,13 @@ export function Row({
       {chevron && <Icon name="chevron-forward" size={16} color={colors.textTertiary} />}
     </>
   );
-  if (!onPress && !onLongPress) return <View style={styles.row}>{body}</View>;
+  if (!onPress) return <View style={styles.row}>{body}</View>;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}
       onPress={onPress}
-      onLongPress={onLongPress}
       android_ripple={{ color: colors.rowDivider }}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }, disabled && { opacity: 0.5 }]}
     >
@@ -145,7 +158,6 @@ export function Button({
   loading,
   disabled,
   style,
-  accessibilityLabel,
 }: {
   title: string;
   onPress: () => void;
@@ -154,7 +166,6 @@ export function Button({
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
-  accessibilityLabel?: string;
 }) {
   const palette = {
     primary: { bg: colors.accent, fg: "#fff" },
@@ -166,7 +177,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityLabel={title}
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       onPress={() => {
@@ -194,31 +205,16 @@ export function Button({
   );
 }
 
-export function IconButton({
-  icon,
-  onPress,
-  label,
-  color = colors.accentStrong,
-  size = 22,
-  disabled,
-}: {
-  icon: IconName;
-  onPress: () => void;
-  label: string;
-  color?: string;
-  size?: number;
-  disabled?: boolean;
-}) {
+export function IconButton({ icon, onPress, label, size = 22 }: { icon: IconName; onPress: () => void; label: string; size?: number }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={10}
-      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.iconButton, (pressed || disabled) && { opacity: 0.5 }]}
+      style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.5 }]}
     >
-      <Icon name={icon} size={size} color={color} />
+      <Icon name={icon} size={size} color={colors.accentStrong} />
     </Pressable>
   );
 }
@@ -233,12 +229,12 @@ export function useTabBarClearance(): number {
   return Platform.OS === "ios" ? insets.bottom : 16;
 }
 
-export function Fab({ label, icon = "add", onPress, bottom }: { label?: string; icon?: IconName; onPress: () => void; bottom?: number }) {
+export function Fab({ label, onPress, bottom }: { label: string; onPress: () => void; bottom?: number }) {
   const insets = useSafeAreaInsets();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label ?? "Add"}
+      accessibilityLabel={label}
       onPress={() => {
         haptics.medium();
         onPress();
@@ -246,12 +242,12 @@ export function Fab({ label, icon = "add", onPress, bottom }: { label?: string; 
       style={({ pressed }) => [
         styles.fab,
         { bottom: bottom ?? insets.bottom + 16 },
-        label ? styles.fabWide : styles.fabRound,
+        styles.fabWide,
         pressed && { transform: [{ scale: 0.95 }] },
       ]}
     >
-      <Icon name={icon} size={label ? 20 : 26} color="#fff" />
-      {label && <Text style={styles.fabText}>{label}</Text>}
+      <Icon name="add" size={20} color="#fff" />
+      <Text style={styles.fabText}>{label}</Text>
     </Pressable>
   );
 }
@@ -294,7 +290,7 @@ export function Segmented<T extends string>({
   );
 }
 
-export function Chip({ label, selected, onPress, icon }: { label: string; selected?: boolean; onPress?: () => void; icon?: ReactNode }) {
+export function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -305,7 +301,6 @@ export function Chip({ label, selected, onPress, icon }: { label: string; select
       }}
       style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && { opacity: 0.7 }]}
     >
-      {icon}
       <Text style={[styles.chipText, selected && { color: colors.accentStrong }]} numberOfLines={1}>
         {label}
       </Text>
@@ -329,11 +324,10 @@ export function EmptyState({ icon, title, message, action }: { icon: IconName; t
 export function Field({
   label,
   error,
-  hint,
   style,
   ref,
   ...props
-}: TextInputProps & { label?: string; error?: string | null; hint?: string; ref?: Ref<ComponentRef<typeof TextInput>> }) {
+}: TextInputProps & { label?: string; error?: string | null; ref?: Ref<ComponentRef<typeof TextInput>> }) {
   return (
     <View style={{ gap: 6 }}>
       {label && <Text style={type.label}>{label}</Text>}
@@ -344,7 +338,7 @@ export function Field({
         style={[styles.field, !!error && { borderColor: colors.danger }, style]}
         {...props}
       />
-      {error ? <Text style={[type.small, { color: colors.danger }]}>{error}</Text> : hint ? <Text style={type.small}>{hint}</Text> : null}
+      {error ? <Text style={[type.small, { color: colors.danger }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -400,6 +394,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...shadow,
   },
+  cardOpenTop: { borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 },
+  cardOpenBottom: { borderBottomWidth: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 },
   divider: { height: StyleSheet.hairlineWidth * 2, backgroundColor: colors.rowDivider },
   row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12, minHeight: 52 },
   rowText: { flex: 1, minWidth: 0 },
@@ -421,7 +417,6 @@ const styles = StyleSheet.create({
     ...fabShadow,
   },
   fabWide: { height: 52, paddingHorizontal: 20 },
-  fabRound: { width: 56, height: 56 },
   fabText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   segmented: {
     flexDirection: "row",

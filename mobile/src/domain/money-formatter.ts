@@ -1,6 +1,6 @@
 import { displayMetadata, fractionDigits, minorUnitMultiplier } from "./currency-catalog";
 import { abs, decimalRational, roundDivide, scaledString } from "./decimal";
-import { decimalFromInput, sanitizeAmountInput, sanitizeShareInput, shareString, type Money } from "./money";
+import { decimalFromInput, type Money } from "./money";
 function displayMinor(amount: string | bigint, currency: string): bigint {
   if (typeof amount === "bigint") return amount;
   const r = decimalRational(amount);
@@ -32,19 +32,3 @@ export function formatMoney(input: string | bigint | Money, currencyOrLocale?: s
   const value = (isNegativeAmount(amount) ? "-" : "") + grouped + (fraction ? "." + fraction : "");
   return metadata.symbol.toUpperCase() === metadata.code ? metadata.code + " " + value : metadata.symbol + value;
 }
-export function formatSigned(amount: string | bigint, currency: string, locale = "en-US"): string {
-  const minor = displayMinor(amount, currency);
-  return (isNegativeAmount(amount) ? "-" : "") + formatMoney(abs(minor), currency, locale);
-}
-export const MoneyFormatter = {
-  format: formatMoney,
-  formatSigned,
-  plainAmountString,
-  convertAmountText,
-  sanitizeAmountInput,
-  sanitizeShareInput,
-  shareString,
-  decimal: decimalFromInput,
-  currencySymbol: (code: string) => displayMetadata(code).symbol,
-  amountPlaceholder: (currency: string) => plainAmountString(0n, currency),
-};

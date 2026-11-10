@@ -4,7 +4,7 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Te
 
 import { saveSettlement } from "@/data/actions";
 import { tripRows } from "@/data/selectors";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import {
   balancesFromRows,
   formatMoney,
@@ -13,7 +13,6 @@ import {
   simplifyDebts,
   sortedPeople,
   suggestedPayment,
-  toMinor,
   parseAmountInput,
   convertAmountText,
 } from "@/domain";
@@ -45,6 +44,7 @@ export default function SettleUp() {
     currency?: string;
   }>();
   const ctx = useSignedIn();
+  const myName = useMyName();
   const state = useAppState();
   const tripId = params.tripId;
   const editing = params.settlementId ? state.tables.settlements.get(params.settlementId) : undefined;
@@ -113,11 +113,11 @@ export default function SettleUp() {
     ).map((p) => ({
       id: p.id,
       name: p.id === me?.id ? "You" : p.display_name,
-      avatarName: p.id === me?.id ? ctx.user.displayName : p.display_name,
+      avatarName: p.id === me?.id ? myName : p.display_name,
       email: p.email,
       userId: p.user_id,
     }));
-  }, [rows, me, from, to, debts, ctx.user.displayName]);
+  }, [rows, me, from, to, debts, myName]);
 
   /** The open debt between the chosen pair in this currency, as a fresh draft's amount. */
   function debtBetween(f: string | null, t: string | null, c: string) {
@@ -181,8 +181,15 @@ export default function SettleUp() {
     }
   }
 
-  if (!rows || !me) {
-    return null;
+  if (!rows || !me || (params.settlementId && (!editing || editing.deleted_at))) {
+    return (
+      <View style={styles.missing}>
+        <Stack.Screen
+          options={{ title: "", headerLeft: () => <HeaderButton title="Close" onPress={() => router.back()} />, headerRight: () => null }}
+        />
+        <Text style={styles.missingText}>This {params.settlementId ? "payment" : "trip"} isn't available any more.</Text>
+      </View>
+    );
   }
 
   return (
@@ -294,6 +301,8 @@ const styles = StyleSheet.create({
   },
   contextText: { flex: 1, fontSize: 13, lineHeight: 18, color: colors.text },
   error: { fontSize: 13, color: colors.danger, paddingHorizontal: PAGE + 8, marginTop: 8 },
+  missing: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, backgroundColor: colors.bg },
+  missingText: { fontSize: 15, color: colors.textSecondary, textAlign: "center" },
   note: { minHeight: 52, fontSize: 15, color: colors.text, paddingHorizontal: 16, paddingVertical: 14 },
   hint: { fontSize: 12.5, color: colors.textSecondary, paddingHorizontal: PAGE + 8, marginTop: -6, lineHeight: 17 },
 });

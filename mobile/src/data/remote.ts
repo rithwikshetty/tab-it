@@ -30,18 +30,20 @@ const TRANSIENT_CODES = new Set(["PGRST301", "PGRST303", "57014", "40001", "40P0
 
 export function toRemoteError(error: unknown, status?: number): RemoteError {
   if (error instanceof RemoteError) return error;
-  const e = error as Partial<PostgrestError> & { message?: string; name?: string };
+  const e = error as Partial<PostgrestError> & { message?: string; name?: string; status?: unknown };
   const message = e?.message ?? String(error);
   const code = e?.code || undefined;
+  // Storage errors carry their HTTP status themselves.
+  const http = status ?? (typeof e?.status === "number" ? e.status : undefined);
   const network =
     !code &&
-    (status === undefined ||
-      status === 0 ||
-      status >= 500 ||
-      status === 408 ||
-      status === 429 ||
+    (http === undefined ||
+      http === 0 ||
+      http >= 500 ||
+      http === 408 ||
+      http === 429 ||
       /network|fetch|timeout|abort|connection|offline/i.test(message));
-  const transient = network || (code !== undefined && TRANSIENT_CODES.has(code)) || (status !== undefined && status >= 500);
+  const transient = network || (code !== undefined && TRANSIENT_CODES.has(code)) || (http !== undefined && http >= 500);
   return new RemoteError(message, transient, code);
 }
 

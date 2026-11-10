@@ -1,4 +1,3 @@
-import { View } from "react-native";
 import { SvgXml } from "react-native-svg";
 
 import { CATEGORY_ICON_XML } from "./category-icons";
@@ -8,10 +7,7 @@ export function categoryTone(categoryId: string | null | undefined): string {
   return (categoryId && categoryTones[categoryId]) || colors.textSecondary;
 }
 
-/**
- * A category glyph. Built-in categories use their Phosphor icon; a custom
- * category's icon is an emoji or short text drawn as-is.
- */
+/** A category glyph: the category's Phosphor icon, or the tag for any other icon name. */
 export function CategoryIcon({
   icon,
   categoryId,
@@ -21,12 +17,6 @@ export function CategoryIcon({
   categoryId?: string | null;
   size?: number;
 }) {
-  const xml = icon ? CATEGORY_ICON_XML[icon] : undefined;
-  const color = categoryTone(categoryId);
-  if (xml) return <SvgXml xml={xml} width={size} height={size} color={color} />;
-  return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <SvgXml xml={CATEGORY_ICON_XML.tag!} width={size} height={size} color={color} />
-    </View>
-  );
+  const xml = (icon && CATEGORY_ICON_XML[icon]) || CATEGORY_ICON_XML.tag!;
+  return <SvgXml xml={xml} width={size} height={size} color={categoryTone(categoryId)} />;
 }

@@ -5,10 +5,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { deleteTrip } from "@/data/actions";
 import { liveTrips, myPeopleByTrip, tripRows } from "@/data/selectors";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import { compareTimestamps } from "@/data/timestamps";
 import { tripCard, type TripCardStatus } from "@/domain";
 import { SyncBanner } from "@/features/sync/sync-banner";
+import { localOffset } from "@/lib/dates";
 import { AvatarGroup } from "@/ui/avatar";
 import { haptics } from "@/ui/haptics";
 import { Button, Card, Divider, EmptyState, Fab, IconButton, LargeTitle, Row, SectionHeader, useTabBarClearance } from "@/ui/primitives";
@@ -17,6 +18,7 @@ import { colors } from "@/ui/theme";
 
 export default function TripsScreen() {
   const ctx = useSignedIn();
+  const myName = useMyName();
   const state = useAppState();
   const [refreshing, setRefreshing] = useState(false);
   const clearance = useTabBarClearance();
@@ -30,9 +32,9 @@ export default function TripsScreen() {
         const me = mine.get(trip.id);
         const rows = tripRows(state, trip.id);
         if (!me || !rows) return [];
-        return [tripCard(rows, me.id, now, ctx.user.displayName)];
+        return [tripCard(rows, me.id, now, myName, undefined, localOffset)];
       });
-  }, [state, ctx.user]);
+  }, [state, ctx.user.id, myName]);
 
   const active = cards.filter((c) => !c.isCompleted);
   const completed = cards.filter((c) => c.isCompleted);
@@ -72,7 +74,7 @@ export default function TripsScreen() {
                           id: m.id,
                           userId: m.userID,
                           email: m.email,
-                          name: m.displayName === "You" ? ctx.user.displayName : m.displayName,
+                          name: m.displayName === "You" ? myName : m.displayName,
                         }))}
                         size={30}
                         max={4}
@@ -136,6 +138,5 @@ function StatusText({ status }: { status: TripCardStatus }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingBottom: 120 },
   status: { fontSize: 13, fontWeight: "500", marginTop: 2 },
 });

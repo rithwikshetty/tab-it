@@ -5,24 +5,19 @@ import { Modal, StyleSheet, Text, View } from "react-native";
 import { isInviteToken } from "@/data/invites";
 import { inviteErrorMessage, joinTripWithInvite } from "@/data/online";
 import { useSignedIn } from "@/data/session";
+import { inviteToken } from "@/domain";
+import { BUNDLE_ID } from "@/lib/config";
 import { haptics } from "@/ui/haptics";
 import { Button, Field } from "@/ui/primitives";
 import { colors } from "@/ui/theme";
-
-/** Accepts a pasted tab-it.app/join link or the bare 32-character token. */
-export function inviteTokenFrom(input: string): string | null {
-  const text = input.trim();
-  const match = /^(?:https?:\/\/(?:www\.)?tab-it\.app\/join\/|com\.rithwikshetty\.tab:\/\/join\/)?([0-9a-fA-F]{32})\/?$/.exec(text);
-  const token = match?.[1]?.toLowerCase() ?? null;
-  return token && isInviteToken(token) ? token : null;
-}
 
 export function JoinByLink({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const ctx = useSignedIn();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const token = inviteTokenFrom(text);
+  const pasted = text.trim();
+  const token = inviteToken(pasted, BUNDLE_ID) ?? (isInviteToken(pasted.toLowerCase()) ? pasted.toLowerCase() : null);
 
   async function join() {
     if (!token) return;

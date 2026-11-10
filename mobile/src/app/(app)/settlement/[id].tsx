@@ -3,7 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { deleteSettlement } from "@/data/actions";
 import { isDirty } from "@/data/schema";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import { formatMoney } from "@/domain";
 import { dateTime, dayOf, longDay } from "@/lib/dates";
 import { Avatar } from "@/ui/avatar";
@@ -15,6 +15,7 @@ import { colors, PAGE } from "@/ui/theme";
 export default function SettlementDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useSignedIn();
+  const myName = useMyName();
   const t = useAppState().tables;
   const s = t.settlements.get(id);
 
@@ -59,7 +60,7 @@ export default function SettlementDetail() {
         <Avatar
           person={{
             id: pid,
-            name: p?.user_id === ctx.user.id ? ctx.user.displayName : (p?.display_name ?? "?"),
+            name: p?.user_id === ctx.user.id ? myName : (p?.display_name ?? "?"),
             userId: p?.user_id,
             email: p?.email,
           }}

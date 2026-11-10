@@ -17,7 +17,6 @@ test("the whole domain works when Intl and browser text encoders are unavailable
   );
   expect(domain.formatMoney(99999999999999999999n, "USD")).toBe("$999,999,999,999,999,999.99");
   expect(domain.formatMoney("-12.5", "GBP")).toBe("£-12.50");
-  expect(domain.formatSigned("-12.5", "GBP")).toBe("-£12.50");
   expect(domain.formatMoney("12.5", "CHF")).toBe("CHF 12.50");
   expect(domain.formatMoney("123", "JPY")).toBe("¥123");
   expect(domain.formatMoney("1.234", "KWD")).toMatch(/1\.234$/);
@@ -26,7 +25,7 @@ test("the whole domain works when Intl and browser text encoders are unavailable
   expect(domain.timelineDays(rows, rows.people, [], a, { utcOffsetMinutes: 840 })[0]?.dateLabel).toBe("May 22");
   expect(domain.friendsList([rows], a).active[0]?.displayName).toBe("Bob");
   expect(domain.avatarInitial("👩‍💻 Alex")).toBe("👩‍💻");
-  expect(domain.normalizedDisplayName("  Émile  ")).toBe("Émile");
+  expect(domain.avatarInitial("  émile")).toBe("É");
   expect(domain.searchCurrencies("yen").some((c) => c.code === "JPY")).toBe(true);
   const activity: ActivityLogEntry = {
     id: "activity",

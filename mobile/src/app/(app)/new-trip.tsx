@@ -1,6 +1,6 @@
 import { router, Stack } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { addPeople, createTrip } from "@/data/actions";
 import { useSignedIn } from "@/data/session";
@@ -19,11 +19,16 @@ export default function NewTrip() {
   async function create() {
     if (!canCreate) return;
     setSaving(true);
-    const tripId = await createTrip(ctx, name);
-    if (people.length > 0) await addPeople(ctx, tripId, people);
-    haptics.success();
-    router.dismiss();
-    router.push({ pathname: "/trip/[id]", params: { id: tripId } });
+    try {
+      const tripId = await createTrip(ctx, name);
+      if (people.length > 0) await addPeople(ctx, tripId, people);
+      haptics.success();
+      router.dismiss();
+      router.push({ pathname: "/trip/[id]", params: { id: tripId } });
+    } catch (e) {
+      setSaving(false);
+      Alert.alert("Couldn't create the trip", (e as Error).message);
+    }
   }
 
   return (

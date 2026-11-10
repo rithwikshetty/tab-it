@@ -78,6 +78,14 @@ export type Op =
   | { table: TableName; key: string; remove: true }
   | { meta: string; value: string | null };
 
+/**
+ * Meta key prefix that maps a person's local id to the id the server kept.
+ * People added offline can come back from the server under an existing id.
+ */
+export const PERSON_ALIAS = "alias.person.";
+/** Meta key for when the user last looked at activity. */
+export const META_ACTIVITY_SEEN = "activity.seenAt";
+
 /** The primary key a row is stored under, matching the server's primary key. */
 export function rowKey<K extends TableName>(table: K, row: Tables[K]): string {
   switch (table) {

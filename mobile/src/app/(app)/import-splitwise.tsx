@@ -6,7 +6,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 
 import { importSplitwise } from "@/data/actions";
 import { knownPeople } from "@/data/selectors";
-import { useSignedIn } from "@/data/session";
+import { useMyName, useSignedIn } from "@/data/session";
 import { bestSelfMatch, ImportParseError, normalizedEmail, parseSplitwise, suggestImportLinks, type ImportResult } from "@/domain";
 import { PersonEmailSheet } from "@/features/people/email-sheet";
 import { Avatar } from "@/ui/avatar";
@@ -27,6 +27,7 @@ function parseError(e: unknown): string {
 
 export default function ImportSplitwise() {
   const ctx = useSignedIn();
+  const myName = useMyName();
   const [parsed, setParsed] = useState<ImportResult | null>(null);
   const [tripName, setTripName] = useState("");
   const [self, setSelf] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function ImportSplitwise() {
       const data = parseSplitwise(await file.text());
       setParsed(data);
       setTripName((asset.name ?? "").replace(/\.[^.]+$/, "").trim() || "Imported trip");
-      const me = bestSelfMatch(data.people, ctx.user.displayName);
+      const me = bestSelfMatch(data.people, myName);
       setSelf(me);
       setLinks(
         suggestImportLinks(
@@ -186,6 +187,7 @@ export default function ImportSplitwise() {
                 disabled={!tripName.trim()}
               />
               <Button title="Choose another file" variant="plain" onPress={choose} disabled={importing} />
+              {error && <Text style={styles.error}>{error}</Text>}
             </View>
           </>
         )}

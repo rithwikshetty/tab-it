@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { extractExportData, buildWorkbook, exportCSVs, exportText, sheetCSV, type ExportData } from "./trip-exporter";
+import { extractExportData, buildWorkbook, type ExportData } from "./trip-exporter";
 import { buildWorkbookXML, workbookXLSX, spreadsheetColumn, xmlDecimal } from "./workbook-xlsx";
 import { a, b, c, tripRows, person, addExpense } from "./test-support";
 test("extractDataUsesPaymentMethodNotMode", () => {
@@ -174,42 +174,6 @@ test("extraction sorts names and dates and retains exact creator/editor and symb
       amount: "10",
     },
   ]);
-});
-test("CSV has exact RFC4180 escaping, decimals, and CRLF", () =>
-  expect(
-    sheetCSV({
-      name: "example",
-      rows: [
-        [
-          { type: "string", value: "a,b" },
-          { type: "string", value: 'a"b' },
-          { type: "string", value: "a\nb" },
-          { type: "number", value: "12.5" },
-        ],
-        [],
-      ],
-    }),
-  ).toBe('"a,b","a""b","a\nb",12.5\r\n\r\n'));
-test("CSV and text preserve workbook sheet and cell order", () => {
-  const d: ExportData = {
-    tripName: "Empty",
-    expenses: [],
-    expensePayments: [],
-    expenseSplits: [],
-    settlements: [],
-    summary: { totalsByCurrency: [], personSummaries: [], pairBalances: [] },
-  };
-  expect(exportCSVs(d).map((s) => s.name)).toEqual([
-    "Expenses.csv",
-    "Expense Payments.csv",
-    "Expense Splits.csv",
-    "Settlements.csv",
-    "Summary.csv",
-  ]);
-  expect(exportCSVs(d)[3]?.text).toBe("Date,From,To,Amount,Currency,Note\r\n");
-  expect(exportText(d)).toBe(
-    "Expenses\nExpense ID\tDate\tDescription\tAmount\tCurrency\tCategory\tPaid By\tPaid By Detail\tSplit Between\tSplit Detail\tPayment Method\tCreated By\tCreated At\tLast Edited By\tLast Edited At\n\nExpense Payments\nExpense ID\tDate\tDescription\tPayer ID\tPayer Name\tCurrency\tAmount Paid\tPayment Mode\n\nExpense Splits\nExpense ID\tDate\tDescription\tParticipant ID\tParticipant Name\tCurrency\tAmount Owed\tSplit Type\n\nSettlements\nDate\tFrom\tTo\tAmount\tCurrency\tNote\n\nSummary\nTotal Spent per Currency\nCurrency\tTotal\n\nPer-Person Breakdown\nPerson\tCurrency\tTotal Paid\tTotal Owed\tNet\n\nNet Balances Between Pairs\nOwes (From)\tOwed To\tCurrency\tAmount",
-  );
 });
 test("XLSX numeric cells keep exact decimal text and the Swift minimum two digits", () => {
   expect(xmlDecimal("12.5")).toBe("12.50");

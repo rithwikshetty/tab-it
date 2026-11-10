@@ -16,35 +16,64 @@ webCrypto.subtle ??= {
 };
 
 // The session (access + refresh token) lives in the iOS Keychain / Android
-// Keystore. SecureStore values are kept small, so long values are split
-// across numbered chunks with a count stored under the base key.
+// Keystore. SecureStore values are kept small, so a long value is split into
+// numbered chunks in one of two slots, and `<key>.at` holds the slot in use
+// and its chunk count. A write fills the other slot and moves the pointer
+// last, so a write that is cut short leaves the stored value whole.
+// A session saved by a build up to 2.0.0 has no pointer: its count is under
+// `<key>.n` and its chunks under `<key>.<i>`.
 const CHUNK = 1800;
+
+async function readChunks(prefix: string, count: number): Promise<string | null> {
+  const parts: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const part = await SecureStore.getItemAsync(`${prefix}.${i}`);
+    if (part === null) return null;
+    parts.push(part);
+  }
+  return parts.join("");
+}
+
+/** Deletes chunks from `from` up to the first one that is missing. */
+async function deleteChunks(prefix: string, from: number): Promise<void> {
+  for (let i = from; (await SecureStore.getItemAsync(`${prefix}.${i}`)) !== null; i++) {
+    await SecureStore.deleteItemAsync(`${prefix}.${i}`);
+  }
+}
+
+async function slotInUse(key: string): Promise<{ slot: string; count: number } | null> {
+  const at = await SecureStore.getItemAsync(`${key}.at`);
+  if (at === null) return null;
+  return { slot: at.slice(0, 1), count: Number(at.slice(2)) };
+}
 
 const secureStorage: SupportedStorage = {
   async getItem(key) {
+    const at = await slotInUse(key);
+    if (at) return readChunks(`${key}.${at.slot}`, at.count);
     const count = await SecureStore.getItemAsync(`${key}.n`);
-    if (count === null) return null;
-    const parts: string[] = [];
-    for (let i = 0; i < Number(count); i++) {
-      const part = await SecureStore.getItemAsync(`${key}.${i}`);
-      if (part === null) return null;
-      parts.push(part);
-    }
-    return parts.join("");
+    return count === null ? null : readChunks(key, Number(count));
   },
   async setItem(key, value) {
-    const previous = Number((await SecureStore.getItemAsync(`${key}.n`)) ?? 0);
+    const at = await slotInUse(key);
+    const slot = at?.slot === "a" ? "b" : "a";
     const count = Math.ceil(value.length / CHUNK);
     for (let i = 0; i < count; i++) {
-      await SecureStore.setItemAsync(`${key}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK));
+      await SecureStore.setItemAsync(`${key}.${slot}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK));
     }
-    await SecureStore.setItemAsync(`${key}.n`, String(count));
-    for (let i = count; i < previous; i++) await SecureStore.deleteItemAsync(`${key}.${i}`);
+    await deleteChunks(`${key}.${slot}`, count);
+    await SecureStore.setItemAsync(`${key}.at`, `${slot}:${count}`);
+    if (at) {
+      await deleteChunks(`${key}.${at.slot}`, 0);
+    } else {
+      await SecureStore.deleteItemAsync(`${key}.n`);
+      await deleteChunks(key, 0);
+    }
   },
   async removeItem(key) {
-    const count = Number((await SecureStore.getItemAsync(`${key}.n`)) ?? 0);
+    await SecureStore.deleteItemAsync(`${key}.at`);
     await SecureStore.deleteItemAsync(`${key}.n`);
-    for (let i = 0; i < count; i++) await SecureStore.deleteItemAsync(`${key}.${i}`);
+    for (const prefix of [`${key}.a`, `${key}.b`, key]) await deleteChunks(prefix, 0);
   },
 };
 

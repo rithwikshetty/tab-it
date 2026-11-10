@@ -36,4 +36,3 @@ export function calculatePayments(options: PaymentOptions): Payment[] {
     throw new CalculationError(mapped[error.code] ?? error.code, error.details);
   }
 }
-export const PaymentCalculator = { calculate: calculatePayments };

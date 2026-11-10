@@ -93,4 +93,3 @@ export function equalPercentages(participants: readonly UUID[]): Record<UUID, st
     remainder = 10000n % n;
   return Object.fromEntries([...participants].sort().map((id, i) => [id, scaledString(base + (BigInt(i) < remainder ? 1n : 0n), 2)]));
 }
-export const SplitCalculator = { calculate: calculateSplits, equalPercentages };

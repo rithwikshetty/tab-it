@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { addDecimals } from "@/domain/decimal";
-import { TABLE_NAMES, type Op, type State } from "../schema";
+import { META_ACTIVITY_SEEN, TABLE_NAMES, type Op, type State } from "../schema";
 import {
-  ACTIVITY_SEEN, LEGACY_TABLES, LegacyAccountMismatch,
+  LEGACY_TABLES, LegacyAccountMismatch,
   convertLegacyRows, legacyDecimal, legacyTimestamp,
   legacyUUID, selectLegacyOps, type LegacyRow, type LegacyRows,
 } from "./convert";
@@ -70,7 +70,7 @@ describe("the captured SwiftData store", () => {
     expect(upserts(ops).find((op) => op.table === "trip_mute_prefs")?.row._deleted).toBe(true);
     expect(upserts(ops).find((op) => op.table === "profiles")?.row.display_name).toBe("Offline Test User");
     const meta = new Map(ops.filter((op) => "meta" in op).map((op) => [op.meta, op.value!]));
-    expect(meta.get(ACTIVITY_SEEN)).toBe("2023-11-14T22:13:23.000000Z");
+    expect(meta.get(META_ACTIVITY_SEEN)).toBe("2023-11-14T22:13:23.000000Z");
     const local = upserts(ops).filter((op) => op.table === "activity_log").map((op) => op.row);
     expect(local.some((state) => state._readAt === "2023-11-14T22:13:21.000000Z")).toBe(true);
     expect(local.some((state) => state._dismissedAt === "2023-11-14T22:13:22.000000Z")).toBe(true);

@@ -9,7 +9,7 @@ import { formatMoney, friendsList } from "@/domain";
 import { SyncBanner } from "@/features/sync/sync-banner";
 import { Avatar } from "@/ui/avatar";
 import { Button, Card, Divider, EmptyState, Fab, Icon, LargeTitle, SectionHeader, useTabBarClearance } from "@/ui/primitives";
-import { colors, PAGE } from "@/ui/theme";
+import { colors } from "@/ui/theme";
 import { Pressable } from "react-native";
 
 type FriendRow = ReturnType<typeof friendsList>["active"][number];

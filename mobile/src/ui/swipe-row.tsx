@@ -7,7 +7,7 @@ import { Icon } from "./primitives";
 import { colors } from "./theme";
 
 /** A row that reveals a delete action when swiped left. */
-export function SwipeToDelete({ children, onDelete, label = "Delete" }: { children: ReactNode; onDelete: () => void; label?: string }) {
+export function SwipeToDelete({ children, onDelete }: { children: ReactNode; onDelete: () => void }) {
   const ref = useRef<SwipeableMethods>(null);
   return (
     <ReanimatedSwipeable
@@ -19,7 +19,7 @@ export function SwipeToDelete({ children, onDelete, label = "Delete" }: { childr
       renderRightActions={() => (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={label}
+          accessibilityLabel="Delete"
           style={styles.action}
           onPress={() => {
             ref.current?.close();
@@ -27,7 +27,7 @@ export function SwipeToDelete({ children, onDelete, label = "Delete" }: { childr
           }}
         >
           <Icon name="trash-outline" size={20} color="#fff" />
-          <Text style={styles.label}>{label}</Text>
+          <Text style={styles.label}>Delete</Text>
         </Pressable>
       )}
     >

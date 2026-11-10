@@ -1,5 +1,6 @@
 import { timestampUnits } from "./conflict-resolver";
 import type { LedgerRows } from "./models";
+import { byExpense } from "./models";
 import type { Expense, TripPerson, Category, Settlement } from "./records";
 import type { ExpenseRowItem, SettlementRowItem, TimelineDay, TimelineItem } from "./view-state";
 import type { CalendarOptions } from "./expense-dates";
@@ -85,9 +86,12 @@ export function timelineDays(
         }
       >
     >();
+  const payments = byExpense(rows.payments),
+    splits = byExpense(rows.splits);
   for (const e of rows.expenses.filter((e) => !e.deleted_at)) {
+    const own = { payments: payments.get(e.id) ?? [], splits: splits.get(e.id) ?? [] };
     const day = e.expense_date,
-      row = expenseRow(e, rows, people, categories, currentPersonID, locale);
+      row = expenseRow(e, own, people, categories, currentPersonID, locale);
     all.push({
       day,
       created: e.created_at,
@@ -104,8 +108,8 @@ export function timelineDays(
         >(),
       value = currencies.get(e.currency) ?? { total: 0n, share: 0n };
     value.total += toMinor(e.amount, e.currency);
-    value.share += rows.splits
-      .filter((s) => s.expense_id === e.id && s.trip_person_id === currentPersonID)
+    value.share += own.splits
+      .filter((s) => s.trip_person_id === currentPersonID)
       .reduce((n, s) => n + toMinor(s.amount_owed, e.currency), 0n);
     currencies.set(e.currency, value);
     totals.set(day, currencies);
@@ -120,7 +124,13 @@ export function timelineDays(
         settlement: settlementRow(s, people, currentPersonID, locale),
       },
     });
-  return [...new Set(all.map((a) => a.day))]
+  const byDay = new Map<string, typeof all>();
+  for (const a of all) {
+    const items = byDay.get(a.day);
+    if (items) items.push(a);
+    else byDay.set(a.day, [a]);
+  }
+  return [...byDay.keys()]
     .sort()
     .reverse()
     .map((day) => ({
@@ -143,10 +153,10 @@ export function timelineDays(
           totalSpend: formatMoney(amounts.total, currency, locale),
           yourShare: formatMoney(amounts.share, currency, locale),
         })),
-      items: all
-        .filter((a) => a.day === day)
-        .sort((a, b) => compare(timestampUnits(b.created), timestampUnits(a.created)))
+      items: byDay
+        .get(day)!
+        .map((a) => ({ item: a.item, created: timestampUnits(a.created) }))
+        .sort((a, b) => compare(b.created, a.created))
         .map((a) => a.item),
     }));
 }
-export const TimelinePresenter = { days: timelineDays };

@@ -13,7 +13,3 @@ export function deriveTripState(
     ? "completed"
     : "active";
 }
-export const TripStateDeriver = {
-  derive: deriveTripState,
-  defaultInactivityThreshold,
-};

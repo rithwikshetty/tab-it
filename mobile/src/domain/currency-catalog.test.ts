@@ -1,25 +1,33 @@
 import { expect, test } from "vitest";
-import { CurrencyCatalog as C } from "./currency-catalog";
+import {
+  currencyMetadata,
+  defaultCurrencyCode,
+  hasValidPrecision,
+  isSupportedCurrency,
+  normalizedAmount,
+  searchCurrencies,
+  supportedCurrencies,
+} from "./currency-catalog";
 test("defaultCodeIsHardFallbackCurrency", () => {
-  expect(C.defaultCode).toBe("INR");
-  expect(C.isSupported(C.defaultCode)).toBe(true);
+  expect(defaultCurrencyCode).toBe("INR");
+  expect(isSupportedCurrency(defaultCurrencyCode)).toBe(true);
 });
 test("includesCommonISOCodes", () => {
-  expect(C.supported.length).toBeGreaterThan(100);
-  for (const code of ["EUR", "usd", "JPY", "KWD"]) expect(C.isSupported(code)).toBe(true);
+  expect(supportedCurrencies.length).toBeGreaterThan(100);
+  for (const code of ["EUR", "usd", "JPY", "KWD"]) expect(isSupportedCurrency(code)).toBe(true);
 });
 test("metadata", () => {
-  expect(C.metadata("USD")?.symbol).toBeTruthy();
-  expect(C.metadata("USD")?.name).toMatch(/dollar/i);
-  expect(C.metadata("USD")?.fractionDigits).toBe(2);
-  expect(C.metadata("JPY")?.fractionDigits).toBe(0);
-  expect(C.metadata("KWD")?.fractionDigits).toBe(3);
+  expect(currencyMetadata("USD")?.symbol).toBeTruthy();
+  expect(currencyMetadata("USD")?.name).toMatch(/dollar/i);
+  expect(currencyMetadata("USD")?.fractionDigits).toBe(2);
+  expect(currencyMetadata("JPY")?.fractionDigits).toBe(0);
+  expect(currencyMetadata("KWD")?.fractionDigits).toBe(3);
 });
 test("precisionValidation", () => {
-  expect(C.hasValidPrecision("10", "JPY")).toBe(true);
-  expect(C.hasValidPrecision("10.01", "JPY")).toBe(false);
-  expect(C.hasValidPrecision("1.234", "KWD")).toBe(true);
-  expect(C.hasValidPrecision("1.2345", "KWD")).toBe(false);
+  expect(hasValidPrecision("10", "JPY")).toBe(true);
+  expect(hasValidPrecision("10.01", "JPY")).toBe(false);
+  expect(hasValidPrecision("1.234", "KWD")).toBe(true);
+  expect(hasValidPrecision("1.2345", "KWD")).toBe(false);
 });
 test("normalizationUsesCurrencyMinorUnits", () => {
   for (const [value, code, expected] of [
@@ -30,10 +38,10 @@ test("normalizationUsesCurrencyMinorUnits", () => {
     ["1.2345", "BHD", "1.235"],
     ["-0.005", "EUR", "-0.01"],
   ])
-    expect(C.normalizedAmount(value!, code!)).toBe(expected);
+    expect(normalizedAmount(value!, code!)).toBe(expected);
 });
 test("displaySymbolsAreUnique", () => {
-  const symbols = C.supported.map((c) => c.symbol.normalize("NFKC").toUpperCase());
+  const symbols = supportedCurrencies.map((c) => c.symbol.normalize("NFKC").toUpperCase());
   expect(new Set(symbols).size).toBe(symbols.length);
 });
 test("sharedSymbolClaiming", () => {
@@ -45,13 +53,13 @@ test("sharedSymbolClaiming", () => {
     ["INR", "₹"],
     ["THB", "฿"],
   ])
-    expect(C.metadata(code!)?.symbol).toBe(symbol);
-  expect(C.metadata("CAD")?.symbol).not.toBe("$");
-  expect(C.metadata("AUD")?.symbol).not.toBe("$");
-  expect(C.metadata("CAD")?.symbol).not.toBe(C.metadata("AUD")?.symbol);
+    expect(currencyMetadata(code!)?.symbol).toBe(symbol);
+  expect(currencyMetadata("CAD")?.symbol).not.toBe("$");
+  expect(currencyMetadata("AUD")?.symbol).not.toBe("$");
+  expect(currencyMetadata("CAD")?.symbol).not.toBe(currencyMetadata("AUD")?.symbol);
 });
 test("search", () => {
-  expect(C.search("usd").some((c) => c.code === "USD")).toBe(true);
-  expect(C.search("yen").some((c) => c.code === "JPY")).toBe(true);
-  expect(C.search("  ")).toEqual(C.supported);
+  expect(searchCurrencies("usd").some((c) => c.code === "USD")).toBe(true);
+  expect(searchCurrencies("yen").some((c) => c.code === "JPY")).toBe(true);
+  expect(searchCurrencies("  ")).toEqual(supportedCurrencies);
 });

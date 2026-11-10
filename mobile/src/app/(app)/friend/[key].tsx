@@ -24,7 +24,7 @@ export default function FriendDetail() {
   const state = useAppState();
   const identity = identityFromKey(key);
   const detail = useMemo(
-    () => (identity ? friendDetail(allTripRows(state), ctx.user.id, identity, { utcOffsetMinutes: localOffset(new Date()) }) : null),
+    () => (identity ? friendDetail(allTripRows(state), ctx.user.id, identity, { utcOffsetMinutes: localOffset }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, ctx.user.id, key],
   );

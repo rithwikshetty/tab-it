@@ -66,4 +66,3 @@ export function summarizeSpend(expenses: readonly LedgerExpense[]): TripSpendSum
 export function spendFromRows(rows: LedgerRows): TripSpendSummary[] {
   return summarizeSpend(ledgerFromRows(rows).expenses);
 }
-export const TripAnalytics = { summarize: summarizeSpend };

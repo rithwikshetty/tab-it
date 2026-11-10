@@ -1,8 +1,7 @@
-import type { ComponentRef, Ref } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { displayMetadata, plainAmountString, sanitizeAmountInput } from "@/domain";
-import { colors } from "@/ui/theme";
+import { colors, type } from "@/ui/theme";
 
 /**
  * The large amount field. Accepts digits with either "." or "," as the
@@ -13,14 +12,12 @@ export function AmountInput({
   currency,
   onChange,
   autoFocus,
-  ref,
   tone = colors.text,
 }: {
   value: string;
   currency: string;
   onChange: (text: string) => void;
   autoFocus?: boolean;
-  ref?: Ref<ComponentRef<typeof TextInput>>;
   tone?: string;
 }) {
   const symbol = displayMetadata(currency).symbol;
@@ -34,7 +31,6 @@ export function AmountInput({
         {symbol}
       </Text>
       <TextInput
-        ref={ref}
         value={value}
         onChangeText={(text) => onChange(sanitizeAmountInput(text, currency))}
         placeholder={plainAmountString(0n, currency)}
@@ -53,5 +49,5 @@ export function AmountInput({
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4 },
   symbol: { fontSize: 34, fontWeight: "300", maxWidth: 110 },
-  input: { fontSize: 52, fontWeight: "300", maxWidth: 300, textAlign: "left", fontVariant: ["tabular-nums"], paddingVertical: 0 },
+  input: { ...type.amountEntry, maxWidth: 300, textAlign: "left", paddingVertical: 0 },
 });

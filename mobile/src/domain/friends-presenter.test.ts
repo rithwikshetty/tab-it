@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { friendsList, friendDetail } from "./friends-presenter";
-import { ClaimIdentity as I } from "./overall-balance-aggregator";
+import { resolveIdentity } from "./overall-balance-aggregator";
 import { a, b, c, tripRows, person, addExpense } from "./test-support";
 const goa = () =>
   addExpense(
@@ -55,7 +55,7 @@ test("ignoresContainersWithoutCurrentUser", () => {
 test("overallBanner", () =>
   expect(friendsList([goa(), ng()], a).overall.find((l) => l.currency === "GBP")).toMatchObject({ youAreOwed: 1500n, youOwe: 0n }));
 test("detailSources", () => {
-  const s = friendDetail([goa(), ng()], a, I.user(b))!;
+  const s = friendDetail([goa(), ng()], a, resolveIdentity(b, ""))!;
   expect(s.displayName).toBe("Bob");
   expect(s.overall[0]?.isPositive).toBe(true);
   expect(s.sources).toHaveLength(2);
@@ -73,7 +73,7 @@ test("redirectedFriendBalance", () => {
   const t = redirected(),
     s = friendsList([t], a);
   expect(s.active.find((r) => r.displayName === "Carol")?.lines[0]).toMatchObject({ isPositive: false, amount: "£10.00" });
-  expect(friendDetail([t], a, I.user(c))?.sources[0]?.suggestion).toEqual({
+  expect(friendDetail([t], a, resolveIdentity(c, ""))?.sources[0]?.suggestion).toEqual({
     fromPersonID: "ag",
     toPersonID: "cg",
     amount: 1000n,
@@ -81,7 +81,7 @@ test("redirectedFriendBalance", () => {
   });
 });
 test("detailTimeline", () => {
-  const s = friendDetail([goa(), ng()], a, I.user(b))!;
+  const s = friendDetail([goa(), ng()], a, resolveIdentity(b, ""))!;
   expect(new Set(s.timeline.flatMap((d) => d.entries.map((e) => e.sourceName)))).toEqual(new Set(["Goa", "Non-group"]));
 });
 test("pendingFriend", () => {
@@ -97,7 +97,7 @@ test("pendingFriend", () => {
   const p = friendsList([r], a).active[0]!;
   expect(p.displayName).toBe("Carol");
   expect(p.isPending).toBe(true);
-  expect(p.friend).toEqual(I.email("carol@x.com"));
+  expect(p.friend).toEqual(resolveIdentity(null, "carol@x.com"));
   expect(p.lines[0]?.isPositive).toBe(true);
 });
 test("removed settled members leave the friends list, outstanding members remain", () => {
@@ -105,7 +105,7 @@ test("removed settled members leave the friends list, outstanding members remain
     people = r.people.map((p) => (p.user_id === b ? { ...p, removed_at: "2026-06-01T00:00:00Z" } : p));
   expect(friendsList([{ ...r, people }], a).active).toHaveLength(1);
   expect(friendsList([{ ...r, people, expenses: [] }], a).isEmpty).toBe(true);
-  expect(friendDetail([r], a, I.user(a))).toBeNull();
+  expect(friendDetail([r], a, resolveIdentity(a, ""))).toBeNull();
 });
 test("a pending email that belongs to a joined person elsewhere is the same friend", () => {
   // Bob joined Goa; in a non-group container he is still pending under the same email.
@@ -120,7 +120,7 @@ test("a pending email that belongs to a joined person elsewhere is the same frie
   const list = friendsList([goa(), pending], a);
   const bobs = [...list.active, ...list.settled].filter((f) => f.displayName === "Bob");
   expect(bobs).toHaveLength(1);
-  expect(bobs[0]!.friend).toEqual(I.user(b));
+  expect(bobs[0]!.friend).toEqual(resolveIdentity(b, ""));
   expect(bobs[0]!.isPending).toBe(false);
   expect(bobs[0]!.lines[0]?.amount).toBe("£25.00");
 });

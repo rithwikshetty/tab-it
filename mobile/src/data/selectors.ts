@@ -1,8 +1,7 @@
 import type { ActivityOptions, TripRows } from "@/domain";
 
 import type { LocalPerson, LocalTrip, State } from "./schema";
-import { isDirty } from "./schema";
-import { META_ACTIVITY_SEEN } from "./sync";
+import { isDirty, META_ACTIVITY_SEEN } from "./schema";
 
 // Derived views over the store that several screens share. Each takes the
 // whole state; callers memoise on it.
@@ -20,8 +19,8 @@ export function myPeopleByTrip(state: State, userId: string): Map<string, LocalP
   return map;
 }
 
-export function peopleInTrip(state: State, tripId: string, { includeRemoved = false } = {}): LocalPerson[] {
-  return [...state.tables.trip_people.values()].filter((p) => p.trip_id === tripId && (includeRemoved || !p.removed_at));
+export function peopleInTrip(state: State, tripId: string): LocalPerson[] {
+  return [...state.tables.trip_people.values()].filter((p) => p.trip_id === tripId && !p.removed_at);
 }
 
 export function mutedTripIds(state: State, userId: string): Set<string> {
@@ -113,6 +112,33 @@ export function unsyncedChanges(state: State): UnsyncedChange[] {
         label: "Payment",
         detail: `${s.deleted_at ? "Delete payment" : "Payment"} in ${tripName(s.trip_id)}`,
         error: s._error ?? null,
+      });
+  }
+  // A dirty expense is listed above and takes its photo with it.
+  for (const e of t.expenses.values()) {
+    if (e._receipt && !isDirty(e))
+      rows.push({
+        table: "receipts",
+        key: e.id,
+        tripId: e.trip_id,
+        label: e.description,
+        detail: `Receipt photo in ${tripName(e.trip_id)}`,
+        error: e._receipt === "failed" ? "The photo couldn't be uploaded." : null,
+      });
+  }
+  for (const p of t.profiles.values()) {
+    if (isDirty(p))
+      rows.push({ table: "profiles", key: p.id, tripId: "", label: p.display_name, detail: "Your name", error: p._error ?? null });
+  }
+  for (const [key, m] of t.trip_mute_prefs) {
+    if (isDirty(m))
+      rows.push({
+        table: "trip_mute_prefs",
+        key,
+        tripId: m.trip_id,
+        label: tripName(m.trip_id),
+        detail: m._deleted ? "Unmute notifications" : "Mute notifications",
+        error: m._error ?? null,
       });
   }
   return rows;

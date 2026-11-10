@@ -28,11 +28,15 @@ export function distributePairs(expense: LedgerExpense): PairDebt[] {
   const creditors = [...nets].filter(([, n]) => n > 0n).sort(([a], [b]) => compare(a, b));
   const debtors = [...nets].filter(([, n]) => n < 0n).sort(([a], [b]) => compare(a, b));
   if (!creditors.length) return [];
-  const ids = creditors.map(([id]) => id),
-    weights = Object.fromEntries(creditors.map(([id, n]) => [id, n.toString()]));
+  const ids = creditors.map(([id]) => id);
+  // Each debtor's share is split by what the creditors are still owed, so every
+  // creditor ends up with exactly their net and rounding never piles onto one.
+  const owed = new Map(creditors);
   return debtors.flatMap(([debtor, n]) => {
-    const amounts = allocateMinor(-n, ids, weights);
-    return creditors.flatMap(([creditor]) => (amounts[creditor] === 0n ? [] : [{ creditor, debtor, amount: amounts[creditor]! }]));
+    const open = ids.some((id) => owed.get(id)! > 0n) ? owed : new Map(creditors);
+    const amounts = allocateMinor(-n, ids, Object.fromEntries(ids.map((id) => [id, open.get(id)!.toString()])));
+    for (const id of ids) owed.set(id, owed.get(id)! - amounts[id]!);
+    return ids.flatMap((creditor) => (amounts[creditor] === 0n ? [] : [{ creditor, debtor, amount: amounts[creditor]! }]));
   });
 }
 export function computeBalances(expenses: readonly LedgerExpense[], settlements: readonly LedgerSettlement[] = []): UserBalance[] {
@@ -67,4 +71,3 @@ export function balancesFromRows(rows: LedgerRows): UserBalance[] {
   const ledger = ledgerFromRows(rows);
   return computeBalances(ledger.expenses, ledger.settlements);
 }
-export const BalanceEngine = { compute: computeBalances, distributePairs };

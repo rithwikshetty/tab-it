@@ -67,4 +67,3 @@ export function tripCard(
     isCompleted: state === "completed",
   };
 }
-export const TripPresenter = { card: tripCard };

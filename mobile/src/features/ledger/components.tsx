@@ -1,10 +1,11 @@
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { BalanceSemantic, BalanceSummary, ExpenseRowItem, SettlementRowItem, SimplifiedDebtGroup, TimelineDay } from "@/domain";
 import { CategoryIcon } from "@/ui/category-icon";
 import { haptics } from "@/ui/haptics";
-import { Card, Divider, Icon } from "@/ui/primitives";
-import { colors, PAGE, radius } from "@/ui/theme";
+import { Card, Divider, Icon, sameValues } from "@/ui/primitives";
+import { colors, PAGE, radius, type } from "@/ui/theme";
 
 // The pieces every ledger view shares: expense and payment rows, the balance
 // card, simplified debts and the day-grouped timeline.
@@ -160,61 +161,64 @@ export function DebtGroups({
   );
 }
 
-/** Day-grouped expenses and payments; consecutive expenses share a card. */
-export function Timeline({
-  days,
+/** One item of the virtualised timeline: a day heading, an expense row or a payment. */
+export type TimelineEntry =
+  | { kind: "day"; key: string; dateLabel: string; totals: TimelineDay["totals"] }
+  | { kind: "expense"; key: string; item: ExpenseRowItem; first: boolean; last: boolean; pending: boolean }
+  | { kind: "settlement"; key: string; item: SettlementRowItem };
+
+/** Flattens day-grouped items into list entries; consecutive expenses on a day share a card. */
+export function timelineEntries(days: TimelineDay[], pendingIds: ReadonlySet<string>): TimelineEntry[] {
+  const entries: TimelineEntry[] = [];
+  for (const day of days) {
+    entries.push({ kind: "day", key: day.id, dateLabel: day.dateLabel, totals: day.totals });
+    day.items.forEach((item, i) => {
+      if (item.type === "settlement") entries.push({ kind: "settlement", key: item.id, item: item.settlement });
+      else
+        entries.push({
+          kind: "expense",
+          key: item.id,
+          item: item.expense,
+          first: day.items[i - 1]?.type !== "expense",
+          last: day.items[i + 1]?.type !== "expense",
+          pending: pendingIds.has(item.id),
+        });
+    });
+  }
+  return entries;
+}
+
+/** Renders one timeline entry; re-renders only when the values it shows change. */
+export const TimelineRow = memo(function TimelineRow({
+  entry,
   onOpenExpense,
   onOpenSettlement,
-  pendingIds,
 }: {
-  days: TimelineDay[];
+  entry: TimelineEntry;
   onOpenExpense: (id: string) => void;
   onOpenSettlement: (id: string) => void;
-  pendingIds?: ReadonlySet<string>;
 }) {
+  if (entry.kind === "day")
+    return (
+      <View style={styles.dayHeader}>
+        <Text style={styles.dayLabel}>{entry.dateLabel.toUpperCase()}</Text>
+        <View style={{ alignItems: "flex-end", flexShrink: 1 }}>
+          {entry.totals.map((t) => (
+            <Text key={t.id} style={styles.dayTotal} numberOfLines={1}>
+              {t.totalSpend} · your share {t.yourShare}
+            </Text>
+          ))}
+        </View>
+      </View>
+    );
+  if (entry.kind === "settlement") return <SettlementRow item={entry.item} onPress={() => onOpenSettlement(entry.item.id)} />;
   return (
-    <>
-      {days.map((day) => {
-        const blocks: ({ kind: "expenses"; items: ExpenseRowItem[] } | { kind: "settlement"; item: SettlementRowItem })[] = [];
-        for (const item of day.items) {
-          const last = blocks[blocks.length - 1];
-          if (item.type === "expense") {
-            if (last?.kind === "expenses") last.items.push(item.expense);
-            else blocks.push({ kind: "expenses", items: [item.expense] });
-          } else blocks.push({ kind: "settlement", item: item.settlement });
-        }
-        return (
-          <View key={day.id}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayLabel}>{day.dateLabel.toUpperCase()}</Text>
-              <View style={{ alignItems: "flex-end", flexShrink: 1 }}>
-                {day.totals.map((t) => (
-                  <Text key={t.id} style={styles.dayTotal} numberOfLines={1}>
-                    {t.totalSpend} · your share {t.yourShare}
-                  </Text>
-                ))}
-              </View>
-            </View>
-            {blocks.map((block, bi) =>
-              block.kind === "expenses" ? (
-                <Card key={`e${bi}`} style={{ marginBottom: 6 }}>
-                  {block.items.map((e, i) => (
-                    <View key={e.id}>
-                      {i > 0 && <Divider inset={58} />}
-                      <ExpenseRow item={e} pending={pendingIds?.has(e.id)} onPress={() => onOpenExpense(e.id)} />
-                    </View>
-                  ))}
-                </Card>
-              ) : (
-                <SettlementRow key={block.item.id} item={block.item} onPress={() => onOpenSettlement(block.item.id)} />
-              ),
-            )}
-          </View>
-        );
-      })}
-    </>
+    <Card first={entry.first} last={entry.last} style={{ marginBottom: 6 }}>
+      {!entry.first && <Divider inset={58} />}
+      <ExpenseRow item={entry.item} pending={entry.pending} onPress={() => onOpenExpense(entry.item.id)} />
+    </Card>
   );
-}
+}, sameValues);
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
@@ -248,7 +252,7 @@ const styles = StyleSheet.create({
   settleText: { fontSize: 13, color: colors.textSecondary },
   balanceCard: { marginHorizontal: PAGE, marginBottom: 12, padding: 18, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   balanceLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 1.1, textTransform: "uppercase", opacity: 0.9 },
-  balanceAmount: { fontSize: 34, fontWeight: "700", letterSpacing: -0.8, marginTop: 4, fontVariant: ["tabular-nums"] },
+  balanceAmount: { ...type.balanceAmount, marginTop: 4 },
   balanceDetails: { borderTopWidth: 1, marginTop: 10, paddingTop: 8, gap: 4 },
   balanceDetail: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   balanceDetailText: { flex: 1, fontSize: 13, color: "rgba(40,40,31,0.78)" },

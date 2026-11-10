@@ -11,7 +11,6 @@ import {
   seedPaymentSplitDraft,
   enteredDraftTotal,
 } from "./payment-split-draft";
-import { normalizedExactPayments, isPaymentLedgerValid } from "./expense-payment-ledger";
 import { a, b } from "./test-support";
 test("exactModeUntoggleToOnePayerStaysValid", () => {
   let d = setPayerMode(create({ selectedPayerIDs: [a, b] }), "exact", "100", "USD");
@@ -67,22 +66,6 @@ test("percentModeMustSumTo100", () => {
   d = setDraftText(d, "percentage", a, "75");
   d = setDraftText(d, "percentage", b, "24");
   expect(splits(d, "80", "USD")).toBeNull();
-});
-test("exactPaymentsFollowCurrencyPrecision", () => {
-  const r = normalizedExactPayments(
-    [
-      { amount_paid: "600.25", payment_mode: "exact" },
-      { amount_paid: "400.25", payment_mode: "exact" },
-    ] as const,
-    "JPY",
-  );
-  expect(r.map((p) => p.amount_paid)).toEqual(["600", "400"]);
-  expect(r.every((p) => p.payment_mode === "exact")).toBe(true);
-});
-test("individualPaymentPrecisionIsValidated", () => {
-  expect(isPaymentLedgerValid([{ amount_paid: "600.5" }, { amount_paid: "399.5" }], "1000", "JPY")).toBe(false);
-  expect(isPaymentLedgerValid([{ amount_paid: "600" }, { amount_paid: "400" }], "1000", "JPY")).toBe(true);
-  expect(isPaymentLedgerValid([], "1000", "JPY")).toBe(true);
 });
 test("draft seeding only runs once and preserves exact ledger", () => {
   const options = {

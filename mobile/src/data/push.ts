@@ -56,12 +56,18 @@ export async function registerForPush(prompt: boolean): Promise<PushPermission> 
   return permission;
 }
 
-/** Stops this device receiving the user's pushes. Runs before sign-out. */
-export async function unregisterPushDevice(userId: string) {
+/**
+ * Stops this device receiving the user's pushes. Runs before sign-out, while
+ * the session can still delete its own row. False when the server couldn't be
+ * told, so the caller can warn that pushes may keep arriving.
+ */
+export async function unregisterPushDevice(userId: string): Promise<boolean> {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
-  if (!token) return;
-  await supabase.from("push_devices").delete().eq("user_id", userId).eq("apns_token", token);
+  if (!token) return true;
+  const { error } = await supabase.from("push_devices").delete().eq("user_id", userId).eq("apns_token", token);
+  if (error) return false;
   await SecureStore.deleteItemAsync(TOKEN_KEY);
+  return true;
 }
 
 export async function setBadgeCount(count: number) {

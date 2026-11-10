@@ -6,7 +6,6 @@ export const colors = {
   accentStrong: "#4F7549",
   accentSoft: "rgba(111,152,102,0.25)",
   accentTint: "#EEF2E7",
-  accentGlow: "rgba(143,178,130,0.35)",
 
   bg: "#FAF7F0",
   surface: "#FFFFFF",
@@ -18,13 +17,10 @@ export const colors = {
 
   cardBorder: "rgba(60,50,30,0.06)",
   rowDivider: "rgba(60,50,30,0.07)",
-  shadow: "rgba(50,60,40,0.06)",
   warning: "#B16D3F",
   danger: "#B5482F",
   segmentedBg: "rgba(60,50,30,0.06)",
   iconBg: "#F1ECE2",
-  tabBarBg: "rgba(250,247,240,0.92)",
-  tabBarBorder: "rgba(60,50,30,0.08)",
   owed: "#4F7549",
   owe: "#B16D3F",
   settle: "#6B8DA6",
@@ -37,8 +33,6 @@ export const avatarTones = {
   sand: "#B98B59",
   slate: "#6B8DA6",
 } as const;
-
-export type AvatarTone = keyof typeof avatarTones;
 
 export const categoryTones: Record<string, string> = {
   "00000001-0000-0000-0000-000000000000": "#B97047",

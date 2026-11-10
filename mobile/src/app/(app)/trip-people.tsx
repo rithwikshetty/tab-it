@@ -5,7 +5,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, St
 import { addPeople } from "@/data/actions";
 import { onlineMessage, removeTripPerson, tripInviteUrl, updateTripPersonEmail } from "@/data/online";
 import { peopleInTrip } from "@/data/selectors";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import { hasPlaceholderEmail, sortedPeople } from "@/domain";
 import type { LocalPerson } from "@/data/schema";
 import { PersonEmailSheet } from "@/features/people/email-sheet";
@@ -18,6 +18,7 @@ import { colors, PAGE, radius } from "@/ui/theme";
 export default function TripPeople() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useSignedIn();
+  const myName = useMyName();
   const state = useAppState();
   const [adding, setAdding] = useState<PickedPerson[]>([]);
   const [editing, setEditing] = useState<LocalPerson | null>(null);
@@ -95,7 +96,7 @@ export default function TripPeople() {
                   style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface2 }]}
                 >
                   <Avatar
-                    person={{ id: p.id, name: isMe ? ctx.user.displayName : p.display_name, userId: p.user_id, email: p.email }}
+                    person={{ id: p.id, name: isMe ? myName : p.display_name, userId: p.user_id, email: p.email }}
                     size={36}
                     ring={0}
                   />

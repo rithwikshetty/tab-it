@@ -87,8 +87,3 @@ export function suggestedPayment(balances: readonly UserBalance[], currentPerson
       }
     : null;
 }
-export const BalancePresenter = {
-  summaries: balanceSummaries,
-  simplifiedGroups,
-};
-export const SettleUpPresenter = { suggestedPayment };
