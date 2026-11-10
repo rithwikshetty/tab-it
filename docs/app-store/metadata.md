@@ -91,16 +91,16 @@ Answer "No" to everything in the questionnaire. Result: **4+**.
 2026 Rithwik Shetty
 ```
 
-## What's New (version 2.0.0)
+## What's New (version 2.0.1)
 
 ```
-tab-it is rebuilt from the ground up. Your trips, balances and receipts carry over, and you stay signed in.
+Fixes and a smoother app.
 
-• Tap a notification to open the expense it's about.
-• After importing a Splitwise group, link its people to friends you already split with, during the import or later from the trip's People screen.
-• Each person keeps one avatar colour across all your trips.
-• Excel exports show times and payment dates in your local time.
-• Many fixes to syncing and offline changes.
+• Balances are exact when several people pay one bill.
+• Long trips and a busy Activity feed scroll smoothly.
+• A trip renamed while offline keeps its new name.
+• A receipt photo you remove is erased from our servers about 30 days later.
+• Fixes to Splitwise import, signing out while offline and syncing.
 ```
 
 ## App Privacy section
@@ -109,12 +109,29 @@ Already drafted, answer-by-answer: `docs/legal/app-store-privacy-labels.md`.
 
 ## Screenshots
 
-Required: one set for the 6.9" display (1320 × 2868 portrait PNG, taken on an
-iPhone 16 Pro Max class simulator). Apple scales it down for smaller sizes.
-The seeded-simulator screenshots used on the landing page are the right
-content; retake them on the 16 Pro Max simulator at full resolution. Suggested
-set, in order: trips list, trip detail with balances, add expense, settle up,
-activity feed.
+One set for the 6.9" display (1320 × 2868 portrait PNG). Apple scales it down
+for smaller sizes. The set is in `docs/app-store/screenshots/`, in upload
+order:
+
+| File | Screen |
+|---|---|
+| `01-trips.png` | Trips list with three trips in three currencies |
+| `02-trip.png` | Trip detail with the balance card and timeline |
+| `03-add-expense.png` | New expense with an equal split |
+| `04-settle-up.png` | Record a payment |
+| `05-friends.png` | Friends, balances per person |
+| `06-activity.png` | Activity feed |
+
+To retake them:
+
+1. `bash supabase/scripts/reset_local.sh`, then load
+   `docs/app-store/screenshots/demo-data.sql` (the command is at the top of
+   that file). Every name and amount in it is made up.
+2. Run a development build on an iPhone Pro Max simulator and sign in as
+   `mock@tab.local`.
+3. Set the status bar with
+   `xcrun simctl status_bar <udid> override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4`.
+4. Capture each screen at device resolution.
 
 ## App Review notes (submission form)
 
