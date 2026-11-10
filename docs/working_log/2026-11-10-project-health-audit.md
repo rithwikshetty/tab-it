@@ -188,3 +188,10 @@ Still open, with the reason:
 - 27, acknowledgements: each row is acknowledged in its own commit right after the server confirms it. That is what keeps a killed app from re-sending confirmed rows, so it stays.
 - 4, 6, 8, 9, 14, 38: unchanged from the list above. Production has 120 expenses, so the RLS and index items buy nothing yet.
 - App Store Connect text, screenshots and privacy answers, and the Supabase Site URL, are dashboard changes for the owner.
+
+### 2026-11-10: follow-up, release 2.0.1 and the dashboards
+
+- `main` was merged as `ad01182` (PR #48). The site was deployed with `vercel --prod`.
+- TestFlight: version 2.0.0 was closed for new builds, so the app is version 2.0.1, build 22 (`72d02e0`), uploaded to App Store Connect.
+- Supabase Auth: Site URL changed from `http://localhost:3000` to `https://tab-it.app` in the dashboard. The redirect list is unchanged. The Invite, Change email and Reset password templates use `{{ .ConfirmationURL }}`, which falls back to the Site URL.
+- App Store screenshots retaken from the Expo app on an iPhone 17 Pro Max simulator at 1320 × 2868, from the made-up data in `docs/app-store/screenshots/demo-data.sql`. `docs/app-store/metadata.md` has the 2.0.1 release notes and the retake steps.
