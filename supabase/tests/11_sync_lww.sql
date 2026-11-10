@@ -1,12 +1,14 @@
 -- 11_sync_lww.sql — server-side last-write-wins semantics for synced rows.
 -- Clients supply updated_at + write_id with every push; the server must
 -- respect them, reject (silently skip) stale writes, never resurrect
--- tombstones, and keep stamping rows for metadata-less writes.
+-- tombstones, and keep stamping rows for metadata-less writes. Client stamps
+-- are capped at five minutes past the server clock, and the trip activity
+-- bump from expense writes does not restamp the trip.
 
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(20);
+select plan(29);
 create temp table _r (line text);
 grant insert, select on _r to authenticated;
 
@@ -56,14 +58,17 @@ insert into _r select ok(
    from public.expenses where id = '52000000-0000-0000-0000-000000000001'),
   'metadata-less update bumps updated_at');
 
--- Re-pin known metadata for the comparisons below.
+-- Re-pin known metadata for the comparisons below. The metadata-less update
+-- stamped the server clock, so the pin bypasses the sync trigger.
+set local session_replication_role = replica;
 update public.expenses
-set description = 'pinned', updated_at = '2027-01-02T10:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000002'
+set description = 'pinned', updated_at = '2026-07-02T10:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000002'
 where id = '52000000-0000-0000-0000-000000000001';
+set local session_replication_role = origin;
 
 -- ── Newer client write applies and keeps the client write_id.
 update public.expenses
-set description = 'newer edit', updated_at = '2027-01-03T10:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000003'
+set description = 'newer edit', updated_at = '2026-07-03T10:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000003'
 where id = '52000000-0000-0000-0000-000000000001';
 
 insert into _r select is(
@@ -77,7 +82,7 @@ insert into _r select is(
 
 -- ── Older client write is silently skipped.
 update public.expenses
-set description = 'stale edit', updated_at = '2027-01-01T09:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000004'
+set description = 'stale edit', updated_at = '2026-07-01T09:00:00Z', write_id = 'aaaaaaaa-0000-0000-0000-000000000004'
 where id = '52000000-0000-0000-0000-000000000001';
 
 insert into _r select is(
@@ -91,7 +96,7 @@ insert into _r select is(
 
 -- ── Equal updated_at: higher write_id wins, lower loses.
 update public.expenses
-set description = 'tie higher', updated_at = '2027-01-03T10:00:00Z', write_id = 'ffffffff-0000-0000-0000-000000000001'
+set description = 'tie higher', updated_at = '2026-07-03T10:00:00Z', write_id = 'ffffffff-0000-0000-0000-000000000001'
 where id = '52000000-0000-0000-0000-000000000001';
 
 insert into _r select is(
@@ -99,7 +104,7 @@ insert into _r select is(
   'tie higher', 'timestamp tie: higher write_id wins');
 
 update public.expenses
-set description = 'tie lower', updated_at = '2027-01-03T10:00:00Z', write_id = 'bbbbbbbb-0000-0000-0000-000000000001'
+set description = 'tie lower', updated_at = '2026-07-03T10:00:00Z', write_id = 'bbbbbbbb-0000-0000-0000-000000000001'
 where id = '52000000-0000-0000-0000-000000000001';
 
 insert into _r select is(
@@ -108,18 +113,18 @@ insert into _r select is(
 
 -- ── Delete-wins: an incoming tombstone beats a newer live edit.
 update public.expenses
-set deleted_at = '2027-02-01T10:00:00Z', updated_at = '2027-01-01T08:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000001'
+set deleted_at = '2026-08-01T10:00:00Z', updated_at = '2026-07-01T08:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000001'
 where id = '52000000-0000-0000-0000-000000000001';
 
 insert into _r select is(
   (select deleted_at from public.expenses where id = '52000000-0000-0000-0000-000000000001'),
-  '2027-02-01T10:00:00Z'::timestamptz,
+  '2026-08-01T10:00:00Z'::timestamptz,
   'older incoming delete applies against a newer live row (delete-wins)');
 
 -- A tombstone is never resurrected, even by a newer live update.
 insert into _r select lives_ok(
   $$update public.expenses
-    set deleted_at = null, description = 'resurrected', updated_at = '2027-02-02T10:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000002'
+    set deleted_at = null, description = 'resurrected', updated_at = '2026-08-02T10:00:00Z', write_id = 'cccccccc-0000-0000-0000-000000000002'
     where id = '52000000-0000-0000-0000-000000000001'$$,
   'live update against a tombstone does not error');
 
@@ -188,7 +193,103 @@ insert into _r select is(
   (select amount from public.expenses where id = '52000000-0000-0000-0000-000000000002'),
   70::numeric, 'metadata-less RPC edit still applies');
 
+-- ── A trip rename stamped before a later expense still applies.
+-- The trip's last edit is at 2026-07-01; a phone renames it offline at
+-- 2026-07-02 (T1); an expense lands now (T2, server clock, after T1); then the
+-- rename is pushed with its T1 stamp.
 reset role;
+insert into public.trips (id, name, created_by, updated_at, write_id)
+values ('53333333-3333-3333-3333-333333333333', 'Before rename', '00000000-0000-0000-0000-000000000051',
+        '2026-07-01T00:00:00Z', 'eeeeeeee-0000-0000-0000-000000000001');
+insert into public.trip_people (id, trip_id, user_id, email, display_name, invited_by, joined_at)
+values ('50000000-0000-0000-0000-000000000003', '53333333-3333-3333-3333-333333333333',
+        '00000000-0000-0000-0000-000000000051', 'lww@test.tab', 'Lww',
+        '00000000-0000-0000-0000-000000000051', now());
+create temp table _trip_before as
+  select last_activity_at from public.trips where id = '53333333-3333-3333-3333-333333333333';
+grant select on _trip_before to authenticated;
+
+set local role authenticated;
+select public.create_expense_with_payments_and_splits(
+  '{"id":"52000000-0000-0000-0000-000000000003","trip_id":"53333333-3333-3333-3333-333333333333","amount":"10","currency":"EUR","description":"after the rename","expense_date":"2026-07-03","payment_method":"card"}'::jsonb,
+  '[{"trip_person_id":"50000000-0000-0000-0000-000000000003","amount_paid":"10","payment_mode":"equal"}]'::jsonb,
+  '[{"trip_person_id":"50000000-0000-0000-0000-000000000003","amount_owed":"10","split_type":"equal"}]'::jsonb
+);
+
+insert into _r select ok(
+  (select last_activity_at > (select last_activity_at from _trip_before)
+   from public.trips where id = '53333333-3333-3333-3333-333333333333'),
+  'an expense write bumps the trip''s last_activity_at');
+
+insert into _r select ok(
+  (select updated_at = '2026-07-01T00:00:00Z'::timestamptz
+      and write_id = 'eeeeeeee-0000-0000-0000-000000000001'::uuid
+   from public.trips where id = '53333333-3333-3333-3333-333333333333'),
+  'the activity bump keeps the trip''s updated_at and write_id');
+
+-- Stale rename (older than the trip's last edit) is still skipped.
+with u as (
+  update public.trips
+  set name = 'Stale rename', updated_at = '2026-06-15T00:00:00Z', write_id = 'eeeeeeee-0000-0000-0000-000000000002'
+  where id = '53333333-3333-3333-3333-333333333333'
+  returning id
+)
+insert into _r select is((select count(*)::int from u), 0, 'a rename older than the trip''s last edit is skipped');
+
+with u as (
+  update public.trips
+  set name = 'After rename', updated_at = '2026-07-02T00:00:00Z', write_id = 'eeeeeeee-0000-0000-0000-000000000003'
+  where id = '53333333-3333-3333-3333-333333333333'
+  returning id
+)
+insert into _r select is((select count(*)::int from u), 1, 'a rename stamped before a later expense updates one row');
+
+insert into _r select is(
+  (select name from public.trips where id = '53333333-3333-3333-3333-333333333333'),
+  'After rename', 'the rename is applied');
+
+-- ── Client stamps are capped at five minutes past the server clock.
+reset role;
+insert into public.expenses (id, trip_id, amount, currency, description, expense_date, payment_method, created_by, updated_at, write_id)
+values ('52000000-0000-0000-0000-000000000004', '53333333-3333-3333-3333-333333333333',
+        5, 'EUR', 'future clock', '2026-07-03', 'card', '00000000-0000-0000-0000-000000000051',
+        '2099-01-01T00:00:00Z', 'abababab-0000-0000-0000-000000000001');
+
+insert into _r select ok(
+  (select updated_at <= clock_timestamp() + interval '5 minutes'
+   from public.expenses where id = '52000000-0000-0000-0000-000000000004'),
+  'insert caps a future client updated_at');
+
+update public.expenses
+set description = 'future edit', updated_at = '2099-01-02T00:00:00Z', write_id = 'abababab-0000-0000-0000-000000000002'
+where id = '52000000-0000-0000-0000-000000000004';
+
+insert into _r select ok(
+  (select description = 'future edit'
+      and updated_at > now()
+      and updated_at <= clock_timestamp() + interval '5 minutes'
+   from public.expenses where id = '52000000-0000-0000-0000-000000000004'),
+  'update applies a future-clock edit with updated_at capped');
+
+update public.expenses
+set deleted_at = '2099-01-03T00:00:00Z', updated_at = '2099-01-03T00:00:00Z', write_id = 'abababab-0000-0000-0000-000000000003'
+where id = '52000000-0000-0000-0000-000000000004';
+
+insert into _r select ok(
+  (select deleted_at > now() and deleted_at <= clock_timestamp() + interval '5 minutes'
+   from public.expenses where id = '52000000-0000-0000-0000-000000000004'),
+  'update caps a future client deleted_at');
+
+-- A stamp inside the five-minute window is kept exactly.
+create temp table _soon as select clock_timestamp() + interval '1 minute' as ts;
+update public.trips
+set name = 'Near future', updated_at = (select ts from _soon), write_id = 'eeeeeeee-0000-0000-0000-000000000004'
+where id = '53333333-3333-3333-3333-333333333333';
+
+insert into _r select is(
+  (select updated_at from public.trips where id = '53333333-3333-3333-3333-333333333333'),
+  (select ts from _soon),
+  'a client updated_at within five minutes of the server clock is kept as sent');
 
 insert into _r select * from finish();
 select line from _r;

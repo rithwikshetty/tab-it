@@ -23,6 +23,8 @@ comment on table public.activity_log is
 create index activity_log_trip_id_timestamp_idx on public.activity_log(trip_id, timestamp desc);
 create index activity_log_actor_id_idx          on public.activity_log(actor_id);
 create index activity_log_entity_idx            on public.activity_log(entity_type, entity_id);
+-- The clients' feed pull: timestamp >= cutoff order by timestamp desc limit 300.
+create index activity_log_timestamp_idx         on public.activity_log(timestamp desc);
 
 
 -- ----------------------------------------------------------------------------

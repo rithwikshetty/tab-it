@@ -14,6 +14,11 @@ set check_function_bodies = off;
 -- ConflictResolver). Writes that do not touch the metadata (server-side
 -- maintenance, triggers, legacy paths) keep the old stamp-fresh behavior.
 -- deleted_at is read via jsonb because not every synced table has the column.
+-- Client-supplied updated_at and deleted_at are capped at five minutes past
+-- the server clock, so a phone whose clock runs ahead cannot outrank every
+-- later edit. A trips update that changes only last_activity_at (the
+-- touch_trip_last_activity trigger) is not an edit of the trip and keeps the
+-- trip's updated_at and write_id.
 create or replace function public.set_sync_fields()
 returns trigger
 language plpgsql
@@ -22,16 +27,27 @@ as $$
 declare
   v_old_deleted timestamptz;
   v_new_deleted timestamptz;
+  v_latest      timestamptz := clock_timestamp() + interval '5 minutes';
 begin
+  v_new_deleted := nullif(to_jsonb(new) ->> 'deleted_at', '')::timestamptz;
+
   if tg_op = 'INSERT' then
     new.created_at := clock_timestamp();
     if new.updated_at is null then new.updated_at := clock_timestamp(); end if;
     if new.write_id   is null then new.write_id   := gen_random_uuid();  end if;
+    if new.updated_at > v_latest then new.updated_at := v_latest; end if;
+    -- Only tables with a deleted_at column reach this assignment.
+    if v_new_deleted > v_latest then new.deleted_at := v_latest; end if;
+    return new;
+  end if;
+
+  if tg_table_name = 'trips'
+     and (to_jsonb(new) - 'last_activity_at') = (to_jsonb(old) - 'last_activity_at')
+     and (to_jsonb(new) -> 'last_activity_at') is distinct from (to_jsonb(old) -> 'last_activity_at') then
     return new;
   end if;
 
   v_old_deleted := nullif(to_jsonb(old) ->> 'deleted_at', '')::timestamptz;
-  v_new_deleted := nullif(to_jsonb(new) ->> 'deleted_at', '')::timestamptz;
 
   -- Delete-wins: a tombstoned row is never resurrected by a live update.
   if v_old_deleted is not null and v_new_deleted is null then
@@ -51,6 +67,14 @@ begin
   if new.updated_at is null then
     new.updated_at := clock_timestamp();
   end if;
+  if new.updated_at > v_latest then
+    new.updated_at := v_latest;
+  end if;
+  if v_new_deleted > v_latest
+     and v_new_deleted is distinct from v_old_deleted then
+    new.deleted_at := v_latest;
+    v_new_deleted  := v_latest;
+  end if;
 
   if v_old_deleted is not null and v_new_deleted is not null then
     if v_new_deleted < v_old_deleted
@@ -69,7 +93,7 @@ end;
 $$;
 
 comment on function public.set_sync_fields() is
-  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id. On update, delete-wins is unconditional across live/deleted state (live-to-deleted writes apply; resurrection is blocked); live-live writes use updated_at LWW and both-deleted writes use deleted_at LWW, with write_id tiebreakers. Metadata-less updates get fresh server stamps.';
+  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id. On update, delete-wins is unconditional across live/deleted state (live-to-deleted writes apply; resurrection is blocked); live-live writes use updated_at LWW and both-deleted writes use deleted_at LWW, with write_id tiebreakers. Metadata-less updates get fresh server stamps. Client updated_at and deleted_at are capped at clock_timestamp() + 5 minutes. A trips update that changes only last_activity_at keeps updated_at and write_id.';
 
 
 -- ============================================================================

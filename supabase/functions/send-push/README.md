@@ -50,14 +50,6 @@ keep `APNS_ENV=sandbox` for development device builds. For TestFlight/App Store,
 the entitlement resolves to `production` at distribution signing — set
 `APNS_ENV=production`.
 
-## Status on this project
-
-- `WEBHOOK_SECRET` and `APNS_ENV=sandbox` are set; `app_config` is wired.
-- The trigger → `pg_net` → function chain is verified (returns
-  `apns_not_configured` until the APNs key is added).
-- Remaining to go live: add the four `APNS_*` key secrets and register a real
-  device (the Simulator cannot receive real APNs deliveries).
-
 ## Deploy
 
 ```bash

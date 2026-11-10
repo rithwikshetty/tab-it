@@ -51,6 +51,26 @@ begin
   -- Shared trips keep their ledger rows (they are the group's data). The
   -- user's claimed identity rows lose the personal email; the trip-scoped
   -- display name stays as the ledger label.
+  --
+  -- A non-group container's member_signature lists its participants' emails,
+  -- so the user's email is swapped for the same scrubbed address, keeping the
+  -- sorted '|'-joined form resolve_or_create_non_group_container builds. The
+  -- scrubbed address embeds the person id, so the new signature is unique and
+  -- a later account with the old email gets a fresh container.
+  update public.trips t
+  set member_signature = (
+    select string_agg(e, '|' order by e)
+    from unnest(array_replace(
+      string_to_array(t.member_signature, '|'),
+      tp.email,
+      'deleted-' || tp.id || '@account-deleted.invalid'
+    )) as e
+  )
+  from public.trip_people tp
+  where tp.trip_id = t.id
+    and tp.user_id = p_user
+    and t.kind = 'non_group';
+
   update public.trip_people tp
   set email = 'deleted-' || tp.id || '@account-deleted.invalid'
   where tp.user_id = p_user;

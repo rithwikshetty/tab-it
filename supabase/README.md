@@ -15,9 +15,6 @@ checked-in source assembly and does not connect to any database. Do not edit the
 split SQL or migration files until the specific production-safe migration plan
 has been approved.
 
-The receipt cleanup helper is restricted to explicitly confirmed,
-non-production environments. It must never be used with production credentials.
-
 ## Client write paths
 
 - Trip creation: call `create_trip_with_self(trip_id, person_id, name)` so the trip and creator person row are transactional and use client-provided UUIDs.
@@ -26,13 +23,16 @@ non-production environments. It must never be used with production credentials.
 - Suggestions: call `suggest_trip_people(query?, limit?)`; results are limited to people the current user has already shared trips with.
 - Expense creation/editing: call `create_expense_with_payments_and_splits(expense, payments, splits)`. It atomically upserts an active expense and replaces both ledgers; edits to soft-deleted expenses are rejected.
 - Receipt upload: upload JPEGs to the private `receipts` bucket at `<trip_id>/<expense_id>.jpg`.
-- Soft-delete purge: call `purge_soft_deleted_records()` from a service-role scheduled job once the app is ready to enable the 30-day hard-delete policy.
+- Receipt sweep: clients never delete a receipt object. Once a day the `sweep-receipts` cron job asks the `sweep-receipts` edge function to remove the objects `orphaned_receipt_objects()` lists: ones no live expense points at, where neither the object nor its expense has changed for 30 days. See `functions/sweep-receipts/README.md`.
+- Soft-delete purge: `purge_soft_deleted_records(cutoff)` hard-deletes soft-deleted rows older than the cutoff. Only `service_role` can execute it, and nothing schedules it. Running it is unsafe while clients sync offline: delete-wins depends on the tombstone, so once a tombstone is gone, a phone that still holds the row can push a later edit and re-create it.
 
 Direct inserts into `trip_people` are not a public client API. RLS intentionally denies them.
 
 ## Invariants enforced by Postgres
 
 - Payers, split participants, settlement parties, creators, custom categories, and mute prefs must belong to the target trip.
+- A signed-in writer can only record themselves as `expenses.last_edited_by`.
+- `set_sync_fields` caps a client's `updated_at` and `deleted_at` at five minutes past the server clock. The `last_activity_at` bump on trips from expense and settlement writes keeps the trip's `updated_at` and `write_id`.
 - Expense payment and split totals must equal the expense amount for active expenses.
 - Pending people are matched by normalized email and linked to auth profiles by `claim_trip_people_for_current_email()`.
 - Receipt object access is derived from the trip id in the storage object path and joined `trip_people`.
