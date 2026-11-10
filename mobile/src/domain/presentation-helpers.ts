@@ -71,16 +71,6 @@ export function inviteJoinErrorMessage(code: string | null): string | null {
       ? "This invite link is invalid or was turned off."
       : null;
 }
-export const EmailValidator = {
-  normalized: normalizedEmail,
-  isValid: isValidEmail,
-};
-export const AvatarInitial = { from: avatarInitial };
-export const AvatarTone = {
-  deterministic: avatarTone,
-  forEmail: emailAvatarTone,
-};
-export const InviteJoinErrorMessage = { message: inviteJoinErrorMessage };
 export const DefaultCategories = {
   food: {
     id: "00000001-0000-0000-0000-000000000000",
@@ -114,32 +104,6 @@ export const DefaultCategories = {
   },
 };
 export const defaultCategories = Object.values(DefaultCategories);
-export function activePeople(people: readonly TripPerson[]): TripPerson[] {
-  return people.filter((p) => p.removed_at === null);
-}
 export function hasPlaceholderEmail(person: Pick<TripPerson, "email">): boolean {
   return person.email.endsWith("@users.tab");
-}
-export function isNonGroup(trip: { kind: string }): boolean {
-  return trip.kind === "non_group";
-}
-export function primaryPayerID(
-  payments: readonly {
-    trip_person_id: string;
-  }[],
-): string | null {
-  return payments.map((p) => p.trip_person_id).sort()[0] ?? null;
-}
-export function effectiveSplitType(value: string): import("./records").SplitType {
-  return ["equal", "exact", "percentage", "shares", "adjustment"].includes(value) ? (value as import("./records").SplitType) : "equal";
-}
-export function effectivePaymentMethod(value: string): import("./records").PaymentMethod {
-  return value === "cash" || value === "bank_transfer" ? value : "card";
-}
-export function categoryOption(category: { id: string; icon: string; name: string }): {
-  id: string;
-  icon: string;
-  name: string;
-} {
-  return { id: category.id, icon: category.icon, name: category.name };
 }

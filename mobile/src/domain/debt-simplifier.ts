@@ -65,4 +65,3 @@ export function mirroredSimplifiedBalances(balances: readonly UserBalance[]): Us
     },
   ]);
 }
-export const DebtSimplifier = { simplify: simplifyDebts };

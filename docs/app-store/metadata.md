@@ -40,7 +40,7 @@ It's free. No ads and no subscription. Everything's included. We made it for our
 
 WHAT IT DOES
 
-• Equal or exact splits. Two people can pay one bill, and someone who skipped dinner can be left out of that one.
+• Split equally, by exact amounts, by shares or by percentages. Two people can pay one bill, and someone who skipped dinner can be left out of that one.
 • Per-currency balances. Spend in euros and pounds on the same trip and they stay separate, with no made-up conversion rates.
 • Works offline. Add expenses on the plane or up a mountain. They sync when you're back.
 • Attach receipt photos to expenses.

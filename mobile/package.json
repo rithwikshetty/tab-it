@@ -5,13 +5,12 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-community/datetimepicker": "9.2.1",
-    "@react-native-google-signin/google-signin": "^16.1.5",
-    "@react-native-menu/menu": "^2.0.0",
+    "@react-native-google-signin/google-signin": "16.1.5",
+    "@react-native-menu/menu": "2.0.0",
     "@supabase/supabase-js": "^2.118.0",
     "expo": "~58.0.14",
     "expo-apple-authentication": "~58.0.2",
     "expo-application": "~58.1.2",
-    "expo-clipboard": "~58.0.3",
     "expo-constants": "~58.0.12",
     "expo-contacts": "~58.0.7",
     "expo-crypto": "~58.0.7",
@@ -61,9 +60,8 @@
     "android": "expo run:android",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint",
     "check": "npm run typecheck && npm test",
-    "gen:types": "supabase gen types typescript --local --schema public --workdir .. > src/lib/database.types.ts",
+    "gen:types": "supabase gen types typescript --local --schema public --workdir .. > src/lib/database.types.ts && prettier --write src/lib/database.types.ts",
     "postinstall": "patch-package"
   },
   "private": true

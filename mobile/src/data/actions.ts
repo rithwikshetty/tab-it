@@ -3,10 +3,18 @@ import type { ExpensePayment, ExpenseSplit, PaymentMethod, SplitType } from "@/d
 import { nowISO, uuid } from "@/lib/ids";
 
 import { discardStagedReceipt, receiptPath, stageReceipt } from "./receipts";
-import type { LocalExpense, LocalMute, LocalPerson, LocalSettlement, LocalTrip, Op } from "./schema";
+import {
+  META_ACTIVITY_SEEN,
+  PERSON_ALIAS,
+  type LocalExpense,
+  type LocalMute,
+  type LocalPerson,
+  type LocalSettlement,
+  type LocalTrip,
+  type Op,
+} from "./schema";
 import type { UnsyncedChange } from "./selectors";
 import type { CurrentUser } from "./session";
-import { META_ACTIVITY_SEEN } from "./sync";
 import type { Store } from "./store";
 
 // Local-first writes. Each action commits to the store at once (the UI updates
@@ -19,12 +27,7 @@ export interface Ctx {
   user: CurrentUser;
 }
 
-/**
- * People added offline can come back from the server under an existing id.
- * A form opened before that still holds the old id; this maps it forward.
- */
-export const PERSON_ALIAS = "alias.person.";
-
+/** A form opened before a person's id changed still holds the old id; this maps it forward. */
 function resolvePerson(store: Store, id: string): string {
   const meta = store.getState().meta;
   let current = id;
@@ -354,10 +357,6 @@ export async function markActivityRead({ store }: Ctx, id: string, dismiss = fal
   await store.commit([{ table: "activity_log", row: { ...row, _readAt: row._readAt ?? now, ...(dismiss ? { _dismissedAt: now } : {}) } }]);
 }
 
-export function setPreference({ store }: Ctx, key: string, value: string | null) {
-  return store.commit([{ meta: `pref.${key}`, value }]);
-}
-
 /**
  * Drops a local change the server refused or can no longer accept. A row that
  * never reached the server is deleted with its children; otherwise it's marked
@@ -388,6 +387,7 @@ export async function discardLocalChange({ store }: Ctx, table: UnsyncedChange["
     for (const [k, r] of t.expenses) if (r.trip_id === key) (ops.push({ table: "expenses", key: k, remove: true }), expenseIds.add(k));
     for (const [k, r] of t.settlements) if (r.trip_id === key) ops.push({ table: "settlements", key: k, remove: true });
     for (const [k, r] of t.trip_people) if (r.trip_id === key) ops.push({ table: "trip_people", key: k, remove: true });
+    for (const [k, r] of t.trip_mute_prefs) if (r.trip_id === key) ops.push({ table: "trip_mute_prefs", key: k, remove: true });
   }
   for (const child of ["expense_payments", "expense_splits"] as const) {
     for (const [k, r] of t[child]) if (expenseIds.has(r.expense_id)) ops.push({ table: child, key: k, remove: true });

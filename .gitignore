@@ -60,7 +60,6 @@ fastlane/test_output
 .env
 .env.local
 .env.*
-!.env.example
 .env.*.local
 Apps/Tab/Config/Secrets.xcconfig
 *.pem

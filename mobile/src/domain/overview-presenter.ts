@@ -57,4 +57,3 @@ export function overview(
 ) {
   return resolveOverview(spendFromRows(rows), currentPersonID, personName, categoryName, locale);
 }
-export const OverviewPresenter = { resolve: resolveOverview, overview };

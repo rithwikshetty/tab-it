@@ -1,5 +1,5 @@
 import { normalizedCode } from "./currency-catalog";
-import { abs, addDecimals, allocateMinor, decimalRational, normalizeDecimal, scaledString } from "./decimal";
+import { abs, addDecimals, allocateMinor, decimalRational, normalizeDecimal } from "./decimal";
 import { fromMinor, toMinor } from "./money";
 export interface ImportShare {
   person: string;
@@ -165,15 +165,15 @@ export function parseSplitwise(text: string): ImportResult {
     leading = header.fields.slice(0, 5).map((s) => s.trim());
   if (leading.length !== 5) throw new ImportParseError("missingHeader");
   if (leading.some((v, i) => v.toLowerCase() !== expected[i]!.toLowerCase())) throw new ImportParseError("unexpectedHeader", leading);
-  const columnNames = header.fields
+  const columns = header.fields
       .slice(5)
-      .map((s) => s.trim())
-      .filter(Boolean),
-    people = [...new Set(columnNames)];
+      .map((s, i) => ({ name: s.trim(), index: 5 + i }))
+      .filter((c) => c.name),
+    people = [...new Set(columns.map((c) => c.name))];
   if (!people.length) throw new ImportParseError("noPeople");
   const warnings: ImportWarning[] = [],
     rows: ImportRow[] = [];
-  if (people.length !== columnNames.length)
+  if (people.length !== columns.length)
     warnings.push({
       line: header.line,
       message: "Duplicate person names in the header are merged into one person.",
@@ -198,8 +198,8 @@ export function parseSplitwise(text: string): ImportResult {
     }
     const netValues = new Map<string, string[]>();
     let invalid = false;
-    for (const [i, name] of columnNames.entries()) {
-      const raw = field(5 + i);
+    for (const { name, index } of columns) {
+      const raw = field(index);
       if (!raw) continue;
       const value = parseImportDecimal(raw);
       if (value === null) {
@@ -264,11 +264,3 @@ export function parseSplitwise(text: string): ImportResult {
     settlements: rows.filter((r): r is ImportSettlement => r.type === "settlement"),
   };
 }
-export const SplitwiseImport = {
-  parse: parseSplitwise,
-  parseFields: parseCSVFields,
-  splitRecords: splitCSVRecords,
-  parseDecimal: parseImportDecimal,
-  parseDate: parseImportDate,
-  reconstruct: reconstructImport,
-};

@@ -58,11 +58,16 @@ const session = { user: { id: userId, email: "test@example.test", user_metadata:
 const store = { userId, close: mocks.close };
 const setSession = vi.fn();
 const setOpened = vi.fn();
+const setFailed = vi.fn();
 const legacyUser = { current: userId as string | undefined };
 
 function render(current: Session | null | undefined = session, opened: unknown = null) {
   mocks.effects.length = 0;
-  mocks.useState.mockReturnValueOnce([current, setSession]).mockReturnValueOnce([opened, setOpened]);
+  mocks.useState
+    .mockReturnValueOnce([current, setSession])
+    .mockReturnValueOnce([opened, setOpened])
+    .mockReturnValueOnce([false, setFailed])
+    .mockReturnValueOnce([0, vi.fn()]);
   return SessionProvider({ children: null as ReactNode });
 }
 
@@ -191,6 +196,14 @@ describe("session provider startup effects", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("retry on the next launch"));
     expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain("fictional-secret");
     if (cleanup) cleanup();
+  });
+
+  it("reports a store that will not open instead of loading forever", async () => {
+    mocks.openStore.mockRejectedValue(new Error("disk"));
+    render();
+    mocks.effects[1]!();
+    await vi.waitFor(() => expect(setFailed).toHaveBeenCalledWith(true));
+    expect(setOpened).not.toHaveBeenCalled();
   });
 
   it("preserves the opened signedIn object across token refresh renders", () => {

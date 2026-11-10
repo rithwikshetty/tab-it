@@ -3,7 +3,7 @@
 begin;
 set search_path = extensions, public, pg_temp;
 
-select plan(49);
+select plan(53);
 create temp table _r (line text);
 
 -- Tables
@@ -18,6 +18,7 @@ insert into _r select has_table('public', 'settlements',      'settlements exist
 insert into _r select has_table('public', 'activity_log',     'activity_log exists');
 insert into _r select has_table('public', 'push_devices',     'push_devices exists');
 insert into _r select has_table('public', 'trip_mute_prefs',  'trip_mute_prefs exists');
+insert into _r select has_table('public', 'trip_invites',     'trip_invites exists');
 
 -- Client RPCs
 insert into _r select has_function('public', 'ensure_current_profile', array['text', 'text'], 'ensure_current_profile(text, text) exists');
@@ -58,6 +59,11 @@ insert into _r select ok((select relrowsecurity from pg_class where oid = 'publi
 insert into _r select ok((select relrowsecurity from pg_class where oid = 'public.activity_log'::regclass),     'RLS enabled: activity_log');
 insert into _r select ok((select relrowsecurity from pg_class where oid = 'public.push_devices'::regclass),     'RLS enabled: push_devices');
 insert into _r select ok((select relrowsecurity from pg_class where oid = 'public.trip_mute_prefs'::regclass),  'RLS enabled: trip_mute_prefs');
+insert into _r select ok((select relrowsecurity from pg_class where oid = 'public.trip_invites'::regclass),     'RLS enabled: trip_invites');
+
+-- Indexes behind the queries every full sync runs.
+insert into _r select has_index('public', 'activity_log', 'activity_log_timestamp_idx', 'activity feed pull has a timestamp index');
+insert into _r select has_index('public', 'trip_people', 'trip_people_pending_email_idx', 'email claim has a pending-email index');
 
 -- Realtime publication membership (required for cross-device live updates).
 insert into _r select ok(

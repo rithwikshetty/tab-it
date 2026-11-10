@@ -33,37 +33,44 @@ export function TurnstileSheet({
   onToken: (token: string) => void;
   onCancel: () => void;
 }) {
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onCancel}>
       <View style={styles.sheet}>
         <Text style={type.title}>Quick check</Text>
         <Text style={[type.small, { marginTop: 4 }]}>Confirming you're a person, not a bot.</Text>
-        <View style={styles.widget}>
-          {visible && (
-            <WebView
-              originWhitelist={["*"]}
-              source={{ html: widgetHtml(siteKey), baseUrl: "https://tab-it.app" }}
-              style={styles.web}
-              onLoadEnd={() => setLoading(false)}
-              onMessage={(event) => {
-                try {
-                  const { event: kind, payload } = JSON.parse(event.nativeEvent.data) as { event: string; payload: string };
-                  if (kind === "token" && payload) onToken(payload);
-                  else if (kind === "error") setError("The check didn't load. Try again.");
-                } catch {
-                  // Ignore unrelated messages.
-                }
-              }}
-            />
-          )}
-          {loading && <ActivityIndicator style={StyleSheet.absoluteFill} color={colors.accent} />}
-        </View>
-        {error && <Text style={[type.small, { color: colors.danger, textAlign: "center" }]}>{error}</Text>}
+        {visible ? <Widget siteKey={siteKey} onToken={onToken} /> : <View style={styles.widget} />}
         <Button title="Cancel" variant="secondary" onPress={onCancel} />
       </View>
     </Modal>
+  );
+}
+
+/** Mounted once per opening, so a failed check doesn't carry over to the next. */
+function Widget({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  return (
+    <>
+      <View style={styles.widget}>
+        <WebView
+          originWhitelist={["*"]}
+          source={{ html: widgetHtml(siteKey), baseUrl: "https://tab-it.app" }}
+          style={styles.web}
+          onLoadEnd={() => setLoading(false)}
+          onMessage={(event) => {
+            try {
+              const { event: kind, payload } = JSON.parse(event.nativeEvent.data) as { event: string; payload: string };
+              if (kind === "token" && payload) onToken(payload);
+              else if (kind === "error") setError("The check didn't load. Try again.");
+            } catch {
+              // Ignore unrelated messages.
+            }
+          }}
+        />
+        {loading && <ActivityIndicator style={StyleSheet.absoluteFill} color={colors.accent} />}
+      </View>
+      {error && <Text style={[type.small, { color: colors.danger, textAlign: "center" }]}>{error}</Text>}
+    </>
   );
 }
 

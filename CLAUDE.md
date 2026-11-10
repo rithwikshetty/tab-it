@@ -80,6 +80,10 @@ Mockups live in `design/` organised by feature area, one subfolder per area:
 | `mockups/`       | Main app screens and flows            |
 | `expense-entry/` | Expense entry UI and flow iterations  |
 | `logo/`          | Logo and app icon assets              |
+| `friends/`       | Friends tab                           |
+| `overview/`      | Trip Overview segment                 |
+| `settle-up/`     | Settle-up flow                        |
+| `trip-detail-header/` | Trip detail header               |
 
 **Naming:** each iteration is `v{N}.html` (`v1.html`, `v2.html`, …). Increment from the highest existing version in that subfolder. Never overwrite or rename a previous iteration.
 
@@ -114,7 +118,7 @@ npm run typecheck
 npm test
 npx prettier --check "src/**/*.{ts,tsx}"
 
-# Static SQL source assembly check only; does not connect to a database
+# Static SQL source assembly check only; does not connect to a database. Run from the repository root.
 bash supabase/tests/00_sql_assembly.sh
 ```
 

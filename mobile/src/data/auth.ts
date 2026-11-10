@@ -1,7 +1,6 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-import { Directory, Paths } from "expo-file-system";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
@@ -22,7 +21,7 @@ import type { SyncEngine } from "./sync";
 // Turnstile check. Local development against the Docker stack can also sign in
 // with a password.
 
-export const EMAIL_CODE_LENGTH = Number(process.env.EXPO_PUBLIC_EMAIL_CODE_LENGTH ?? 8);
+export const EMAIL_CODE_LENGTH = config.emailCodeLength;
 
 export class AuthError extends Error {}
 
@@ -113,21 +112,33 @@ async function signInWithGoogleNative(): Promise<boolean> {
   return true;
 }
 
+let browserSignIn = false;
+
+/** True while the in-app browser sign-in is finishing; it exchanges its own code. */
+export function browserSignInRunning(): boolean {
+  return browserSignIn;
+}
+
 async function signInWithGoogleBrowser(): Promise<boolean> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: AUTH_CALLBACK_URL, skipBrowserRedirect: true },
   });
   if (error || !data.url) throw new AuthError(error?.message ?? "Couldn't start Google sign-in.");
-  const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_CALLBACK_URL);
-  if (result.type !== "success") return false;
-  const { queryParams } = Linking.parse(result.url);
-  const code = typeof queryParams?.code === "string" ? queryParams.code : null;
-  const failure = typeof queryParams?.error_description === "string" ? queryParams.error_description : null;
-  if (!code) throw new AuthError(failure ?? "Google sign-in didn't finish. Try again.");
-  const exchanged = await supabase.auth.exchangeCodeForSession(code);
-  if (exchanged.error) throw new AuthError(exchanged.error.message);
-  return true;
+  browserSignIn = true;
+  try {
+    const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_CALLBACK_URL);
+    if (result.type !== "success") return false;
+    const { queryParams } = Linking.parse(result.url);
+    const code = typeof queryParams?.code === "string" ? queryParams.code : null;
+    const failure = typeof queryParams?.error_description === "string" ? queryParams.error_description : null;
+    if (!code) throw new AuthError(failure ?? "Google sign-in didn't finish. Try again.");
+    const exchanged = await supabase.auth.exchangeCodeForSession(code);
+    if (exchanged.error) throw new AuthError(exchanged.error.message);
+    return true;
+  } finally {
+    browserSignIn = false;
+  }
 }
 
 const PENDING_NAME_KEY = "auth.pendingName";
@@ -194,6 +205,17 @@ function friendlyAuthError(message: string): string {
 export async function signOut(session: { userId: string; store: Store; sync: SyncEngine }) {
   await unregisterPushDevice(session.userId).catch(() => undefined);
   await wipeLocal(session);
+  await endSession();
+}
+
+/** Signs out when the local store couldn't be opened. Its file stays on the phone. */
+export async function signOutWithoutStore() {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) await unregisterPushDevice(data.session.user.id).catch(() => undefined);
+  await endSession();
+}
+
+async function endSession() {
   const { error } = await supabase.auth.signOut();
   // Signing out must work offline: drop the saved session even when the
   // server can't be told.

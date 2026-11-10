@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
-import { aggregateBalances as agg, balanceBreakdown as breakdown, ClaimIdentity as I, identityKey } from "./overall-balance-aggregator";
+import { aggregateBalances as agg, balanceBreakdown as breakdown, identityKey, resolveIdentity } from "./overall-balance-aggregator";
 import { a, b, c, mirrored as m } from "./test-support";
-const A = I.user(a),
-  B = I.user(b),
-  C = I.user(c);
+const A = resolveIdentity(a, ""),
+  B = resolveIdentity(b, ""),
+  C = resolveIdentity(c, "");
 const map = {
   a1: A,
   b1: B,
@@ -49,7 +49,7 @@ test("multiCurrency", () => {
 test("zeroNets", () => expect(agg([pair("1", "10", "GBP"), container("2", m("b2", "a2", "10", "GBP"))], map)).toEqual([]));
 test("claimContinuity", () => {
   const rows = [container("3", m("a3", "b3", "10", "GBP")), pair("1", "5", "GBP")],
-    pre = agg(rows, { ...map, b3: I.email("bob@x.com") });
+    pre = agg(rows, { ...map, b3: resolveIdentity(null, "bob@x.com") });
   expect(mine(pre)).toHaveLength(2);
   const post = mine(agg(rows, map));
   expect(post).toHaveLength(1);
@@ -84,8 +84,8 @@ test("breakdownExcludesUnrelated", () =>
     { containerID: "1", currency: "GBP", amount: 2000n },
   ]));
 test("identity resolution normalizes email without trimming and prefers user", () => {
-  expect(I.resolve(null, "BOB@x.com")).toEqual(I.email("bob@x.com"));
-  expect(I.resolve(a, "bob@x.com")).toEqual(A);
+  expect(resolveIdentity(null, "BOB@x.com")).toEqual({ type: "email", email: "bob@x.com" });
+  expect(resolveIdentity(a, "bob@x.com")).toEqual(A);
   expect(agg([pair()], { a1: A, b1: A })).toEqual([]);
   expect(breakdown([pair()], map, A, A)).toEqual([]);
 });

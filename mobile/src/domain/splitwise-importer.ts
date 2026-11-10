@@ -116,7 +116,7 @@ export function mapSplitwiseRows(
         amount: fromMinor(row.total, row.currency),
         currency: row.currency,
         category_id: splitwiseCategoryID(row.category),
-        description: row.description,
+        description: row.description.trim().slice(0, 200) || "Imported expense",
         expense_date: row.date.slice(0, 10),
         receipt_storage_path: null,
         payment_method: "card",
@@ -165,13 +165,6 @@ export function mapSplitwiseRows(
     settlements,
   };
 }
-export const SplitwiseImporter = {
-  categoryID: splitwiseCategoryID,
-  bestSelfMatch,
-  suggestLinks: suggestImportLinks,
-  mapRows: mapSplitwiseRows,
-  mapPeople: mapImportPeople,
-};
 export function mapImportPeople(options: {
   names: readonly string[];
   selfPerson: string | null;

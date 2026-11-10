@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { sanitizeAmountInput, sanitizeShareInput, shareString } from "./money";
-import { convertAmountText, formatMoney, formatSigned, plainAmountString } from "./money-formatter";
+import { convertAmountText, formatMoney, plainAmountString } from "./money-formatter";
 test("currencySwitchPreservesValue", () => expect(convertAmountText("123.45", "JPY")).toBe("123"));
 test("currencySwitchAddsPrecision", () => expect(convertAmountText("123", "USD")).toBe("123.00"));
 test("currencySwitchKeepsEmpty", () => expect(convertAmountText("", "JPY")).toBe(""));
@@ -23,7 +23,6 @@ test("symbol-only and code fallback output is exact", () => {
   expect(formatMoney("123", "JPY")).toBe("¥123");
   expect(formatMoney("1.234", "KWD")).toMatch(/1\.234$/);
   expect(formatMoney("12.5", "EUR", "de-DE")).toBe("€12.50");
-  expect(formatSigned("-12.5", "GBP")).toBe("-£12.50");
   expect(formatMoney("-12.5", "GBP")).toBe("£-12.50");
 });
 test("large display retains every digit", () => expect(formatMoney(99999999999999999999n, "USD")).toBe("$999,999,999,999,999,999.99"));
@@ -38,6 +37,5 @@ test("Money overload formats minor units without converting to a floating-point 
 test("negative display values that round to zero retain the Swift minus sign", () => {
   expect(plainAmountString("-0.005", "USD")).toBe("-0.00");
   expect(formatMoney("-0.001", "GBP")).toBe("£-0.00");
-  expect(formatSigned("-0.005", "GBP")).toBe("-£0.00");
   expect(formatMoney("-0.000", "GBP")).toBe("£0.00");
 });

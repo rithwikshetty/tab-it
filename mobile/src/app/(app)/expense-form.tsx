@@ -7,7 +7,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { saveExpense, type ExpenseInput } from "@/data/actions";
 import { localReceiptUri } from "@/data/receipts";
 import { tripRows } from "@/data/selectors";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import {
   computedDraftPayments,
   computedDraftSplits,
@@ -63,6 +63,7 @@ type ReceiptDraft = { action: "keep" } | { action: "remove" } | { action: "set";
 export default function ExpenseForm() {
   const { tripId, expenseId } = useLocalSearchParams<{ tripId: string; expenseId?: string }>();
   const ctx = useSignedIn();
+  const myName = useMyName();
   const state = useAppState();
   const rows = useMemo(() => tripRows(state, tripId), [state, tripId]);
   const editing = expenseId ? state.tables.expenses.get(expenseId) : undefined;
@@ -205,7 +206,9 @@ export default function ExpenseForm() {
   if (!rows || !me || (expenseId && (!editing || editing.deleted_at))) {
     return (
       <View style={styles.missing}>
-        <Stack.Screen options={{ title: "", headerLeft: () => <HeaderButton title="Close" onPress={() => router.back()} /> }} />
+        <Stack.Screen
+          options={{ title: "", headerLeft: () => <HeaderButton title="Close" onPress={() => router.back()} />, headerRight: () => null }}
+        />
         <Text style={styles.missingText}>This {expenseId ? "expense" : "trip"} isn't available any more.</Text>
       </View>
     );
@@ -309,7 +312,7 @@ export default function ExpenseForm() {
                   style={[styles.personChip, selected && styles.personChipOn]}
                 >
                   <Avatar
-                    person={{ id: m.id, name: m.id === me.id ? ctx.user.displayName : m.display_name, userId: m.user_id, email: m.email }}
+                    person={{ id: m.id, name: m.id === me.id ? myName : m.display_name, userId: m.user_id, email: m.email }}
                     size={22}
                     ring={0}
                   />
@@ -472,7 +475,17 @@ export default function ExpenseForm() {
                 </View>
               )}
               <Text style={[styles.lineName, { flex: 1 }]}>{receipt.action === "set" ? "New photo" : "Receipt attached"}</Text>
-              <Pressable onPress={() => pickReceipt("library")} hitSlop={8} accessibilityRole="button">
+              <Pressable
+                onPress={() =>
+                  Alert.alert("Replace receipt", undefined, [
+                    { text: "Take photo", onPress: () => void pickReceipt("camera") },
+                    { text: "Choose from library", onPress: () => void pickReceipt("library") },
+                    { text: "Cancel", style: "cancel" },
+                  ])
+                }
+                hitSlop={8}
+                accessibilityRole="button"
+              >
                 <Text style={styles.link}>Replace</Text>
               </Pressable>
               <Pressable

@@ -47,12 +47,6 @@ function dayString(date: Date): string {
 export function calendarDay(instant: string | Date, offset: TimeZoneOffset = "UTC"): string {
   return dayString(shiftedDate(instant, offset));
 }
-export function utcNoonAnchor(date: string | Date, offset: TimeZoneOffset = "UTC"): string {
-  return calendarDay(date, offset) + "T12:00:00.000Z";
-}
-export function serializedExpenseDate(date: string | Date): string {
-  return calendarDay(date, "UTC");
-}
 export function localInstant(day: string, offset: TimeZoneOffset = "UTC", hour = 12): string {
   const desired = new Date(day + "T00:00:00.000Z").getTime() + hour * 3_600_000;
   let result = desired;
@@ -62,9 +56,6 @@ export function localInstant(day: string, offset: TimeZoneOffset = "UTC", hour =
     result = next;
   }
   return new Date(result).toISOString();
-}
-export function localDateForPicker(anchored: string | Date, offset: TimeZoneOffset = "UTC"): string {
-  return localInstant(serializedExpenseDate(anchored), offset);
 }
 export function formatCalendarDate(instant: string | Date, format = "MMM d", offset: TimeZoneOffset = "UTC"): string {
   const date = shiftedDate(instant, offset);
@@ -103,9 +94,3 @@ export function dayID(day: string, offset: TimeZoneOffset = "UTC"): string {
 export function dayLabel(day: string, _locale = "en-US"): string {
   return displayExpenseDate(day, "MMM d");
 }
-export const ExpenseDates = {
-  utcNoonAnchor,
-  serialized: serializedExpenseDate,
-  displayString: displayExpenseDate,
-  localDateForPicker,
-};

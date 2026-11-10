@@ -1,7 +1,6 @@
 import type { Expense, ExpensePayment, ExpenseSplit, Settlement, Trip, TripPerson, Category, SplitType, UUID } from "./records";
 import type { Money } from "./money";
 import { toMinor } from "./money";
-export type PaymentMode = SplitType;
 export interface CalculatedSplit {
   participantID: UUID;
   amountOwed: bigint;
@@ -76,12 +75,23 @@ export function toLedgerSettlement(s: Settlement): LedgerSettlement {
     deletedAt: s.deleted_at,
   };
 }
+/** Payment or split rows grouped by their expense, so each expense reads only its own. */
+export function byExpense<T extends { expense_id: string }>(rows: readonly T[]): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const group = groups.get(row.expense_id);
+    if (group) group.push(row);
+    else groups.set(row.expense_id, [row]);
+  }
+  return groups;
+}
 export function ledgerFromRows(rows: LedgerRows) {
+  const payments = byExpense(rows.payments),
+    splits = byExpense(rows.splits);
   return {
-    expenses: rows.expenses.map((e) => toLedgerExpense(e, rows.payments, rows.splits)),
+    expenses: rows.expenses.map((e) => toLedgerExpense(e, payments.get(e.id) ?? [], splits.get(e.id) ?? [])),
     settlements: rows.settlements.map(toLedgerSettlement),
   };
 }
 export const paymentMethodDisplayName = (method: string): string =>
   method === "cash" ? "Cash" : method === "bank_transfer" ? "Bank transfer" : "Card";
-export const splitTypes: readonly SplitType[] = ["equal", "exact", "percentage", "shares", "adjustment"];

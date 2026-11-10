@@ -1,10 +1,5 @@
 import { expect, test } from "vitest";
-import { parseMoney, toMinor, fromMinor, parseAmountInput, addMoney, decimalFromInput } from "./money";
-test("moneyBasics", () => {
-  const money = parseMoney("10", "EUR");
-  expect(money).toEqual(parseMoney("10", "EUR"));
-  expect(money).not.toEqual(parseMoney("10", "USD"));
-});
+import { toMinor, fromMinor, parseAmountInput, decimalFromInput, sanitizeAmountInput } from "./money";
 test.each([
   ["12.50", "USD", 1250n, "12.5"],
   ["1000", "JPY", 1000n, "1000"],
@@ -20,13 +15,9 @@ test("typed amount is sanitized before parsing", () => {
   expect(parseAmountInput("1.234,56", "EUR")).toBe(123456n);
   expect(parseAmountInput("", "EUR")).toBeNull();
 });
-test("Kotlin addsExactDecimalAmountsInTheSameCurrency", () =>
-  expect(addMoney(parseMoney("0.10", "GBP"), parseMoney("0.20", "GBP"))).toEqual({ amount: 30n, currency: "GBP" }));
-test("Kotlin refusesToMixCurrencies", () =>
-  expect(() => addMoney(parseMoney("10", "GBP"), parseMoney("10", "EUR"))).toThrow("Cannot add different currencies."));
-test("Kotlin Money parse normalizes and validates currency code shape", () => {
-  expect(parseMoney("1", " gbp ").currency).toBe("GBP");
-  expect(() => parseMoney("1", "Pounds")).toThrow();
+test("amount entry stops at the twelve whole digits the server stores", () => {
+  expect(sanitizeAmountInput("1234567890123", "EUR")).toBe("123456789012");
+  expect(sanitizeAmountInput("123456789012.345", "EUR")).toBe("123456789012.34");
 });
 test("Swift Decimal input accepts numeric prefixes and exponents", () => {
   expect(decimalFromInput("1e2")).toBe("100");

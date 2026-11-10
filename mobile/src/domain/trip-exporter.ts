@@ -317,31 +317,3 @@ export function buildWorkbook(data: ExportData): Workbook {
     ],
   };
 }
-export function sheetCSV(sheet: WorkbookSheet): string {
-  return (
-    sheet.rows
-      .map((row) => row.map((c) => (/[",\r\n]/.test(c.value) ? '"' + c.value.replace(/"/g, '""') + '"' : c.value)).join(","))
-      .join("\r\n") + "\r\n"
-  );
-}
-export function exportCSVs(data: ExportData): {
-  name: string;
-  text: string;
-}[] {
-  return buildWorkbook(data).sheets.map((s) => ({
-    name: s.name + ".csv",
-    text: sheetCSV(s),
-  }));
-}
-export function exportText(data: ExportData): string {
-  return buildWorkbook(data)
-    .sheets.map((s) => s.name + "\n" + s.rows.map((row) => row.map((c) => c.value).join("\t")).join("\n"))
-    .join("\n\n");
-}
-export const TripExporter = {
-  extractData: extractExportData,
-  buildWorkbook,
-  sheetCSV,
-  exportCSVs,
-  exportText,
-};

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 
 import { supabase } from "@/lib/supabase";
@@ -19,10 +19,13 @@ const TABLES = [
 
 export function useTripRealtime(tripId: string | undefined) {
   const { sync, store } = useSignedIn();
+  // A trip that hasn't reached the server has nothing to listen to yet.
+  const onServer = useSyncExternalStore(
+    store.subscribe,
+    () => tripId !== undefined && store.getState().tables.trips.get(tripId)?._pushed !== null,
+  );
   useEffect(() => {
-    if (!tripId) return;
-    // A trip that hasn't reached the server has nothing to listen to yet.
-    if (store.getState().tables.trips.get(tripId)?._pushed === null) return;
+    if (!tripId || !onServer) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const refresh = () => {
       if (timer) clearTimeout(timer);
@@ -51,5 +54,5 @@ export function useTripRealtime(tripId: string | undefined) {
       if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
-  }, [tripId, sync, store]);
+  }, [tripId, sync, onServer]);
 }

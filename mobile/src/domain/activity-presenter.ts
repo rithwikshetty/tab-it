@@ -129,11 +129,9 @@ export function activitySections(activities: readonly ActivityLogEntry[], option
   const yesterdayKey = yesterday.toISOString().slice(0, 10),
     sorted = activities
       .filter((a) => !options.localState?.[a.id]?.dismissedAt)
-      .slice()
-      .sort((a, b) =>
-        timestampUnits(a.timestamp) > timestampUnits(b.timestamp) ? -1 : timestampUnits(a.timestamp) < timestampUnits(b.timestamp) ? 1 : 0,
-      );
-  return [...new Set(sorted.map((a) => calendarDay(a.timestamp, timeZone)))].map((id) => ({
+      .map((a) => ({ a, at: timestampUnits(a.timestamp), day: calendarDay(a.timestamp, timeZone) }))
+      .sort((x, y) => (x.at > y.at ? -1 : x.at < y.at ? 1 : 0));
+  return [...new Set(sorted.map((x) => x.day))].map((id) => ({
     id,
     dateLabel:
       id === today
@@ -141,7 +139,7 @@ export function activitySections(activities: readonly ActivityLogEntry[], option
         : id === yesterdayKey
           ? "Yesterday"
           : displayExpenseDate(id, id.slice(0, 4) === today.slice(0, 4) ? "EEEE, MMM d" : "MMM d, yyyy", locale),
-    rows: sorted.filter((a) => calendarDay(a.timestamp, timeZone) === id).map((a) => activityRow(a, options)),
+    rows: sorted.filter((x) => x.day === id).map((x) => activityRow(x.a, options)),
   }));
 }
 export function activityNavigation(
@@ -156,8 +154,3 @@ export function activityNavigation(
   if (target.type === "settlement" && settlementIsOpenable(target.settlementID)) return [{ type: "settlement", id: target.settlementID }];
   return [{ type: "trip", id: target.tripID }];
 }
-export const ActivityPresenter = {
-  sections: activitySections,
-  unreadCount: unreadActivityCount,
-};
-export const ActivityNavigation = { stack: activityNavigation };

@@ -15,12 +15,6 @@ export function resolveIdentity(userID: string | null, email: string): ClaimIden
 export function identityKey(identity: ClaimIdentity): string {
   return identity.type === "user" ? "u:" + identity.id.toLowerCase() : "e:" + identity.email;
 }
-export const ClaimIdentity = {
-  resolve: resolveIdentity,
-  canonicalKey: identityKey,
-  user: (id: string): ClaimIdentity => ({ type: "user", id: id.toLowerCase() }),
-  email: (email: string): ClaimIdentity => ({ type: "email", email }),
-};
 export interface ContainerBalances {
   containerID: string;
   balances: readonly UserBalance[];
@@ -100,7 +94,3 @@ export function balanceBreakdown(
     })
     .sort((a, b) => compare(a.containerID, b.containerID) || compare(a.currency, b.currency));
 }
-export const OverallBalanceAggregator = {
-  aggregate: aggregateBalances,
-  breakdown: balanceBreakdown,
-};

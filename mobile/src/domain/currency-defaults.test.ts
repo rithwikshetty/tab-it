@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { CurrencyDefaults as C } from "./currency-defaults";
+import { defaultCurrency, initialCurrency, mostRecentTripCurrency, validCurrency } from "./currency-defaults";
 import { a, b, tripRows, addExpense, rowSettlement } from "./test-support";
 const date = (n: number) => new Date(n * 1000).toISOString();
-test("emptyTripUsesSavedCurrencyBeforeRegion", () => expect(C.defaultCurrency([], [], "JPY", "USD")).toBe("JPY"));
+test("emptyTripUsesSavedCurrencyBeforeRegion", () => expect(defaultCurrency([], [], "JPY", "USD")).toBe("JPY"));
 test("tripRecentCurrencyBeatsSavedAndRegion", () => {
   let r = addExpense(tripRows(), "1", {}, {}, "10", "USD", {
     created_at: date(1),
@@ -12,10 +12,10 @@ test("tripRecentCurrencyBeatsSavedAndRegion", () => {
     created_at: date(2),
     updated_at: date(2),
   });
-  expect(C.defaultCurrency(r.expenses, [], "JPY", "GBP")).toBe("CHF");
+  expect(defaultCurrency(r.expenses, [], "JPY", "GBP")).toBe("CHF");
 });
-test("firstRunFallsBackToINR", () => expect(C.initialCurrency(null, null)).toBe("INR"));
-test("firstRunUsesDeviceRegionCurrency", () => expect(C.initialCurrency(null, "GBP")).toBe("GBP"));
+test("firstRunFallsBackToINR", () => expect(initialCurrency(null, null)).toBe("INR"));
+test("firstRunUsesDeviceRegionCurrency", () => expect(initialCurrency(null, "GBP")).toBe("GBP"));
 test("deletedAndUnsupportedTripCurrenciesAreIgnored", () => {
   let r = addExpense(tripRows(), "1", {}, {}, "10", "USD", {
     created_at: date(1),
@@ -30,7 +30,7 @@ test("deletedAndUnsupportedTripCurrenciesAreIgnored", () => {
     created_at: date(5),
     updated_at: date(5),
   });
-  expect(C.defaultCurrency(r.expenses, [], null, "GBP")).toBe("USD");
+  expect(defaultCurrency(r.expenses, [], null, "GBP")).toBe("USD");
 });
 test("settlementsCountAsRecentTripCurrency", () => {
   let r = addExpense(tripRows(), "1", {}, {}, "10", "USD", {
@@ -41,15 +41,15 @@ test("settlementsCountAsRecentTripCurrency", () => {
     created_at: date(4),
     updated_at: date(4),
   });
-  expect(C.defaultCurrency(r.expenses, r.settlements, null, "GBP")).toBe("AED");
+  expect(defaultCurrency(r.expenses, r.settlements, null, "GBP")).toBe("AED");
 });
 test("rememberedCurrencyIsNormalizedAndUnsupportedValuesAreIgnored", () => {
-  let saved = C.remember("usd");
-  expect(C.initialCurrency(saved, "GBP")).toBe("USD");
-  saved = C.remember("not-a-code", saved);
-  expect(C.initialCurrency(saved, "GBP")).toBe("USD");
+  let saved = validCurrency("usd");
+  expect(initialCurrency(saved, "GBP")).toBe("USD");
+  saved = validCurrency("not-a-code") ?? saved;
+  expect(initialCurrency(saved, "GBP")).toBe("USD");
 });
 test("recent-currency ties sort by currency code", () => {
   const r = addExpense(addExpense(tripRows(), "1", {}, {}, "1", "USD"), "2", {}, {}, "1", "EUR");
-  expect(C.mostRecentTripCurrency(r.expenses, [])).toBe("EUR");
+  expect(mostRecentTripCurrency(r.expenses, [])).toBe("EUR");
 });

@@ -3,7 +3,7 @@ import { router, Stack } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Alert, AppState } from "react-native";
 
-import { savePendingInvite, takePendingInvite } from "@/data/invites";
+import { onPendingInvite, savePendingInvite, takePendingInvite } from "@/data/invites";
 import { inviteErrorMessage, joinTripWithInvite } from "@/data/online";
 import { toRemoteError } from "@/data/remote";
 import { pushTarget, registerForPush, setBadgeCount } from "@/data/push";
@@ -51,8 +51,9 @@ function usePendingInvite() {
     const redeem = async () => {
       if (busy.current) return;
       busy.current = true;
-      const token = await takePendingInvite();
+      let token: string | null = null;
       try {
+        token = await takePendingInvite();
         if (!token) return;
         const { tripId } = await joinTripWithInvite(ctx, token);
         router.push({ pathname: "/trip/[id]", params: { id: tripId } });
@@ -66,7 +67,11 @@ function usePendingInvite() {
     };
     void redeem();
     const sub = AppState.addEventListener("change", (s) => s === "active" && void redeem());
-    return () => sub.remove();
+    const saved = onPendingInvite(() => void redeem());
+    return () => {
+      sub.remove();
+      saved();
+    };
   }, [ctx]);
 }
 

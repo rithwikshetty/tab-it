@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { deleteExpense } from "@/data/actions";
 import { receiptSource } from "@/data/receipts";
 import { isDirty } from "@/data/schema";
-import { useAppState, useSignedIn } from "@/data/session";
+import { useAppState, useMyName, useSignedIn } from "@/data/session";
 import { formatMoney, paymentMethodDisplayName } from "@/domain";
 import { dateTime, longDay, monthShort } from "@/lib/dates";
 import { Avatar } from "@/ui/avatar";
@@ -17,17 +17,10 @@ import { MoreMenu } from "@/ui/menu";
 import { Banner, Button, Card, Divider, EmptyState, Icon, Row, SectionHeader } from "@/ui/primitives";
 import { colors, PAGE, type } from "@/ui/theme";
 
-const SPLIT_LABEL: Record<string, string> = {
-  equal: "equal",
-  exact: "exact",
-  percentage: "percentage",
-  shares: "shares",
-  adjustment: "adjustment",
-};
-
 export default function ExpenseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useSignedIn();
+  const myName = useMyName();
   const state = useAppState();
   const t = state.tables;
   const expense = t.expenses.get(id);
@@ -155,7 +148,7 @@ export default function ExpenseDetail() {
                 name={p.name}
                 amount={money(p.amount)}
                 me={view.me?.id}
-                you={ctx.user.displayName}
+                you={myName}
               />
             </View>
           ))
@@ -172,13 +165,13 @@ export default function ExpenseDetail() {
               name={s.name}
               amount={money(s.amount)}
               me={view.me?.id}
-              you={ctx.user.displayName}
+              you={myName}
             />
           </View>
         ))}
         <Divider />
         <Text style={styles.splitFooter}>
-          {SPLIT_LABEL[view.splitType] ?? view.splitType} · {view.splits.length} {view.splits.length === 1 ? "way" : "ways"}
+          {view.splitType} · {view.splits.length} {view.splits.length === 1 ? "way" : "ways"}
         </Text>
       </Card>
 

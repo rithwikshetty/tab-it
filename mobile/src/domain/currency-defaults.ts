@@ -27,12 +27,3 @@ export function defaultCurrency(
 ): string {
   return mostRecentTripCurrency(expenses, settlements) ?? initialCurrency(savedCurrency, regionCurrency);
 }
-export const CurrencyDefaults = {
-  fallbackCode: defaultCurrencyCode,
-  initialCurrency,
-  defaultCurrency,
-  mostRecentTripCurrency,
-  lastSelectedCurrency: validCurrency,
-  deviceRegionCurrency: validCurrency,
-  remember: (code: string, saved: string | null = null) => validCurrency(code) ?? saved,
-};

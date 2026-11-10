@@ -48,6 +48,17 @@ begin
     end if;
   end if;
 
+  -- A signed-in writer can only record themselves as the last editor.
+  -- Requests without a user (service role, maintenance) are not limited.
+  if auth.uid() is not null
+     and new.last_edited_by is distinct from auth.uid()
+     and (
+       (tg_op = 'INSERT' and new.last_edited_by is not null)
+       or (tg_op = 'UPDATE' and new.last_edited_by is distinct from old.last_edited_by)
+     ) then
+    raise exception 'expenses.last_edited_by must be the current user' using errcode = '42501';
+  end if;
+
   if not exists (select 1 from public.trips where id = new.trip_id and deleted_at is null) then
     raise exception 'Expense trip must exist and be active' using errcode = '23514';
   end if;

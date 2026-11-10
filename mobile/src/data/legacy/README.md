@@ -53,7 +53,7 @@ Pending JPEGs come from `Library/Application Support/ReceiptUploads/<trip>__<exp
 
 The importer copies the store and WAL to cache, omits SHM, checks integrity, and reads a query-only transaction. SQLite never opens the original store. Expo exposes no read-only open flag, `expo-sqlite/src/NativeDatabase.ts:40`, and uses `sqlite3_open`, `expo-sqlite/ios/SQLiteModule.swift:138`. The copy therefore has a read/write handle with `PRAGMA query_only = ON`; a strict `SQLITE_OPEN_READONLY` handle needs a native SQLite bridge.
 
-Rows and `legacy.swiftData.v1` commit atomically. Only afterward are the original store/sidecars renamed with `.expo-imported-v1`; transferred receipt originals move to `ReceiptUploads.expo-imported-v1`. Originals are never deleted. Failed store renaming retries next call. Persistence failure requires reopening the Expo store before retrying because its commit changes memory before disk.
+Rows and `legacy.swiftData.v1` commit atomically. Only afterward are the original store/sidecars renamed with `.expo-imported-v1`; transferred receipt originals move to `ReceiptUploads.expo-imported-v1`. Originals stay on the phone until sign-out. Failed store renaming retries next call. Persistence failure requires reopening the Expo store before retrying because its commit changes memory before disk.
 
 ## Limits and tests
 
@@ -75,13 +75,3 @@ npx prettier --ignore-path /dev/null --check src/data/legacy/session.ts src/data
 ```
 
 Tests cover the native fixture and real Node SQLite/filesystem adapters, including ledger totals, large amounts, WAL recovery, repeat/concurrent import, disk failure, closed stores, account isolation, receipts, and activity state. Auth tests cover exact JS bridge arguments, Android no-ops, session decoding, persistence ordering, account-evidence retention, timeouts, shared refreshes, provider auth-event buffering, import ordering, cancellation, cleanup, and stable `signedIn` identity. `.prettierignore` excludes this legacy directory, so its edited files also need the explicit formatting check above.
-
-## Handoff validation log
-
-### 2026-10-18
-
-- Added the iOS keychain module and bounded session startup. Persisted legacy account evidence supports data-import retries after native token deletion. The provider waits for import before exposing the store or creating sync, and waits for import before closing a cancelled store.
-- `npx tsc --noEmit` passed. `npx vitest run` passed all 410 tests across 34 files. Explicit Prettier checks passed for every edited TypeScript file. The full source formatting check passed before concurrent UI edits; its final run flags the out-of-scope `src/ui/primitives.tsx`.
-- `npx expo prebuild --platform ios --no-install`, `pod install`, and `xcodebuild -workspace ios/tabit.xcworkspace -scheme tabit -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/tab-legacy-dd build` passed. The native module compiled for arm64 and x86_64, and the generated module provider registers `LegacyKeychainModule`. The built bundle ID is `com.rithwikshetty.tab`. No simulator install or launch was performed.
-- Focused legacy/module ESLint checks passed using a temporary config. The provider's existing synchronous `setOpened(null)` effect triggers `react-hooks/set-state-in-effect`, also reproduced against its unchanged baseline. Expo's automatic lint setup was removed from the app dependency files and repository config.
-- Signed device upgrade and real installed-session/runtime import checks remain. No hosted backend or production data was accessed.

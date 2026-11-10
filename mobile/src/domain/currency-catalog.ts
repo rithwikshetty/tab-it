@@ -7,9 +7,7 @@ export interface CurrencyMetadata {
   fractionDigits: number;
 }
 export const defaultCurrencyCode = "INR";
-export const maximumSupportedFractionDigits = 8;
 export const supportedCurrencies: readonly CurrencyMetadata[] = currencyData;
-export const supportedCurrencyCodes = supportedCurrencies.map((c) => c.code);
 const byCode = new Map(supportedCurrencies.map((c) => [c.code, c]));
 export function normalizedCode(code: string): string {
   return code.trim().toUpperCase();
@@ -50,18 +48,3 @@ export function searchCurrencies(query: string): readonly CurrencyMetadata[] {
   const q = fold(query.trim());
   return q ? supportedCurrencies.filter((c) => [c.code, c.symbol, c.name].some((s) => fold(s).includes(q))) : supportedCurrencies;
 }
-export const CurrencyCatalog = {
-  defaultCode: defaultCurrencyCode,
-  maximumSupportedFractionDigits,
-  supported: supportedCurrencies,
-  supportedCodes: supportedCurrencyCodes,
-  normalizedCode,
-  isSupported: isSupportedCurrency,
-  metadata: currencyMetadata,
-  displayMetadata,
-  fractionDigits,
-  minorUnitMultiplier,
-  hasValidPrecision,
-  normalizedAmount,
-  search: searchCurrencies,
-};

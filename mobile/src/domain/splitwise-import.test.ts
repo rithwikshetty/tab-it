@@ -82,6 +82,12 @@ test("duplicateNamesMerge", () => {
   expect(r.expenses[0]?.splits.reduce((n, s) => n + s.amount, 0n)).toBe(3000n);
   expect(r.expenses[0]?.splits.filter((s) => s.person === "Bob")).toHaveLength(1);
 });
+test("blankHeaderColumnKeepsLaterAmountsUnderTheirNames", () => {
+  const r = parse("Date,Description,Category,Cost,Currency,A,,B\n2023-01-01,Dinner,Food,10.00,USD,5.00,,-5.00\n");
+  expect(r.people).toEqual(["A", "B"]);
+  expect(r.expenses[0]!.payments).toEqual([{ person: "A", amount: 1000n }]);
+  expect(r.expenses[0]!.splits.find((s) => s.person === "B")?.amount).toBe(500n);
+});
 test("thousandsSeparatorSkipped", () => {
   const r = parse('Date,Description,Category,Cost,Currency,A,B\n2023-01-01,Big,General,"1,234.56",GBP,"617.28","-617.28"');
   expect(r.expenses).toEqual([]);

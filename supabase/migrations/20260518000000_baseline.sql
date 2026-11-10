@@ -24,6 +24,11 @@ set check_function_bodies = off;
 -- ConflictResolver). Writes that do not touch the metadata (server-side
 -- maintenance, triggers, legacy paths) keep the old stamp-fresh behavior.
 -- deleted_at is read via jsonb because not every synced table has the column.
+-- Client-supplied updated_at and deleted_at are capped at five minutes past
+-- the server clock, so a phone whose clock runs ahead cannot outrank every
+-- later edit. A trips update that changes only last_activity_at (the
+-- touch_trip_last_activity trigger) is not an edit of the trip and keeps the
+-- trip's updated_at and write_id.
 create or replace function public.set_sync_fields()
 returns trigger
 language plpgsql
@@ -32,16 +37,27 @@ as $$
 declare
   v_old_deleted timestamptz;
   v_new_deleted timestamptz;
+  v_latest      timestamptz := clock_timestamp() + interval '5 minutes';
 begin
+  v_new_deleted := nullif(to_jsonb(new) ->> 'deleted_at', '')::timestamptz;
+
   if tg_op = 'INSERT' then
     new.created_at := clock_timestamp();
     if new.updated_at is null then new.updated_at := clock_timestamp(); end if;
     if new.write_id   is null then new.write_id   := gen_random_uuid();  end if;
+    if new.updated_at > v_latest then new.updated_at := v_latest; end if;
+    -- Only tables with a deleted_at column reach this assignment.
+    if v_new_deleted > v_latest then new.deleted_at := v_latest; end if;
+    return new;
+  end if;
+
+  if tg_table_name = 'trips'
+     and (to_jsonb(new) - 'last_activity_at') = (to_jsonb(old) - 'last_activity_at')
+     and (to_jsonb(new) -> 'last_activity_at') is distinct from (to_jsonb(old) -> 'last_activity_at') then
     return new;
   end if;
 
   v_old_deleted := nullif(to_jsonb(old) ->> 'deleted_at', '')::timestamptz;
-  v_new_deleted := nullif(to_jsonb(new) ->> 'deleted_at', '')::timestamptz;
 
   -- Delete-wins: a tombstoned row is never resurrected by a live update.
   if v_old_deleted is not null and v_new_deleted is null then
@@ -61,6 +77,14 @@ begin
   if new.updated_at is null then
     new.updated_at := clock_timestamp();
   end if;
+  if new.updated_at > v_latest then
+    new.updated_at := v_latest;
+  end if;
+  if v_new_deleted > v_latest
+     and v_new_deleted is distinct from v_old_deleted then
+    new.deleted_at := v_latest;
+    v_new_deleted  := v_latest;
+  end if;
 
   if v_old_deleted is not null and v_new_deleted is not null then
     if v_new_deleted < v_old_deleted
@@ -79,7 +103,7 @@ end;
 $$;
 
 comment on function public.set_sync_fields() is
-  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id. On update, delete-wins is unconditional across live/deleted state (live-to-deleted writes apply; resurrection is blocked); live-live writes use updated_at LWW and both-deleted writes use deleted_at LWW, with write_id tiebreakers. Metadata-less updates get fresh server stamps.';
+  'BEFORE INSERT/UPDATE trigger for synced tables. Stamps created_at on insert and fills missing updated_at/write_id. On update, delete-wins is unconditional across live/deleted state (live-to-deleted writes apply; resurrection is blocked); live-live writes use updated_at LWW and both-deleted writes use deleted_at LWW, with write_id tiebreakers. Metadata-less updates get fresh server stamps. Client updated_at and deleted_at are capped at clock_timestamp() + 5 minutes. A trips update that changes only last_activity_at keeps updated_at and write_id.';
 
 
 -- ============================================================================
@@ -587,6 +611,8 @@ create unique index trip_people_trip_user_uniq on public.trip_people(trip_id, us
 create index trip_people_trip_id_idx on public.trip_people(trip_id);
 create index trip_people_user_id_idx on public.trip_people(user_id) where user_id is not null;
 create index trip_people_invited_by_idx on public.trip_people(invited_by) where invited_by is not null;
+-- claim_trip_people_for_current_email looks up pending rows by email on every full sync.
+create index trip_people_pending_email_idx on public.trip_people(email) where user_id is null;
 
 create trigger trg_trip_people_sync_fields
   before insert or update on public.trip_people
@@ -736,6 +762,17 @@ begin
     if new.created_by is distinct from old.created_by then
       raise exception 'expenses.created_by is immutable' using errcode = '42501';
     end if;
+  end if;
+
+  -- A signed-in writer can only record themselves as the last editor.
+  -- Requests without a user (service role, maintenance) are not limited.
+  if auth.uid() is not null
+     and new.last_edited_by is distinct from auth.uid()
+     and (
+       (tg_op = 'INSERT' and new.last_edited_by is not null)
+       or (tg_op = 'UPDATE' and new.last_edited_by is distinct from old.last_edited_by)
+     ) then
+    raise exception 'expenses.last_edited_by must be the current user' using errcode = '42501';
   end if;
 
   if not exists (select 1 from public.trips where id = new.trip_id and deleted_at is null) then
@@ -1208,6 +1245,8 @@ comment on table public.activity_log is
 create index activity_log_trip_id_timestamp_idx on public.activity_log(trip_id, timestamp desc);
 create index activity_log_actor_id_idx          on public.activity_log(actor_id);
 create index activity_log_entity_idx            on public.activity_log(entity_type, entity_id);
+-- The clients' feed pull: timestamp >= cutoff order by timestamp desc limit 300.
+create index activity_log_timestamp_idx         on public.activity_log(timestamp desc);
 
 
 -- ----------------------------------------------------------------------------
@@ -2930,6 +2969,26 @@ begin
   -- Shared trips keep their ledger rows (they are the group's data). The
   -- user's claimed identity rows lose the personal email; the trip-scoped
   -- display name stays as the ledger label.
+  --
+  -- A non-group container's member_signature lists its participants' emails,
+  -- so the user's email is swapped for the same scrubbed address, keeping the
+  -- sorted '|'-joined form resolve_or_create_non_group_container builds. The
+  -- scrubbed address embeds the person id, so the new signature is unique and
+  -- a later account with the old email gets a fresh container.
+  update public.trips t
+  set member_signature = (
+    select string_agg(e, '|' order by e)
+    from unnest(array_replace(
+      string_to_array(t.member_signature, '|'),
+      tp.email,
+      'deleted-' || tp.id || '@account-deleted.invalid'
+    )) as e
+  )
+  from public.trip_people tp
+  where tp.trip_id = t.id
+    and tp.user_id = p_user
+    and t.kind = 'non_group';
+
   update public.trip_people tp
   set email = 'deleted-' || tp.id || '@account-deleted.invalid'
   where tp.user_id = p_user;
@@ -3203,3 +3262,89 @@ grant  execute on function public.join_trip_with_invite(text, uuid) to authentic
 -- ============================================================================
 
 -- <<< END 21_trip_invites.sql
+
+-- >>> BEGIN 22_receipt_sweep.sql
+
+-- 22. Receipt sweep (storage objects no expense points at)
+-- ============================================================================
+-- Removing a receipt, deleting its expense or purging the row leaves the photo
+-- in the `receipts` bucket, where the storage policies let nobody read or
+-- delete it. Once a day pg_cron asks the `sweep-receipts` edge function to
+-- remove those objects, because storage files are deleted through the Storage
+-- API, not from SQL. The function URL lives in private.app_config beside the
+-- push webhook and shares its secret. If it is unset, the job does nothing.
+--
+-- An object waits until neither it nor its expense has changed for 30 days.
+-- Under last-write-wins a phone that was offline can push a copy of the
+-- expense that still names the photo, and that copy can win.
+
+create extension if not exists pg_cron;
+
+create or replace function public.orphaned_receipt_objects(
+  p_limit  integer default 500,
+  p_cutoff timestamptz default clock_timestamp() - interval '30 days'
+)
+returns table (name text)
+language sql
+security definer
+stable
+set search_path = public, private
+as $$
+  select o.name
+  from storage.objects o
+  where o.bucket_id = 'receipts'
+    and private.receipt_object_expense_id(o.name) is not null
+    and greatest(o.created_at, o.updated_at) < p_cutoff
+    and not exists (
+      select 1 from public.expenses e
+      where e.receipt_storage_path = o.name
+        and e.deleted_at is null
+    )
+    and not exists (
+      select 1 from public.expenses e
+      where e.id = private.receipt_object_expense_id(o.name)
+        and e.updated_at >= p_cutoff
+    )
+  order by o.name
+  limit p_limit;
+$$;
+
+comment on function public.orphaned_receipt_objects(integer, timestamptz) is
+  'Receipt objects no live expense points at, where neither the object nor its expense has changed since the cutoff. Called by the sweep-receipts edge function (service role).';
+
+create or replace function private.request_receipt_sweep()
+returns void
+language plpgsql
+security definer
+set search_path = private
+as $$
+declare
+  v_url    text := private.config('receipt_sweep_url');
+  v_secret text := private.config('push_webhook_secret');
+begin
+  if v_url is null then
+    return;  -- sweep not configured
+  end if;
+
+  perform net.http_post(
+    url     := v_url,
+    headers := jsonb_build_object(
+      'Content-Type',     'application/json',
+      'x-webhook-secret', coalesce(v_secret, '')
+    ),
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 60000
+  );
+end;
+$$;
+
+comment on function private.request_receipt_sweep() is
+  'Asks the sweep-receipts edge function to remove orphaned receipt objects. Run daily by the sweep-receipts cron job.';
+
+revoke execute on function public.orphaned_receipt_objects(integer, timestamptz) from public, anon, authenticated;
+grant  execute on function public.orphaned_receipt_objects(integer, timestamptz) to service_role;
+revoke execute on function private.request_receipt_sweep() from public, anon, authenticated;
+
+select cron.schedule('sweep-receipts', '17 3 * * *', 'select private.request_receipt_sweep()');
+
+-- <<< END 22_receipt_sweep.sql

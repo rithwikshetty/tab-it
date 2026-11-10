@@ -1,19 +1,5 @@
 import { expect, test } from "vitest";
-import { utcNoonAnchor, serializedExpenseDate, localDateForPicker, localInstant, calendarDay, displayExpenseDate } from "./expense-dates";
-test("eveningWestOfUTC", () => expect(serializedExpenseDate(utcNoonAnchor(localInstant("2026-06-10", -420, 18), -420))).toBe("2026-06-10"));
-test("morningEastOfUTC", () => expect(serializedExpenseDate(utcNoonAnchor(localInstant("2026-06-10", 600, 8), 600))).toBe("2026-06-10"));
-test("anchorIdempotent", () => {
-  const once = utcNoonAnchor(localInstant("2026-06-10", -420, 18), -420);
-  expect(utcNoonAnchor(once, -420)).toBe(once);
-});
-test("anchorMatchesPullConvention", () => expect(utcNoonAnchor(localInstant("2026-12-31", 0, 23), 0)).toBe("2026-12-31T12:00:00.000Z"));
-test("displayAndPickerRoundTripAcrossTimezones", () => {
-  for (const tz of [840, 765, -660, "UTC"] as const) {
-    const anchor = utcNoonAnchor(localInstant("2026-06-10", tz, 8), tz);
-    expect(displayExpenseDate(anchor, "yyyy-MM-dd")).toBe("2026-06-10");
-    expect(calendarDay(localDateForPicker(anchor, tz), tz)).toBe("2026-06-10");
-  }
-});
+import { localInstant, calendarDay, displayExpenseDate } from "./expense-dates";
 test("UTC offsets are explicit and independent of runtime timezone data", () => {
   expect(calendarDay("2026-06-10T23:00:00Z", "UTC+14:00")).toBe("2026-06-11");
   expect(calendarDay("2026-06-10T01:00:00Z", "-07:00")).toBe("2026-06-09");

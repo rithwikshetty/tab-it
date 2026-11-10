@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 
 import type { Op } from "../schema";
 import type { Store } from "../store";
-import { ACTIVITY_SEEN, IMPORT_MARKER, LegacyAccountMismatch, convertLegacyRows, legacyUUID, selectLegacyOps } from "./convert";
+import { IMPORT_MARKER, LegacyAccountMismatch, convertLegacyRows, legacyUUID, selectLegacyOps } from "./convert";
 import { pendingLegacyActivitySeen } from "./preferences";
 import { readLegacyRows } from "./reader";
 
@@ -186,5 +186,3 @@ export function importLegacyData(store: Store, userId: string, options: LegacyIm
   inFlight.set(store, promise);
   return promise;
 }
-
-export { ACTIVITY_SEEN };

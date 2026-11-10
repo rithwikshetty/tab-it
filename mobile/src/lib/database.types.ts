@@ -841,6 +841,12 @@ export type Database = {
         }[];
       };
       mark_activity_seen: { Args: { p_seen_at?: string }; Returns: string };
+      orphaned_receipt_objects: {
+        Args: { p_cutoff?: string; p_limit?: number };
+        Returns: {
+          name: string;
+        }[];
+      };
       purge_soft_deleted_records: {
         Args: { p_cutoff?: string };
         Returns: {

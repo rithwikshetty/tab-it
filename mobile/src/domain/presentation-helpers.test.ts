@@ -9,17 +9,7 @@ import {
   personTone,
   sortedPeople,
 } from "./presentation-helpers";
-import {
-  normalizedAuthEmail,
-  visibleEmail,
-  isApplePrivateRelayEmail,
-  fallbackDisplayName,
-  normalizedDisplayName,
-  normalizedVerificationCode,
-  emailVerificationCodeLength,
-  isExpectedAuthCallbackURL,
-  inviteToken,
-} from "./auth-helpers";
+import { inviteToken } from "./auth-helpers";
 import { splitwiseCategoryID, bestSelfMatch, mapSplitwiseRows, nameMatchScore, suggestImportLinks } from "./splitwise-importer";
 import { parseSplitwise } from "./splitwise-import";
 import { a, b, c, d, person, now } from "./test-support";
@@ -92,43 +82,17 @@ test("importLinksNeedOneExactNameMatchAndUseEachEmailOnce", () => {
   ];
   expect(suggestImportLinks(["alex", "ALEX ", "Sam", "Jo", "constructor"], known)).toEqual(new Map([["alex", "alex@x.test"]]));
 });
-test("privateRelayEmailsAreHidden", () => {
-  const email = "ABC123@privaterelay.appleid.com";
-  expect(isApplePrivateRelayEmail(email)).toBe(true);
-  expect(visibleEmail(email)).toBeNull();
-  expect(fallbackDisplayName(email)).toBe("You");
-});
-test("regularEmailsRemainVisible", () => {
-  const email = "  alex@example.com  ";
-  expect(isApplePrivateRelayEmail(email)).toBe(false);
-  expect(visibleEmail(email)).toBe("alex@example.com");
-  expect(fallbackDisplayName(email)).toBe("Alex");
-  expect(normalizedAuthEmail(null)).toBeNull();
-});
-test("displayNamesAreNormalized", () => {
-  expect(normalizedDisplayName("  Alex Chen  ")).toBe("Alex Chen");
-  expect(normalizedDisplayName("  " + "A".repeat(80) + "  ")).toHaveLength(60);
-  expect(normalizedDisplayName("   ")).toBeNull();
-});
-test("verificationCodesAreNormalized", () => {
-  expect(emailVerificationCodeLength).toBe(8);
-  for (const code of ["12345678", "1234 5678", "abc12345678"]) expect(normalizedVerificationCode(code)).toBe("12345678");
-  expect(normalizedVerificationCode("1234567")).toBeNull();
-  expect(normalizedVerificationCode("123456789")).toBeNull();
-});
 const scheme = "tab",
   token = "0123456789abcdef0123456789abcdef";
-test("authCallbacksRequireConfiguredLocalURL", () => {
-  expect(isExpectedAuthCallbackURL("tab://auth-callback?code=abc", scheme)).toBe(true);
-  expect(isExpectedAuthCallbackURL("tab://auth-callback/#access_token=abc", scheme)).toBe(true);
-  for (const url of ["tab://not-auth-callback?code=abc", "https://auth-callback?code=abc", "tab://auth-callback/extra?code=abc"])
-    expect(isExpectedAuthCallbackURL(url, scheme)).toBe(false);
-});
 test("acceptsWebLinks", () => {
   expect(inviteToken("https://tab-it.app/join/" + token, scheme)).toBe(token);
   expect(inviteToken("https://www.tab-it.app/join/" + token, scheme)).toBe(token);
+  expect(inviteToken("http://tab-it.app/join/" + token + "/", scheme)).toBe(token);
 });
-test("acceptsCustomScheme", () => expect(inviteToken("tab://join/" + token, scheme)).toBe(token));
+test("acceptsCustomScheme", () => {
+  expect(inviteToken("tab://join/" + token, scheme)).toBe(token);
+  expect(inviteToken("com.rithwikshetty.tab://join/" + token + "/", "com.rithwikshetty.tab")).toBe(token);
+});
 test("normalizesUppercaseToken", () => expect(inviteToken("https://tab-it.app/join/" + token.toUpperCase(), scheme)).toBe(token));
 test("rejectsOtherLocations", () => {
   expect(inviteToken("https://example.com/join/" + token, scheme)).toBeNull();
@@ -189,22 +153,8 @@ test("import mapping produces row ledgers with no side effects", () => {
   });
 });
 test("entity convenience derivations preserve native defaults", async () => {
-  const { activePeople, hasPlaceholderEmail, isNonGroup, primaryPayerID, effectiveSplitType, effectivePaymentMethod, categoryOption } =
-    await import("./presentation-helpers");
-  expect(activePeople([person(a, "Alice"), { ...person(b, "Bob"), removed_at: now }]).map((p) => p.id)).toEqual([a]);
+  const { hasPlaceholderEmail } = await import("./presentation-helpers");
   expect(hasPlaceholderEmail({ email: a + "@users.tab" })).toBe(true);
-  expect(isNonGroup({ kind: "non_group" })).toBe(true);
-  expect(primaryPayerID([{ trip_person_id: b }, { trip_person_id: a }])).toBe(a);
-  expect(primaryPayerID([])).toBeNull();
-  expect(effectiveSplitType("legacy")).toBe("equal");
-  expect(effectiveSplitType("shares")).toBe("shares");
-  expect(effectivePaymentMethod("legacy")).toBe("card");
-  expect(effectivePaymentMethod("bank_transfer")).toBe("bank_transfer");
-  expect(categoryOption({ id: a, name: "Food", icon: "bowl-food" })).toEqual({
-    id: a,
-    name: "Food",
-    icon: "bowl-food",
-  });
 });
 test("import people map the self column and create normalized pending people", async () => {
   const { mapImportPeople } = await import("./splitwise-importer");
@@ -273,12 +223,4 @@ test("import people refuse two people under one email, including the importer's"
     }),
   ).toThrow("bob@x.test");
   expect(() => mapImportPeople({ ...base, emails: new Map([["Bob", "Alice@X.test"]]) })).toThrow("alice@x.test");
-});
-test("fallback names match Foundation Unicode title casing and word boundaries", () => {
-  expect(fallbackDisplayName("émile@example.com")).toBe("Émile");
-  expect(fallbackDisplayName("alex.chen@example.com")).toBe("Alex.Chen");
-  expect(fallbackDisplayName("o'connor@example.com")).toBe("O'connor");
-  expect(fallbackDisplayName("user_name@example.com")).toBe("User_Name");
-  expect(fallbackDisplayName("ßeta@example.com")).toBe("Sseta");
-  expect(fallbackDisplayName("neha123shetty@example.com")).toBe("Neha123Shetty");
 });

@@ -95,6 +95,8 @@ create unique index trip_people_trip_user_uniq on public.trip_people(trip_id, us
 create index trip_people_trip_id_idx on public.trip_people(trip_id);
 create index trip_people_user_id_idx on public.trip_people(user_id) where user_id is not null;
 create index trip_people_invited_by_idx on public.trip_people(invited_by) where invited_by is not null;
+-- claim_trip_people_for_current_email looks up pending rows by email on every full sync.
+create index trip_people_pending_email_idx on public.trip_people(email) where user_id is null;
 
 create trigger trg_trip_people_sync_fields
   before insert or update on public.trip_people

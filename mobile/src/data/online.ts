@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 import type { Ctx } from "./actions";
 import { call, RemoteError, toRemoteError } from "./remote";
-import type { LocalPerson, Op } from "./schema";
+import type { Op } from "./schema";
 import type { SyncEngine } from "./sync";
 
 // Operations the server must perform itself (membership, invites, the hidden
@@ -44,21 +44,6 @@ async function ensureTripOnServer(ctx: OnlineCtx, tripId: string) {
   if (after?._pushed === null) {
     throw new RemoteError(after._error ?? "You're offline. Connect to the internet and try again.", !after._error);
   }
-}
-
-export async function addTripPerson(ctx: OnlineCtx, tripId: string, email: string, displayName: string | null): Promise<LocalPerson> {
-  await ensureTripOnServer(ctx, tripId);
-  const row = await call(
-    supabase.rpc("add_trip_person_by_email", {
-      p_trip_id: tripId,
-      p_email: normalizedEmail(email),
-      p_display_name: displayName?.trim() || undefined,
-      p_person_id: uuid(),
-    }),
-  );
-  const person = row as unknown as TripPerson;
-  await mergePeople(ctx, [person]);
-  return { ...person, _pushed: person.write_id };
 }
 
 export async function updateTripPersonEmail(ctx: OnlineCtx, personId: string, email: string) {

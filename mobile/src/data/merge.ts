@@ -11,7 +11,7 @@ import type {
   TripPerson,
 } from "@/domain/records";
 
-import { isDirty, rowKey, type Op, type State, type TableName, type Tables } from "./schema";
+import { isDirty, PERSON_ALIAS, rowKey, type Op, type State, type TableName, type Tables } from "./schema";
 import { compareTimestamps, maxTimestamp, toMicros } from "./timestamps";
 
 // Applies pulled server rows to the local store under the server's conflict
@@ -311,7 +311,7 @@ export function adoptServerPerson(state: State, localId: string, server: TripPer
   if (server.id !== localId) ops.push({ table: "trip_people", key: localId, remove: true });
   ops.push({ table: "trip_people", row: { ...server, _pushed: server.write_id, _error: null } });
   if (server.id === localId) return ops;
-  ops.push({ meta: `alias.person.${localId}`, value: server.id });
+  ops.push({ meta: PERSON_ALIAS + localId, value: server.id });
 
   const now = new Date().toISOString();
   const touched = new Set<string>();

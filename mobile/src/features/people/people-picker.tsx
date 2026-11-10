@@ -26,12 +26,10 @@ export function PeoplePicker({
   selected,
   onChange,
   exclude = [],
-  autoFocus,
 }: {
   selected: PickedPerson[];
   onChange: (people: PickedPerson[]) => void;
   exclude?: string[];
-  autoFocus?: boolean;
 }) {
   const { user } = useSignedIn();
   const state = useAppState();
@@ -67,7 +65,6 @@ export function PeoplePicker({
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
-          autoFocus={autoFocus}
           returnKeyType="done"
           onSubmitEditing={() => canInvite && add({ email: typedEmail, displayName: displayNameFromEmail(typedEmail) })}
           style={styles.input}

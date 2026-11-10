@@ -13,13 +13,10 @@ export function toMinor(decimalString: DecimalString, currency: string): bigint 
 export function fromMinor(amount: bigint, currency: string): DecimalString {
   return scaledString(amount, fractionDigits(currency));
 }
-export function parseMoney(amount: DecimalString, currency: string): Money {
-  const code = currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(code)) throw new Error("Currency must be a three-letter uppercase code.");
-  return { amount: toMinor(amount, code), currency: code };
-}
+/** Money columns are numeric(20, 8) on the server: twelve digits before the point. */
+const maxWholeDigits = 12;
 export function sanitizeAmountInput(input: string, currency: string): string {
-  const kept = input.replace(/[^\p{N}.,]/gu, "");
+  const kept = input.replace(/[^0-9.,]/g, "");
   const dots = (kept.match(/\./g) ?? []).length,
     commas = (kept.match(/,/g) ?? []).length;
   let normalized = kept;
@@ -30,10 +27,11 @@ export function sanitizeAmountInput(input: string, currency: string): string {
   const digits = fractionDigits(currency);
   let output = "",
     decimal = false,
-    count = 0;
+    count = 0,
+    whole = 0;
   for (const c of normalized) {
-    if (/\p{N}/u.test(c)) {
-      if (decimal && count++ >= digits) break;
+    if (c >= "0" && c <= "9") {
+      if (decimal ? count++ >= digits : whole++ >= maxWholeDigits) break;
       output += c;
     } else if (c === ".") {
       if (!digits || decimal) break;
@@ -64,7 +62,7 @@ export function sanitizeShareInput(input: string): string {
     decimal = false,
     count = 0;
   for (const c of input) {
-    if (/\p{N}/u.test(c)) {
+    if (c >= "0" && c <= "9") {
       if (decimal && count++ >= 2) break;
       output += c;
     } else if (c === "." || c === ",") {
@@ -78,8 +76,4 @@ export function sanitizeShareInput(input: string): string {
 export function shareString(value: string): string {
   const r = decimalRational(value);
   return scaledString(roundDivide(r.numerator * 100n, r.denominator), 2);
-}
-export function addMoney(a: Money, b: Money): Money {
-  if (a.currency !== b.currency) throw new Error("Cannot add different currencies.");
-  return { amount: a.amount + b.amount, currency: a.currency };
 }

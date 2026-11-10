@@ -7,7 +7,7 @@ import { importLegacyData } from "./legacy";
 import { pruneStagedReceipts } from "./receipts";
 import { loadInitialSession } from "./legacy/startup";
 import type { State } from "./schema";
-import { deleteStore, openStore, type Store } from "./store";
+import { openStore, type Store } from "./store";
 import { SyncEngine, type SyncStatus } from "./sync";
 
 // Session lifecycle: Supabase's persisted session decides who is signed in;
@@ -27,15 +27,18 @@ export interface SignedIn {
 }
 
 interface SessionValue {
-  status: "loading" | "signedOut" | "signedIn";
+  /** "failed": signed in, but this phone's local store wouldn't open. */
+  status: "loading" | "signedOut" | "signedIn" | "failed";
   user: CurrentUser | null;
   store: Store | null;
   sync: SyncEngine | null;
   /** Stable for the whole session, so effects can depend on it. */
   signedIn: SignedIn | null;
+  /** Tries to open the local store again after it failed. */
+  retry: () => void;
 }
 
-const LOADING: SessionValue = { status: "loading", user: null, store: null, sync: null, signedIn: null };
+const LOADING: SessionValue = { status: "loading", user: null, store: null, sync: null, signedIn: null, retry: () => {} };
 const SessionContext = createContext<SessionValue>(LOADING);
 
 function currentUserFrom(user: User): CurrentUser {
@@ -50,6 +53,8 @@ function currentUserFrom(user: User): CurrentUser {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [opened, setOpened] = useState<SignedIn | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const legacyUserId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -77,6 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id ?? null;
 
   useEffect(() => {
+    setFailed(false);
     if (!userId || !session) {
       setOpened(null);
       return;
@@ -107,6 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       engine.start();
     })().catch(() => {
       console.warn("[session] Could not open the local store.");
+      if (!cancelled) setFailed(true);
     });
     return () => {
       cancelled = true;
@@ -119,15 +126,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
     // The session object changes on every token refresh; only the user matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, attempt]);
 
   const signedOut = session === null;
   const sessionUserId = session?.user.id;
   const value = useMemo<SessionValue>(() => {
     if (signedOut) return { ...LOADING, status: "signedOut" };
+    if (failed) return { ...LOADING, status: "failed", retry: () => setAttempt((n) => n + 1) };
     if (!opened || opened.user.id !== sessionUserId) return LOADING;
-    return { status: "signedIn", user: opened.user, store: opened.store, sync: opened.sync, signedIn: opened };
-  }, [signedOut, sessionUserId, opened]);
+    return { ...LOADING, status: "signedIn", user: opened.user, store: opened.store, sync: opened.sync, signedIn: opened };
+  }, [signedOut, sessionUserId, opened, failed]);
 
   return <SessionContext value={value}>{children}</SessionContext>;
 }
@@ -143,6 +151,12 @@ export function useSignedIn(): SignedIn {
   return signedIn;
 }
 
+/** The signed-in user's name: their profile's, or the one from sign-in until the profile loads. */
+export function useMyName(): string {
+  const { store, user } = useSignedIn();
+  return useSyncExternalStore(store.subscribe, () => store.getState().tables.profiles.get(user.id)?.display_name || user.displayName);
+}
+
 /** The whole local state; re-renders on every commit. */
 export function useAppState(): State {
   const { store } = useSignedIn();
@@ -152,9 +166,4 @@ export function useAppState(): State {
 export function useSyncStatus(): SyncStatus {
   const { sync } = useSignedIn();
   return useSyncExternalStore(sync.subscribe, sync.getStatus);
-}
-
-/** Deletes everything this user had on the phone. */
-export async function clearLocalData(userId: string) {
-  await deleteStore(userId);
 }

@@ -9,8 +9,18 @@ export function isInviteToken(token: string): boolean {
   return /^[0-9a-f]{32}$/.test(token);
 }
 
+const listeners = new Set<() => void>();
+
+/** Calls `listener` whenever an invite is saved, so a signed-in session can redeem it at once. */
+export function onPendingInvite(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export async function savePendingInvite(token: string) {
-  if (isInviteToken(token)) await SecureStore.setItemAsync(KEY, token);
+  if (!isInviteToken(token)) return;
+  await SecureStore.setItemAsync(KEY, token);
+  for (const listener of listeners) listener();
 }
 
 export async function takePendingInvite(): Promise<string | null> {

@@ -3,7 +3,6 @@
 // everything else is an instant shown in the phone's local time.
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -33,18 +32,6 @@ export function longDay(day: string): string {
 export function dateTime(iso: string): string {
   const d = new Date(iso);
   return `${d.getDate()} ${MONTHS[d.getMonth()]!.slice(0, 3)} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** "Today", "Yesterday", "Monday 9 Jun", or "9 Jun 2025" for a calendar day. */
-export function relativeDay(day: string): string {
-  const today = todayDay();
-  if (day === today) return "Today";
-  const y = new Date();
-  y.setDate(y.getDate() - 1);
-  if (day === dayOf(y)) return "Yesterday";
-  const date = dayToDate(day);
-  const short = `${date.getDate()} ${MONTHS[date.getMonth()]!.slice(0, 3)}`;
-  return date.getFullYear() === new Date().getFullYear() ? `${WEEKDAYS[date.getDay()]} ${short}` : `${short} ${date.getFullYear()}`;
 }
 
 /** The phone's current offset from UTC in minutes, for the domain's calendar maths. */

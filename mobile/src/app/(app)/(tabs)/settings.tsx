@@ -7,9 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { updateDisplayName } from "@/data/actions";
 import { deleteAccount, signOut } from "@/data/auth";
-import { pushPermission, registerForPush, type PushPermission } from "@/data/push";
+import { pushPermission, registerForPush, unregisterPushDevice, type PushPermission } from "@/data/push";
 import { unsyncedChanges } from "@/data/selectors";
-import { useAppState, useSignedIn, useSyncStatus } from "@/data/session";
+import { useAppState, useMyName, useSignedIn, useSyncStatus } from "@/data/session";
 import { CurrencyPicker } from "@/features/currency/currency-picker";
 import { rememberCurrency, savedCurrency } from "@/features/currency/defaults";
 import { JoinByLink } from "@/features/settings/join-by-link";
@@ -40,7 +40,7 @@ export default function Settings() {
   const state = useAppState();
   const status = useSyncStatus();
   const [editingName, setEditingName] = useState(false);
-  const profileName = state.tables.profiles.get(ctx.user.id)?.display_name ?? ctx.user.displayName;
+  const profileName = useMyName();
   const [name, setName] = useState(profileName);
   const [push, setPush] = useState<PushPermission>("undetermined");
   const [pickingCurrency, setPickingCurrency] = useState(false);
@@ -66,10 +66,23 @@ export default function Settings() {
     }
   }
 
-  async function doSignOut() {
+  async function doSignOut(evenIfPushesStay = false) {
     setBusy("signout");
     try {
+      if (!evenIfPushesStay && !(await unregisterPushDevice(ctx.user.id).catch(() => false))) {
+        Alert.alert(
+          "You're offline",
+          "This phone can't be taken off your notifications until it's online. If you sign out now, it may keep showing them until someone signs in here.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Sign out anyway", style: "destructive", onPress: () => void doSignOut(true) },
+          ],
+        );
+        return;
+      }
       await signOut({ userId: ctx.user.id, store: ctx.store, sync: ctx.sync });
+    } catch (e) {
+      Alert.alert("Couldn't sign out", (e as Error).message);
     } finally {
       setBusy(null);
     }
@@ -80,7 +93,7 @@ export default function Settings() {
     if (unsent === 0) {
       Alert.alert("Sign out?", "Your trips stay on the server. Sign back in any time to see them.", [
         { text: "Cancel", style: "cancel" },
-        { text: "Sign out", style: "destructive", onPress: doSignOut },
+        { text: "Sign out", style: "destructive", onPress: () => void doSignOut() },
       ]);
       return;
     }
@@ -98,7 +111,7 @@ export default function Settings() {
             else Alert.alert("Still not synced", "Connect to the internet, then try again. Nothing was signed out.");
           },
         },
-        { text: "Sign out anyway", style: "destructive", onPress: doSignOut },
+        { text: "Sign out anyway", style: "destructive", onPress: () => void doSignOut() },
       ],
     );
   }
@@ -236,7 +249,14 @@ export default function Settings() {
                   Open Settings
                 </Text>
               ) : push === "undetermined" ? (
-                <Text style={styles.link} onPress={() => registerForPush(true).then(setPush)}>
+                <Text
+                  style={styles.link}
+                  onPress={() =>
+                    registerForPush(true)
+                      .then(setPush)
+                      .catch(() => Alert.alert("Couldn't turn on notifications", "Try again in a moment."))
+                  }
+                >
                   Turn on
                 </Text>
               ) : undefined

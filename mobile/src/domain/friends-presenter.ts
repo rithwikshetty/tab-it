@@ -155,19 +155,20 @@ export function friendDetail(trips: readonly TripRows[], currentUserID: string, 
     const myPID = ctx.personID(trip, ctx.me),
       friendPID = ctx.personID(trip, friend);
     if (!myPID || !friendPID) return [];
-    const expenses = trip.expenses.filter((e) => {
-      const parties = new Set([
-        ...trip.payments.filter((p) => p.expense_id === e.id).map((p) => p.trip_person_id),
-        ...trip.splits.filter((s) => s.expense_id === e.id).map((s) => s.trip_person_id),
-      ]);
-      return parties.has(myPID) && parties.has(friendPID);
-    });
+    const parties = new Map<string, Set<string>>();
+    for (const r of [...trip.payments, ...trip.splits]) {
+      const set = parties.get(r.expense_id);
+      if (set) set.add(r.trip_person_id);
+      else parties.set(r.expense_id, new Set([r.trip_person_id]));
+    }
+    const expenses = trip.expenses.filter((e) => parties.get(e.id)?.has(myPID) && parties.get(e.id)?.has(friendPID));
     const settlements = trip.settlements.filter(
       (s) => (s.from_person_id === myPID && s.to_person_id === friendPID) || (s.from_person_id === friendPID && s.to_person_id === myPID),
     );
-    return timelineDays({ ...trip, expenses, settlements }, trip.people, [], myPID, options).map((day) => ({
+    const created = new Map([...expenses, ...settlements].map((r) => [r.id, r.created_at]));
+    return timelineDays({ ...trip, expenses, settlements }, trip.people, trip.categories ?? [], myPID, options).map((day) => ({
       ...day,
-      trip,
+      created,
       sourceName: ctx.sourceName(trip),
     }));
   });
@@ -194,13 +195,10 @@ export function friendDetail(trips: readonly TripRows[], currentUserID: string, 
                       sourceName: d.sourceName,
                     },
                   },
-            created:
-              d.trip.expenses.find((e) => e.id === item.id)?.created_at ??
-              d.trip.settlements.find((s) => s.id === item.id)?.created_at ??
-              "",
+            created: timestampUnits(d.created.get(item.id)!),
           })),
         )
-        .sort((a, b) => compare(timestampUnits(b.created), timestampUnits(a.created)))
+        .sort((a, b) => compare(b.created, a.created))
         .map(({ created: _created, ...entry }) => entry);
       return { id, dateLabel: group[0]!.dateLabel, entries };
     });
@@ -216,8 +214,3 @@ export function friendDetail(trips: readonly TripRows[], currentUserID: string, 
     timeline,
   };
 }
-export const FriendsPresenter = {
-  list: friendsList,
-  detail: friendDetail,
-  tone: friendTone,
-};

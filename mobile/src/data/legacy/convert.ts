@@ -4,7 +4,7 @@ import { decimalFromInput, normalizedAmount } from "@/domain/money";
 import type { ActivityAction, ActivityLogEntry, PaymentMethod, SplitType, TripKind } from "@/domain/records";
 
 import { resolveConflict } from "../merge";
-import { rowKey, type Op, type State } from "../schema";
+import { META_ACTIVITY_SEEN, rowKey, type Op, type State } from "../schema";
 import { compareTimestamps, maxTimestamp } from "../timestamps";
 
 export const LEGACY_TABLES = [
@@ -18,7 +18,6 @@ export type LegacyValue = string | number | Uint8Array | null;
 export type LegacyRow = Record<string, LegacyValue>;
 export type LegacyRows = Record<LegacyTable, LegacyRow[]>;
 export const IMPORT_MARKER = "legacy.swiftData.v1";
-export const ACTIVITY_SEEN = "activity.seenAt";
 const APPLE_EPOCH_MS = Date.UTC(2001, 0, 1);
 
 export function legacyUUID(value: LegacyValue | undefined): string {
@@ -221,7 +220,7 @@ export function convertLegacyRows(rows: LegacyRows, userId: string, options: Con
   const profile = profiles.find((r) => legacyUUID(r.ZID) === userId)!;
   const seen = [optionalTimestamp(profile.ZACTIVITYLASTSEENAT), options.pendingActivitySeenAt]
     .filter((v): v is string => !!v).sort(compareTimestamps).at(-1);
-  if (seen) ops.push({ meta: ACTIVITY_SEEN, value: seen });
+  if (seen) ops.push({ meta: META_ACTIVITY_SEEN, value: seen });
   return ops;
 }
 
@@ -231,7 +230,7 @@ export function selectLegacyOps(state: State, incoming: readonly Op[]): Op[] {
   for (const op of incoming) {
     if ("meta" in op) {
       const existing = state.meta.get(op.meta);
-      if (!existing || (op.meta === ACTIVITY_SEEN && op.value && compareTimestamps(op.value, existing) > 0)) ops.push(op);
+      if (!existing || (op.meta === META_ACTIVITY_SEEN && op.value && compareTimestamps(op.value, existing) > 0)) ops.push(op);
       continue;
     }
     if (!("row" in op)) continue;

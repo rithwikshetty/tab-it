@@ -32,13 +32,11 @@ export function Avatar({ person, size = 28, ring = 2 }: { person: AvatarPerson; 
 export function AvatarGroup({
   people,
   size = 28,
-  ring = 2,
   max = 5,
   onAdd,
 }: {
   people: AvatarPerson[];
   size?: number;
-  ring?: number;
   max?: number;
   onAdd?: () => void;
 }) {
@@ -49,14 +47,14 @@ export function AvatarGroup({
       <View style={styles.stack}>
         {visible.map((p, i) => (
           <View key={p.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-            <Avatar person={p} size={size} ring={ring} />
+            <Avatar person={p} size={size} />
           </View>
         ))}
         {overflow > 0 && (
           <View
             style={[
               styles.avatar,
-              { marginLeft: -8, width: size, height: size, borderRadius: size / 2, borderWidth: ring, backgroundColor: colors.surface2 },
+              { marginLeft: -8, width: size, height: size, borderRadius: size / 2, borderWidth: 2, backgroundColor: colors.surface2 },
             ]}
           >
             <Text style={[styles.initial, { color: colors.textSecondary, fontSize: size >= 34 ? 13 : 11 }]}>+{overflow}</Text>
@@ -74,7 +72,7 @@ export function AvatarGroup({
           }}
           style={({ pressed }) => [
             styles.add,
-            { width: size, height: size, borderRadius: size / 2, borderWidth: ring, opacity: pressed ? 0.6 : 1 },
+            { width: size, height: size, borderRadius: size / 2, borderWidth: 2, opacity: pressed ? 0.6 : 1 },
           ]}
         >
           <Text style={[styles.addText, { fontSize: size >= 40 ? 20 : 15 }]}>+</Text>

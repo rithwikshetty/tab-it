@@ -24,7 +24,7 @@ npx expo run:ios       # or: npx expo run:android
 ## Tests
 
 ```bash
-cd mobile && npm run typecheck && npm test
+(cd mobile && npm run typecheck && npm test)
 bash supabase/tests/00_sql_assembly.sh
 ```
 

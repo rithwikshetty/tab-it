@@ -12,8 +12,8 @@ type Page = Overview["pages"][number];
 
 /** Per-trip spend: total and your share, per person, by category. One currency at a time. */
 export function OverviewSection({ overview, categoryIcon }: { overview: Overview; categoryIcon: (id: string | null) => string | null }) {
-  const [index, setIndex] = useState(0);
-  const page = overview.pages[Math.min(index, overview.pages.length - 1)];
+  const [currency, setCurrency] = useState<string | null>(null);
+  const page = overview.pages.find((p) => p.currency === currency) ?? overview.pages[0];
   if (!page) {
     return (
       <View style={styles.empty}>
@@ -26,8 +26,8 @@ export function OverviewSection({ overview, categoryIcon }: { overview: Overview
     <View>
       {overview.currencies.length > 1 && (
         <View style={styles.currencies}>
-          {overview.currencies.map((c, i) => (
-            <Chip key={c} label={c} selected={i === index} onPress={() => setIndex(i)} />
+          {overview.currencies.map((c) => (
+            <Chip key={c} label={c} selected={c === page.currency} onPress={() => setCurrency(c)} />
           ))}
         </View>
       )}

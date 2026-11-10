@@ -11,7 +11,7 @@ import { adoptServerPerson, GONE, mergeRemote } from "./merge";
 import { compareTimestamps } from "./timestamps";
 import { call, fetchSnapshot, RemoteError, toRemoteError } from "./remote";
 import { uploadPendingReceipts } from "./receipts";
-import { isDirty, type LocalExpense, type LocalSettlement, type LocalTrip, type Op, type State } from "./schema";
+import { isDirty, META_ACTIVITY_SEEN, type LocalExpense, type LocalSettlement, type LocalTrip, type Op, type State } from "./schema";
 import type { Store } from "./store";
 
 // One engine keeps the local store and Supabase in step. Local edits commit to
@@ -31,19 +31,21 @@ export interface SyncStatus {
   /** Rows the server refused on the last attempt. */
   failed: number;
   lastSyncedAt: Date | null;
+  /** When a run last pulled every trip. */
+  lastPulledAt: Date | null;
   message: string | null;
 }
 
-export const META_ACTIVITY_SEEN = "activity.seenAt";
 export const META_ACTIVITY_SEEN_PUSHED = "activity.seenAtPushed";
 
 type PushTable = "trips" | "expenses" | "settlements" | "trip_mute_prefs" | "profiles" | "trip_people";
 
+const PERSON_REFUSED = "Someone on this couldn't be added to the trip.";
 const RETRY_DELAYS = [2_000, 5_000, 15_000, 30_000, 60_000];
 const POLL_INTERVAL = 5 * 60_000;
 
 export class SyncEngine {
-  private status: SyncStatus = { phase: "idle", pending: 0, failed: 0, lastSyncedAt: null, message: null };
+  private status: SyncStatus = { phase: "idle", pending: 0, failed: 0, lastSyncedAt: null, lastPulledAt: null, message: null };
   private listeners = new Set<() => void>();
   private running = false;
   private wantPush = false;
@@ -141,8 +143,10 @@ export class SyncEngine {
           this.wantPull = false;
           this.tripPulls.clear();
           await this.push();
-          if (pull) await this.pull();
-          else for (const tripId of trips) await this.pull(tripId);
+          if (pull) {
+            await this.pull();
+            this.setStatus({ lastPulledAt: new Date() });
+          } else for (const tripId of trips) await this.pull(tripId);
         }
         this.retryAttempt = 0;
         this.refreshCounts();
@@ -194,7 +198,12 @@ export class SyncEngine {
         }
       }
     }
-    for (const e of s.expenses.values()) if (e._receipt === "pending" && !isDirty(e)) pending += 1;
+    for (const e of s.expenses.values()) {
+      if (e._receipt && !isDirty(e)) {
+        pending += 1;
+        if (e._receipt === "failed") failed += 1;
+      }
+    }
     const meta = this.store.getState().meta;
     const cursorWaiting = meta.has(META_ACTIVITY_SEEN) && meta.get(META_ACTIVITY_SEEN) !== meta.get(META_ACTIVITY_SEEN_PUSHED);
     if (pending !== this.status.pending || failed !== this.status.failed) this.setStatus({ pending, failed });
@@ -396,6 +405,7 @@ export class SyncEngine {
       }
     }
     for (const [key, s] of t.settlements) if (s.trip_id === tripId) ops.push({ table: "settlements", key, remove: true });
+    for (const [key, m] of t.trip_mute_prefs) if (m.trip_id === tripId) ops.push({ table: "trip_mute_prefs", key, remove: true });
     for (const table of ["expense_payments", "expense_splits"] as const) {
       for (const [key, r] of t[table]) if (expenseIds.has(r.expense_id)) ops.push({ table, key, remove: true });
     }
@@ -412,7 +422,10 @@ export class SyncEngine {
       (p) => p._pushed === null && p.user_id !== this.user.id && !p.removed_at,
     );
     for (const person of pending) {
-      if (this.tripReady(person.trip_id) !== "ready") continue;
+      const ready = this.tripReady(person.trip_id);
+      // Nobody can be added to a deleted trip.
+      if (ready === "deleted") await this.store.commit([{ table: "trip_people", key: person.id, remove: true }]);
+      if (ready !== "ready") continue;
       await this.attempt("trip_people", person.id, async () => {
         const row = (await call(
           supabase.rpc("add_trip_person_by_email", {
@@ -434,14 +447,32 @@ export class SyncEngine {
     }
   }
 
-  /** Whether every person a ledger row names exists here and on the server. */
-  private peopleReady(ids: Iterable<string>): boolean {
+  /**
+   * Whether every person a ledger row names is on the server. "refused" means
+   * one was discarded or turned down, so the row can never be sent as it is.
+   */
+  private peopleState(ids: Iterable<string>): "ready" | "waiting" | "refused" {
     const people = this.state.tables.trip_people;
+    let state: "ready" | "waiting" = "ready";
     for (const id of ids) {
       const person = people.get(id);
-      if (!person || person._pushed === null) return false;
+      if (!person || (person._pushed === null && person._error)) return "refused";
+      if (person._pushed === null) state = "waiting";
     }
-    return true;
+    return state;
+  }
+
+  /** Runs a ledger row's push once its people are on the server; marks it when they never will be. */
+  private async whenPeopleReady(
+    table: "expenses" | "settlements",
+    row: { id: string; _error?: string | null },
+    ids: Iterable<string>,
+    work: () => Promise<void>,
+  ) {
+    const people = this.peopleState(ids);
+    if (people === "ready") await this.attempt(table, row.id, work);
+    else if (people === "refused" && row._error !== PERSON_REFUSED)
+      await this.reject(table, row.id, new RemoteError(PERSON_REFUSED, false));
   }
 
   /** A row can only be written once its trip exists on the server and is live. */
@@ -457,6 +488,12 @@ export class SyncEngine {
     const dirty = [...this.state.tables.expenses.values()].filter(isDirty);
     for (const expense of dirty) {
       const ready = this.tripReady(expense.trip_id);
+      if (ready === "deleted") {
+        // The trip's own delete carries its rows; the server refuses writes under a deleted trip.
+        if (expense._pushed === null) await this.store.commit(this.removeExpenseOps(expense.id));
+        else await this.ack("expenses", expense.id, expense.write_id);
+        continue;
+      }
       if (expense.deleted_at) {
         if (expense._pushed === null) {
           await this.attempt("expenses", expense.id, async () => {
@@ -464,9 +501,6 @@ export class SyncEngine {
               await this.deleteIfPresent("expenses", expense.id, expense.deleted_at!, expense.updated_at, expense.write_id);
             await this.store.commit(this.removeExpenseOps(expense.id));
           });
-        } else if (ready === "deleted") {
-          // The trip's own delete carries it; the server refuses writes under a deleted trip.
-          await this.ack("expenses", expense.id, expense.write_id);
         } else {
           await this.attempt("expenses", expense.id, async () => {
             await this.updateOne("expenses", expense.id, {
@@ -484,8 +518,7 @@ export class SyncEngine {
       const named = [...t.expense_payments.values(), ...t.expense_splits.values()]
         .filter((r) => r.expense_id === expense.id)
         .map((r) => r.trip_person_id);
-      if (!this.peopleReady(named)) continue;
-      await this.attempt("expenses", expense.id, () => this.pushExpense(expense));
+      await this.whenPeopleReady("expenses", expense, named, () => this.pushExpense(expense));
     }
   }
 
@@ -544,6 +577,11 @@ export class SyncEngine {
     const dirty = [...this.state.tables.settlements.values()].filter(isDirty);
     for (const s of dirty) {
       const ready = this.tripReady(s.trip_id);
+      if (ready === "deleted") {
+        if (s._pushed === null) await this.store.commit([{ table: "settlements", key: s.id, remove: true }]);
+        else await this.ack("settlements", s.id, s.write_id);
+        continue;
+      }
       if (s.deleted_at && s._pushed === null) {
         await this.attempt("settlements", s.id, async () => {
           if (ready === "ready") await this.deleteIfPresent("settlements", s.id, s.deleted_at!, s.updated_at, s.write_id);
@@ -551,12 +589,8 @@ export class SyncEngine {
         });
         continue;
       }
-      if (ready === "deleted" && s.deleted_at) {
-        await this.ack("settlements", s.id, s.write_id);
-        continue;
-      }
-      if (ready !== "ready" || !this.peopleReady([s.from_person_id, s.to_person_id])) continue;
-      await this.attempt("settlements", s.id, () => this.pushSettlement(s));
+      if (ready !== "ready") continue;
+      await this.whenPeopleReady("settlements", s, [s.from_person_id, s.to_person_id], () => this.pushSettlement(s));
     }
   }
 

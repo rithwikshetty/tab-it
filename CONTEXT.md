@@ -21,7 +21,7 @@ A trip-scoped ledger identity identified by normalized email and display name. I
 A joined trip person: one whose email has been claimed by a signed-in Profile. Trip access is derived from joined trip people. A joined member can inspect all expenses, payment shares, split shares, and debts inside that trip, including rows belonging to pending trip people who do not use the app. This visibility never crosses into another trip. Pending trip people can still appear in ledgers, but they do not grant app access until claimed.
 
 ### Email pre-add
-Adding a trip person by email before that person has signed in. If the email already belongs to a Profile, the trip person joins immediately. Otherwise it remains pending and is automatically claimed when someone signs in with the same normalized email. There is no global user search; suggestions are limited to people the current user has already shared trips with.
+Adding a trip person by email before that person has signed in. If the email already belongs to a Profile, the trip person joins immediately. Otherwise it remains pending and is automatically claimed on the next full sync of an account signed in with the same normalized email. There is no global user search; suggestions are limited to people the current user has already shared trips with.
 
 ### Category
 The expense classification shown on expense rows and exports. Categories are either built-in defaults (`Food & Drink`, `Transport`, `Lodging`, `Activities`, `Shopping`, `Other`) or custom trip-scoped categories. An Expense can use a default category or a category belonging to the same trip.
@@ -61,7 +61,7 @@ A single trip person's owed share of an Expense. Has trip person, non-negative a
 A trip person with ≥ 1 Split on a given Expense. May or may not also be a Payer.
 
 ### Payment mode / Split mode
-- `equal` — total auto-divided across selected users. 1-cent remainders are distributed to lex-lowest UUIDs (deterministic, see `SplitCalculator` / `PaymentCalculator`).
+- `equal` — total auto-divided across selected users. 1-cent remainders are distributed to lex-lowest UUIDs (deterministic, see `mobile/src/domain/split-calculator.ts` / `payment-calculator.ts`).
 - `exact` — user enters per-user amount directly. Sum must equal total.
 - `shares` — each participant carries a positive weight; the total divides in proportion, remainders by the same lowest-UUID rule.
 - `percentage` — each participant carries a percentage; they must total 100.
@@ -72,7 +72,7 @@ A trip person with ≥ 1 Split on a given Expense. May or may not also be a Paye
 Drives [[Pair balance]] aggregation. Sums to zero across all trip people on a single expense (because both ledgers sum to `expense.amount`).
 
 ### Pair balance
-Per `(trip_person_pair, currency)` balance derived from all expense nets plus settlements within a trip. This is the raw, history-preserving source of truth computed by `BalanceEngine`; it is not mutated when the UI presents [[Simplified debt]]s.
+Per `(trip_person_pair, currency)` balance derived from all expense nets plus settlements within a trip. This is the raw, history-preserving source of truth computed by `mobile/src/domain/balance-engine.ts`; it is not mutated when the UI presents [[Simplified debt]]s.
 
 The canonical pair key sorts the two trip-person UUIDs `(lo, hi)`. Positive canonical amount means `hi` owes `lo`. External presentation uses mirrored [[User balance]] rows.
 
@@ -122,7 +122,7 @@ It is the **single shared event stream** behind notifications: one row per event
 ### Activity
 The user-facing rendering of the [[Activity log]]: an **app-level (global)** feed surfaced as a bottom tab (Friends · Trips · Activity · Settings), shown on the tab roots and on trip detail, hidden on deeper/entry screens. It shows events across *all* the current user's trips, newest first (date-grouped). Your own actions still appear as history, but are **never marked unread** (you are never *notified* of what you did — no badge, no highlight). It is the only surface that can announce a trip the user has not yet opened — e.g. being added to a brand-new trip. Distinct from the per-trip [[Timeline]] (a single trip's expenses + settlements) and from the [[Overview]] (spend summary).
 
-Read state is a **single per-user `last_seen_at` cursor** (synced, multi-device). Unread = events newer than the cursor, with `actor != me`, on non-muted trips (see [[Trip mute preference]]). Opening the Activity tab advances the cursor to now and clears the badge; opening an individual trip does not. The same count drives the tab badge and the app-icon badge.
+Read state is a **single per-user `last_seen_at` cursor** (synced, multi-device). Unread = events newer than the cursor, with `actor != me`, on non-muted trips (see [[Trip mute preference]]). Leaving the Activity tab advances the cursor to now and clears the badge, so unread dots stay visible while reading; opening an individual trip does not. The same count drives the tab badge and the app-icon badge.
 
 ### Friends
 The first bottom tab (Friends · Trips · Activity · Settings): a per-person, cross-trip debt view. Lists every person the current user shares a non-zero [[Overall balance]] with, netted across all trips and the [[Non-group expense]] context, per currency. Tapping a person opens a detail that breaks the overall balance back out **by source** (non-group + each trip) and shows a unified history of every shared expense and settlement, each row tagged with its origin. [[Settle up]] from here is per-source (see [[Overall balance]]). Distinct from the per-trip Balances surface, which answers debt *within one trip*. Answers debt only — spend lives in [[Overview]].
@@ -131,7 +131,7 @@ The first bottom tab (Friends · Trips · Activity · Settings): a per-person, c
 The APNs channel: an OS-level banner delivered to a member's [[Push device]]s when a trip event occurs, even with the app closed. Same source and same targeting rules as the [[Activity]] feed (members of the trip, minus the actor, minus those who set a [[Trip mute preference]]). Recipient device tokens are selected server-side at send time; no per-recipient row is stored. Current policy: **every** [[Activity log]] action type fires a push (tunable later in the sender, no schema change). Banners are rich (actor + amount + description; trip name as title); lock-screen privacy is left to iOS's native "Show Previews" setting. Pushes are grouped natively by trip via APNs `thread-id`; rapid re-edits of one entity collapse via `apns-collapse-id`. The send payload also carries the recipient's current unread count as `aps.badge` so the app-icon badge stays correct with the app closed.
 
 ### Soft delete
-Mutable user-visible records are deleted by setting `deleted_at`, not by immediate hard delete. Active domain calculations ignore soft-deleted expenses and settlements. The server-side purge window is 30 days.
+Mutable user-visible records are deleted by setting `deleted_at`, not by immediate hard delete. Active domain calculations ignore soft-deleted expenses and settlements. Soft-deleted rows stay as tombstones so every device learns of the delete; `purge_soft_deleted_records` exists on the server but is not scheduled.
 
 ### Trip mute preference
 A per-user, per-trip notification preference. Row presence means the trip is muted for that user; absence means unmuted. Semantics are **silence, don't hide**: a muted trip stops sending [[Push notification]]s and stops contributing to the unread badge, but its events still appear in the [[Activity]] feed so the user can catch up deliberately.

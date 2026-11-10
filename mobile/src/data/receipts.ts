@@ -104,9 +104,15 @@ export function discardStagedReceipt(userId: string, path: string, file?: string
 /** Uploads receipts whose expenses have reached the server. */
 export async function uploadPendingReceipts(store: Store, alive: () => void): Promise<void> {
   for (const expense of store.getState().tables.expenses.values()) {
-    if (expense._receipt !== "pending" || isDirty(expense) || expense.deleted_at || !expense.receipt_storage_path) continue;
+    if (expense._receipt !== "pending" || isDirty(expense) || !expense.receipt_storage_path) continue;
     alive();
     const path = expense.receipt_storage_path;
+    if (expense.deleted_at) {
+      // A deleted expense's photo has nowhere to go.
+      await store.commit([{ table: "expenses", row: { ...expense, _receipt: null, _receiptFile: null } }]);
+      discardStagedReceipt(store.userId, path, expense._receiptFile);
+      continue;
+    }
     const name = expense._receiptFile ?? fileNameFor(path);
     const file = new File(pendingDir(store.userId), name);
     // A pending photo whose file is gone can't be sent; mark it failed so the
