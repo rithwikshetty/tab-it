@@ -131,7 +131,15 @@ To retake them:
    `mock@tab.local`.
 3. Set the status bar with
    `xcrun simctl status_bar <udid> override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4`.
-4. Capture each screen at device resolution.
+4. Capture each screen at device resolution. The simulator leaves a 4 × 4
+   black block in the top-left corner of each capture; paint it with the
+   background colour.
+
+The landing page shows the same screens. `site/assets/01-trips.jpg`,
+`02-trip-detail.jpg` and `04-friends.jpg` are 600 × 1304 JPEG copies of
+`01-trips.png`, `02-trip.png` and `05-friends.png`, and the link preview images
+`site/assets/og.png` and `og-invite.png` show `01-trips.png` inside the taped
+card. Update them together with this set.
 
 ## App Review notes (submission form)
 
