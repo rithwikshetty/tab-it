@@ -127,3 +127,11 @@ The user approved every step of `docs/reports/2026-10-19-production-rollout-plan
   - Both migrations are committed under their production versions.
   - `api.auto_expose_new_tables` is removed from `supabase/config.toml`.
   - A fresh reset applies the baseline plus both migrations, and all 15 pgTAP suites pass.
+
+## Legacy handoff validation (2026-10-18)
+
+- Added the iOS keychain module and bounded session startup. Persisted legacy account evidence supports data-import retries after native token deletion. The provider waits for import before exposing the store or creating sync, and waits for import before closing a cancelled store.
+- `npx tsc --noEmit` passed. `npx vitest run` passed all 410 tests across 34 files. Explicit Prettier checks passed for every edited TypeScript file. The full source formatting check passed before concurrent UI edits; its final run flags the out-of-scope `src/ui/primitives.tsx`.
+- `npx expo prebuild --platform ios --no-install`, `pod install`, and `xcodebuild -workspace ios/tabit.xcworkspace -scheme tabit -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/tab-legacy-dd build` passed. The native module compiled for arm64 and x86_64, and the generated module provider registers `LegacyKeychainModule`. The built bundle ID is `com.rithwikshetty.tab`. No simulator install or launch was performed.
+- Focused legacy/module ESLint checks passed using a temporary config. The provider's existing synchronous `setOpened(null)` effect triggers `react-hooks/set-state-in-effect`, also reproduced against its unchanged baseline. Expo's automatic lint setup was removed from the app dependency files and repository config.
+- Signed device upgrade and real installed-session/runtime import checks remain. No hosted backend or production data was accessed.

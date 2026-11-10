@@ -1,9 +1,9 @@
 # App Store Connect: App Privacy ("nutrition label") answers
 
 Fill these in App Store Connect → App → App Privacy. Answers reflect what the app
-actually sends off-device as of 2026-06-11 (Supabase backend, no analytics, no ads,
-no tracking SDKs). Re-audit before submission if new data flows are added
-(e.g. crash reporting, analytics, CAPTCHA).
+actually sends off-device as of 2026-11-10 (Supabase backend, Cloudflare Turnstile
+on email-code sign-in, no analytics, no ads, no tracking SDKs). Re-audit before
+submission if new data flows are added (e.g. crash reporting, analytics).
 
 ## Top-level question
 
@@ -28,20 +28,28 @@ for every type.
 ## Explicitly NOT collected (answer No / leave unchecked)
 
 - Health & Fitness, Financial Info (no bank or card data; amounts are user content),
-  Location, Sensitive Info, Contacts (the system contact picker shares only the
-  single selected email; the address book is never read), Browsing History,
+  Location, Sensitive Info, Contacts (only the email of the one contact the user
+  picks leaves the phone; the address book is never uploaded), Browsing History,
   Search History, Usage Data, Diagnostics, Purchases, Audio Data.
 
-Note on "Contacts": Apple's category means address-book access. tab uses
-`CNContactPickerViewController`, which runs out-of-process and returns only the
-tapped email. The app has no Contacts permission and cannot read the address
-book, so "Contacts" is not collected. The selected email is covered under
-Contact Info → Email Address.
+Note on "Contacts": Apple's category means collecting the user's address book.
+The app shows the system contact picker (`Contact.presentPicker()` in
+`mobile/src/features/people/contacts.ts`), then reads the picked contact's name
+and email addresses. That read needs Contacts access, so the app declares
+`NSContactsUsageDescription` (the `expo-contacts` plugin in
+`mobile/app.config.ts`) and iOS asks the user for it. Only the email the user
+chooses is stored and sent, and it is covered under Contact Info → Email
+Address. The address book itself is never sent, so "Contacts" stays unchecked.
+
+Note on Turnstile: requesting an email sign-in code runs Cloudflare Turnstile
+in a web view (`mobile/src/features/auth/turnstile.tsx`). Cloudflare sees the
+device's IP address and browser signals to tell a person from a bot. The
+privacy policy discloses this. Confirm with the App Privacy definitions whether
+it needs its own entry before the next submission.
 
 ## Privacy policy URL
 
-Host `docs/legal/privacy-policy.html` and use that URL, e.g.
-`https://tab-it.app/privacy` (or the GitHub Pages URL until the domain is live).
+The policy is `site/privacy.html`, served at `https://tab-it.app/privacy`.
 
 ## Account deletion review note
 
