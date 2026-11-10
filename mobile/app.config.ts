@@ -14,7 +14,7 @@ const config: ExpoConfig = {
   name: "tab-it",
   slug: "tab",
   scheme: BUNDLE_ID,
-  version: "2.0.0",
+  version: "2.0.1",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
